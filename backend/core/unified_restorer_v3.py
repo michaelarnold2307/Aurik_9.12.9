@@ -15060,14 +15060,52 @@ class UnifiedRestorerV3:
                 material_key=_tqc_mat_key,
                 transfer_chain=_tqc_chain if len(_tqc_chain) > 1 else None,
             )
-            if not _tqc.passed:
+            # §v10.x Quell-Relativierung (Befund 2026-08-22, Wurzel-Fix):
+            # Der MOS-Proxy misst intra-Segment-DYNAMIK (95./5.-Perzentil-SNR).
+            # Natürliche Verse/Chorus-Dichteunterschiede ergeben span=2.94/σ=0.90
+            # bei vinyl — die absoluten Schwellen (1.00/0.50) alarmieren auf
+            # natürlicher Musik und das Enforcement würde gesunde, dichte
+            # Segmente drosseln (§0 Primum non nocere, §V7 Ursache statt Symptom).
+            # Ein Verstoß liegt nur vor, wenn das RESTAURIERTE Signal gegenüber
+            # der QUELLE regressiert — oder keine Quelle messbar ist (dann bleibt
+            # das bisherige absolute Verhalten konservativ erhalten).
+            _tqc_orig = None
+            _tqc_span_orig = -1.0
+            _tqc_sigma_orig = -1.0
+            try:
+                _tqc_src = original_audio_for_goals
+                if _tqc_src is not None and getattr(_tqc_src, "size", 0) >= sample_rate * 25:
+                    _tqc_orig = measure_temporal_coherence(
+                        _tqc_src,
+                        sample_rate,
+                        material_key=_tqc_mat_key,
+                        transfer_chain=_tqc_chain if len(_tqc_chain) > 1 else None,
+                    )
+                    _tqc_span_orig = float(getattr(_tqc_orig, "max_span", -1.0))
+                    _tqc_sigma_orig = float(getattr(_tqc_orig, "sigma", -1.0))
+                    logger.debug(
+                        "TQC Quelle: span=%.3f σ=%.3f n=%d",
+                        _tqc_span_orig,
+                        _tqc_sigma_orig,
+                        int(getattr(_tqc_orig, "n_segments", 0)),
+                    )
+            except Exception as _tqc_src_exc:
+                logger.debug("TQC Quellmessung nicht verfügbar: %s", _tqc_src_exc)
+
+            _tqc_regressed = _tqc_span_orig >= 0.0 and (
+                _tqc.max_span > _tqc_span_orig * 1.25 + 0.15 or _tqc.sigma > _tqc_sigma_orig * 1.25 + 0.05
+            )
+            _tqc_violation = bool(not _tqc.passed and (_tqc_span_orig < 0.0 or _tqc_regressed))
+            if _tqc_violation:
                 logger.warning(
                     "⚠️ TemporalQualityCoherence: NICHT BESTANDEN "
-                    "(max_span=%.3f σ=%.3f n=%d material=%s) — zeitliche Konsistenz prüfen",
+                    "(max_span=%.3f σ=%.3f n=%d material=%s, Quelle span=%.3f σ=%.3f) — zeitliche Konsistenz prüfen",
                     _tqc.max_span,
                     _tqc.sigma,
                     _tqc.n_segments,
                     _tqc_mat_key or "unbekannt",
+                    _tqc_span_orig,
+                    _tqc_sigma_orig,
                 )
                 # §2.16 Enforcement: targeted spectral gate on low-quality segments.
                 # For each segment with score < (mean − sigma×0.5), derive a per-frame
@@ -15084,6 +15122,17 @@ class UnifiedRestorerV3:
                         _tqc_std = float(_tqc_np.std(_tqc_arr))
                         _tqc_bad_thr = max(1.0, _tqc_mean - _tqc_std * 0.5)
                         _tqc_bad_idx = [i for i, s in enumerate(_tqc_scores) if s < _tqc_bad_thr]
+                        # §v10.x Quell-Relativierung: Nur Segmente gaten, deren
+                        # MOS gegenüber der QUELLE gefallen ist (≥ 0.3). Segmente,
+                        # die schon in der Quelle niedrig waren, sind natürliche
+                        # Dynamik — kein Gate (§0). Ohne Quelle: absolutes Verhalten.
+                        if _tqc_orig is not None:
+                            _tqc_orig_scores = list(getattr(_tqc_orig, "segment_scores", []))
+                            _tqc_bad_idx = [
+                                i
+                                for i in _tqc_bad_idx
+                                if i < len(_tqc_orig_scores) and (_tqc_scores[i] + 0.30 < _tqc_orig_scores[i])
+                            ]
 
                         if _tqc_bad_idx and _tqc_std > 0.01:
                             # Geometry must match TQC (10 s window, 5 s hop, 0.5 s crossfade)
@@ -15186,6 +15235,15 @@ class UnifiedRestorerV3:
                             "§2.16 TQC enforcement fehlgeschlagen (nicht blockierend): %s",
                             _tqc_enf_exc,
                         )
+            elif not _tqc.passed and _tqc_span_orig >= 0.0:
+                logger.info(
+                    "TemporalQualityCoherence: max_span=%.3f σ=%.3f entspricht der Quelle (%.3f/%.3f) — "
+                    "natürliche Dynamik, kein Enforcement (§0)",
+                    _tqc.max_span,
+                    _tqc.sigma,
+                    _tqc_span_orig,
+                    _tqc_sigma_orig,
+                )
             else:
                 logger.debug(
                     "TemporalQualityCoherence: OK (max_span=%.3f σ=%.3f)",
