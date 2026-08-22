@@ -14592,6 +14592,11 @@ class UnifiedRestorerV3:
                     self._restoration_context["_fc_active"] = True  # Legacy compat
                 _fc_chain_result = _fc_chain.run(restored_audio, _fc_phases_list, ceiling=_fc_ceiling_val)
                 restored_audio = _fc_chain_result.audio
+                # §v10.x Chunk-Längen-Invariante (Befund 2026-08-22): letzte
+                # shape-kompatible Pipeline-Ausgabe als Fallback-Checkpoint —
+                # für den Fall, dass ein Post-Pipeline-Block ein Voll-Song-
+                # Signal in einen Chunk-Lauf mischt (FATAL-Trim zerstört Inhalt).
+                self._shape_safe_fallback_audio = np.asarray(restored_audio, dtype=np.float32).copy()
                 try:
                     from backend.core.phase_event_bus import bus
 
@@ -16253,6 +16258,9 @@ class UnifiedRestorerV3:
                     "emotionalitaet",  # §v10.14: Emotionsbogen-Verlust (0.088→0.80 gap)
                 }
                 _p1p2_violations = [g for g in _mg_violations if g in _P1P2_GOALS]
+                # §v10.x Shape-Guard (Befund 2026-08-22): Blend nur bei identischen
+                # Shapes — sonst mischt NumPy-Broadcasting Chunk- und Voll-Song-
+                # Signale (FATAL: 10.7M vs. 1.44M).
                 if (
                     _p1p2_violations
                     and original_audio_for_goals is not None
@@ -20947,6 +20955,18 @@ class UnifiedRestorerV3:
             if _len_pct > 0.50:
                 # §v10.14: >50% Längenunterschied → kein Resample, sondern trimmen.
                 # Resample würde Audio unbrauchbar machen (7.5× Zeitkompression).
+                # §v10.x Fallback-Checkpoint (Befund 2026-08-22): Statt blind zu
+                # trimmen (zerstört bei Chunk k>0 den Inhalt), die letzte
+                # shape-kompatible Pipeline-Ausgabe verwenden — sie entstand
+                # VOR den Post-Pipeline-Blöcken aus dem korrekten Chunk-Audio.
+                _fb = getattr(self, "_shape_safe_fallback_audio", None)
+                if _fb is not None and getattr(_fb, "shape", (_target_len,))[_axis] == _target_len:
+                    logger.warning(
+                        "FATAL-Längen-Mismatch (%d vs Ziel %d): Fallback-Checkpoint verwendet (kein Trim)",
+                        _a.shape[_axis],
+                        _target_len,
+                    )
+                    return cast(np.ndarray, np.asarray(_fb, dtype=np.float32))
                 logger.error(
                     "FATAL: restored_audio Länge %d weicht >50%% von Ziel %d ab — trimme auf Ziel (kein Resample!)",
                     _a.shape[_axis],
