@@ -1567,6 +1567,9 @@ class UnifiedRestorerV3:
         self._interaction_guard_metadata: dict = {}
         self._artifact_freedom_detail: dict = {}
         self._hpi_best_rollback_audio: object = None
+        self._step_no: int = 0  # §v10.x additive Schritt-Zählung (auch bei Direktaufruf von _ausfuehren_pipeline)
+        self._step_total: int = 0
+        self._shape_safe_fallback_audio: np.ndarray | None = None
         self._carrier_chain_recovery_ratio: float = 0.0
         self._best_carrier_checkpoint: object = None
         self._last_carrier_phase_id: str | None = None
@@ -7696,6 +7699,23 @@ class UnifiedRestorerV3:
         # §CROWN: Closed-Loop Perceptual Optimization — Opt-in via kwarg
         if kwargs.get("optimize", False):
             return self._restore_optimized(audio, sample_rate, progress_callback, **kwargs)  # type: ignore[no-any-return]
+        # §v10.x Layout-Normalisierung am Pipeline-Eingang (SOTA-Sweep):
+        # Intern gilt channels-first (C, N) (AGENTS.md-Konvention). Der
+        # Batch-/GUI-Pfad liefert samples-first (N, C) — EIN bit-identisches
+        # Transpose hier normalisiert den gesamten Rest von restore() und
+        # tötet die (N,C)/(C,N)-Bug-Klasse an der Wurzel (mean(axis=0)-
+        # Mono-Mixe, Längen-Guards, Blend-Shape-Mismatch …). Die Rück-
+        # transformation übernimmt _normalize_to_external_layout am Ausgang
+        # (externes Shape wurde VOR diesem Transpose erfasst). Referenzen
+        # werden ebenfalls normalisiert, damit Blend-/Gate-Shape-Checks
+        # intern konsistent sind. Chunking und _restore_optimized laufen
+        # weiterhin auf dem gelieferten Layout (eigenes Slicing).
+        from backend.core.audio_layout import to_channels_first as _lay_norm_cf
+
+        audio = _lay_norm_cf(audio)
+        _oa_raw = kwargs.get("original_audio")
+        if _oa_raw is not None and isinstance(_oa_raw, np.ndarray):
+            kwargs["original_audio"] = _lay_norm_cf(_oa_raw)
         # Per-Run Metadata zurücksetzen, damit keine Stale-Einträge aus Vorläufen
         # in Guard-/Export-Entscheidungen einfließen.
         self._metadata = {}
