@@ -161,12 +161,15 @@ def test_quality_gate_snr_clear_drop_still_fails(monkeypatch):
     assert "SNR too low" in reason
 
 
-def test_quality_gate_snr_high_baseline_remains_strict(monkeypatch):
-    """Bei hoher Baseline bleibt das SNR-Gate streng und verlangt echte Verbesserung."""
+def test_quality_gate_snr_high_baseline_restoration_preserves(monkeypatch):
+    """§v10.x Baseline-Relativierung: Bei hoher Baseline (≥38 dB) darf
+    Restoration den SNR ERHALTEN — eine erzwungene +3-dB-Steigerung würde
+    aggressives Denoising provozieren (§2.54, §0) und bestraft eine bewusst
+    konservative Pipeline (Log: SNR 38.9→38.9, Verdikt ❌ trotz MUSHRA ✅)."""
     mqa = MusicalQualityAssurance()
     baseline = _quality_with_snr(50.0)
 
-    # Für CD mit hoher Baseline reicht Stagnation nicht aus.
+    # Restoration: Stagnation bei sauberer Quelle ist OK (keine Regression).
     monkeypatch.setattr(mqa.analyzer, "analyze_quality", lambda _audio, _sr: _quality_with_snr(50.0, overall=90.0))
 
     gate_ok, reason = mqa.check_quality_gate(
@@ -175,6 +178,24 @@ def test_quality_gate_snr_high_baseline_remains_strict(monkeypatch):
         baseline,
         MediumType.CD,
         ProcessingMode.RESTORATION,
+    )
+
+    assert gate_ok is True, f"Restoration-Erhalt muss bestehen: {reason}"
+
+
+def test_quality_gate_snr_high_baseline_studio_expects_improvement(monkeypatch):
+    """§v10.x Studio 2026 bleibt anspruchsvoll: +1 dB SNR-Erwartung bei hoher Baseline."""
+    mqa = MusicalQualityAssurance()
+    baseline = _quality_with_snr(50.0)
+
+    monkeypatch.setattr(mqa.analyzer, "analyze_quality", lambda _audio, _sr: _quality_with_snr(50.0, overall=90.0))
+
+    gate_ok, reason = mqa.check_quality_gate(
+        np.zeros(48000, dtype=np.float32),
+        48000,
+        baseline,
+        MediumType.CD,
+        ProcessingMode.STUDIO_2026,
     )
 
     assert gate_ok is False

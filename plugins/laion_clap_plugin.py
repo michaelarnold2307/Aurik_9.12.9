@@ -202,6 +202,7 @@ class LAIONCLAPPlugin:
 
     def __init__(self) -> None:
         self._audio_session: Any = None  # onnxruntime.InferenceSession (ONNX-Pfad)
+        self._audio_session_model_path: str | None = None  # §ROCm-Fallback: Pfad für CPU-Rebuild
         self._clap_model: Any = None  # laion_clap.CLAP_Module (PyTorch-Pfad)
         self._text_embeddings: np.ndarray | None = None
         self._model_loaded: bool = False
@@ -262,6 +263,7 @@ class LAIONCLAPPlugin:
                         str(audio_enc_path),
                         providers=_clap_providers,
                     )
+                    self._audio_session_model_path = str(audio_enc_path)
                 except Exception:
                     if _ml_release_onnx is not None:
                         _ml_release_onnx("LaionCLAP_ONNX")
@@ -507,6 +509,23 @@ class LAIONCLAPPlugin:
     # Öffentliche API
     # ------------------------------------------------------------------
 
+    def _build_cpu_audio_session(self) -> Any:
+        """ROCm-Fallback: Audio-Session CPU-only neu aufbauen (MIOpen-Kernel-Fehler).
+
+        Returns:
+            Neue CPU-Session oder None, wenn kein Modellpfad hinterlegt ist
+            oder der Neuaufbau fehlschlägt.
+        """
+        if not self._audio_session_model_path:
+            return None
+        try:
+            import onnxruntime as ort
+
+            return ort.InferenceSession(self._audio_session_model_path, providers=["CPUExecutionProvider"])
+        except Exception as _exc:
+            logger.warning("LAION-CLAP: CPU-Session-Rebuild fehlgeschlagen: %s", _exc)
+            return None
+
     def embed_audio(self, audio: np.ndarray, sr: int) -> np.ndarray:
         """Gibt a 512-dim L2-normalised audio embedding for downstream NN search zurück.
 
@@ -544,7 +563,20 @@ class LAIONCLAPPlugin:
             except Exception as _exc:
                 logger.debug("LaionCLAP: PLM set_active failed: %s", _exc)
             try:
-                outputs = self._audio_session.run(None, {input_name: feat})
+                try:
+                    outputs = self._audio_session.run(None, {input_name: feat})
+                except Exception as _ort_exc:
+                    # §ROCm-Fallback: MIOpen-Kernel-Fehler (Code object build failed)
+                    # auf GPU → Session CPU-only neu aufbauen und EINMAL wiederholen.
+                    # Kein Qualitätsverlust, nur Laufzeit (CPU-Inferenz).
+                    logger.warning(
+                        "LAION-CLAP: ONNX-Inferenz fehlgeschlagen (%s) — CPU-Fallback-Retry", _ort_exc
+                    )
+                    _cpu_session = self._build_cpu_audio_session()
+                    if _cpu_session is None:
+                        raise
+                    self._audio_session = _cpu_session
+                    outputs = self._audio_session.run(None, {input_name: feat})
             finally:
                 if _plm_clap is not None:
                     try:
@@ -612,12 +644,22 @@ class LAIONCLAPPlugin:
         else:
             result = self._tag_dsp_fallback(audio_f32, sr)
 
-        logger.info(
-            "🔵 LAION-CLAP: Top-Instrumente=%s | Genre=%s | Modell=%s",
-            result.top_instruments()[:2],
-            result.top_genres()[:1],
-            result.model_used,
-        )
+        if result.model_used == "panns_fallback":
+            logger.info(
+                "🔵 LAION-CLAP: Top-Instrumente=%s | Genre=%s | Modell=%s (DSP-Heuristik, conf=%.2f) — "
+                "Labels advisory, keine Modell-Erkennung",
+                result.top_instruments()[:2],
+                result.top_genres()[:1],
+                result.model_used,
+                float(getattr(result, "confidence", 0.0)),
+            )
+        else:
+            logger.info(
+                "🔵 LAION-CLAP: Top-Instrumente=%s | Genre=%s | Modell=%s",
+                result.top_instruments()[:2],
+                result.top_genres()[:1],
+                result.model_used,
+            )
         return result
 
     # ------------------------------------------------------------------

@@ -387,12 +387,23 @@ class SemanticAudioPhase(PhaseInterface):
                         _clap_embedding_32 = [float(x) for x in emb.flatten()[:32].tolist()]
                         _clap_model_used = _clap_result.model_used
                         _clap_confidence = float(_clap_result.confidence)
+                        # §v10.x Fallback-Hygiene (Befund 2026-08-22): Der DSP-
+                        # Fallback synthetisiert Pseudo-Labels aus DSP-Features
+                        # („blues“/„cello“ für einen Schlager) — diese dürfen
+                        # einen existierenden Genre-Hint NICHT überschreiben.
+                        # Nur echte Modell-Ergebnisse (laion_clap) überschreiben.
+                        _clap_is_fallback = str(_clap_model_used) == "panns_fallback"
                         # Override DSP genre_hint when CLAP is confident enough
-                        if _clap_top_genres and _clap_top_genres[0][1] >= 0.35:
+                        if _clap_top_genres and _clap_top_genres[0][1] >= 0.35 and not _clap_is_fallback:
                             genre_hint = _canonicalize_genre_hint(_clap_top_genres[0][0])
                             genre_hint_source = "clap"
                             genre_hint_confidence = float(_clap_top_genres[0][1])
                             _clap_succeeded = True
+                        elif _clap_is_fallback:
+                            logger.info(
+                                "Verarbeitungsschritt 53: CLAP-DSP-Heuristik (advisory) — Genre-Hint bleibt: %s",
+                                genre_hint if isinstance(genre_hint, str) else "kein Hint",
+                            )
                         logger.info(
                             "Verarbeitungsschritt 53: CLAP OK (model=%s, conf=%.2f, top_genre=%s, instruments=%s)",
                             _clap_model_used,

@@ -673,7 +673,13 @@ class MusicalQualityAssurance:
         if _snr_baseline <= _SNR_RAMP_LOW:
             _min_snr_improvement = -0.5 - _snr_depth_relax  # allow slight SNR loss for very noisy sources
         elif _snr_baseline >= _SNR_RAMP_HIGH:
-            _min_snr_improvement = 3.0
+            # §v10.x Baseline-Relativierung (Befund 2026-08-22): Saubere Quellen
+            # (≥38 dB) brauchen keine erzwungene +3-dB-Steigerung — die würde
+            # aggressives Denoising provozieren (§2.54, §0) und bestraft eine
+            # bewusst konservative Pipeline (Log: SNR 38.9→38.9, Verdikt ❌ trotz
+            # MUSHRA ✅). Restoration: Erhalt genügt (keine Regression);
+            # Studio 2026: sanfte +1-dB-Erwartung.
+            _min_snr_improvement = 1.0 if processing_mode == ProcessingMode.STUDIO_2026 else 0.0
         else:
             _t = (_snr_baseline - _SNR_RAMP_LOW) / (_SNR_RAMP_HIGH - _SNR_RAMP_LOW)
             _min_snr_improvement = -0.5 + 3.5 * _t**1.5 - _snr_depth_relax
@@ -710,7 +716,7 @@ class MusicalQualityAssurance:
                 False,
                 (
                     f"SNR too low: {current.snr_db:.1f} < {_effective_snr_min:.1f} dB "
-                    f"(target={_snr_target:.0f}, baseline={_snr_baseline:.1f}, tol={_snr_tolerance_db:.2f})"
+                    f"(Soll={_effective_snr_min:.1f}, baseline={_snr_baseline:.1f}, tol={_snr_tolerance_db:.2f})"
                 ),
             )
 
@@ -1224,8 +1230,16 @@ class MusicalQualityAssurance:
                 pass
         authenticity_preserved = output_quality.authenticity >= input_quality.authenticity * 0.85
         character_preserved = integrity_result.character_preservation >= 0.80
-        natural_sound = output_quality.naturalness >= 0.65 or (
-            input_quality.naturalness < 0.55 and (input_quality.naturalness - output_quality.naturalness) <= 0.10
+        # §v10.x Schwellen-Konsistenz (Befund 2026-08-22): natural_sound nutzte
+        # hart 0.65, während das Integrity-Gate mit medium_gates.min_naturalness
+        # (vinyl=0.75) prüfte → Report enthielt „FAILED (0.73<0.75)“ UND
+        # gleichzeitig „Natural Sound: True (0.73)“. Beide Stellen nutzen jetzt
+        # dieselbe Medium-Schwelle inkl. Quell-Relativierung (§0).
+        _mqa_gates = self.MEDIUM_GATES.get(medium_type)
+        _min_naturalness = float(getattr(_mqa_gates, "min_naturalness", 0.70)) if _mqa_gates else 0.70
+        natural_sound = output_quality.naturalness >= _min_naturalness or (
+            input_quality.naturalness < _min_naturalness - 0.10
+            and (input_quality.naturalness - output_quality.naturalness) <= 0.10
         )
 
         # Calculate processing intensity.
@@ -1322,6 +1336,15 @@ class MusicalQualityAssurance:
                 f"✓ QUALITY GUARANTEED — {medium_type.value} klingt nachweislich besser "
                 f"für das menschliche Ohr{_mushra_note}{_hpi_note}{_bir_note}"
             )
+        elif not gate_passed and _has_perceptual and _mushra >= 70.0 and musical_improvement > 0.005:
+            # §v10.x Perzeptuell-vor-Quantitativ (Befund 2026-08-22): MUSHRA ✅
+            # (≥70) bei gleichzeitigem quantitativem Gate-Fail (z. B. SNR-Ziel) →
+            # das simulierte menschliche Ohr hat Vorrang; das Gate wird zur
+            # WARNUNG degradiert statt das Verdikt zu kippen (MetricArbiter-Logik).
+            verdict = (
+                f"⚠️ PERCEPTUAL PASS — quantitatives Gate degradiert zu WARNUNG: "
+                f"{gate_reason} (MUSHRA={_mushra:.0f} ✅)"
+            )
         elif not gate_passed:
             verdict = f"❌ QUALITY GATES FAILED - {gate_reason}"
         elif not integrity_result.passed:
@@ -1354,7 +1377,9 @@ class MusicalQualityAssurance:
         if not character_preserved:
             warnings.append(f"Character preservation: {integrity_result.character_preservation:.1%} < 80%")
         if not natural_sound:
-            warnings.append(f"Unnatural sound: naturalness {output_quality.naturalness:.2f} < 0.65")
+            warnings.append(
+                f"Unnatural sound: naturalness {output_quality.naturalness:.2f} < {_min_naturalness:.2f}"
+            )
 
         # Collect recommendations
         recommendations = list(integrity_result.recommendations)

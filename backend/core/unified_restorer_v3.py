@@ -4004,7 +4004,24 @@ class UnifiedRestorerV3:
         try:
             from backend.core.global_gain_budget import get_global_gain_budget
 
-            get_global_gain_budget().configure_for_chain_depth(_chain_depth)
+            # §v10.x SNR-Kanonisierung (Befund 2026-08-22): CalibrationContext ist
+            # die kanonische Pre-Analysis-Quelle — statt des stillen Defaults
+            # snr=30/mat=unknown (Log „§GGB-1 snr=30.0dB mat=unknown“ bei
+            # kalibriertem Kontext). Ohne Kontext: bisheriges Verhalten.
+            try:
+                from backend.core.calibration_context import get_calibration_context as _ggb_get_ctx
+
+                _ggb_ctx = _ggb_get_ctx()
+            except Exception:
+                _ggb_ctx = None
+            if _ggb_ctx is not None:
+                get_global_gain_budget().configure_for_chain_depth(
+                    _chain_depth,
+                    snr_db=float(getattr(_ggb_ctx, "snr_db", 30.0) or 30.0),
+                    material=str(getattr(_ggb_ctx, "material_type", "unknown") or "unknown"),
+                )
+            else:
+                get_global_gain_budget().configure_for_chain_depth(_chain_depth)
         except Exception as _ggb_exc:
             logger.warning(
                 "⚠️ Global Gain Grenze nicht verfügbar: %s — Gain-Grenze deaktiviert, "
@@ -7633,6 +7650,11 @@ class UnifiedRestorerV3:
             self._wohlklang_retry_count = 0
             self._wohlklang_best_mushra = 0.0
             self._wohlklang_best_audio = None
+        # §v10.x Song-Isolation (§V8): MQA-Forwarding-Werte pro restore()-Aufruf
+        # zurücksetzen — sonst leckt HPI/MUSHRA eines vorherigen Songs/Chunks
+        # in den finalen Report (Befund 2026-08-22: HPI=0.85 gemessen, Report HPI=0.00).
+        self._mqa_mushra = 0.0
+        self._mqa_hpi = 0.0
         _n_total = audio.shape[0]
         if _n_total / max(sample_rate, 1) > 120.0 and not getattr(self, "_in_chunked", False):
             logger.info("🎵 Chunked-Streaming: %.1fs Audio → RAM O(1)", _n_total / sample_rate)
@@ -25127,10 +25149,14 @@ class UnifiedRestorerV3:
                 else restored_audio
             )
             # §v10.704 B27: MUSHRA-Score aus der lokalen Analytics-Messung forwarden.
-            # Das HPI-Gate laeuft erst nach _collect_reporting_analytics(); hier darf kein
-            # restore()-lokales _hpi_result oder ein evtl. alter self._mqa_hpi gelesen werden.
+            # HPI: der Do-No-Harm-Block setzt self._mqa_hpi pro restore()-Aufruf
+            # (Song-Isolation-Reset am Funktionsanfang); hier den frischen Wert
+            # forwarden statt hart 0.0 — sonst verliert der finale MQA-Report die
+            # perzeptuelle Gewichtung (Befund 2026-08-22: HPI=0.85 gemessen,
+            # Report zeigte HPI=0.00 und „Improvement +32.6%“ bei identischen
+            # In/Out-Scores).
             _mqa_mushra_local = float(getattr(_mushra_result, "mushra_score", 0.0) or 0.0)
-            _mqa_hpi_local = 0.0
+            _mqa_hpi_local = float(getattr(self, "_mqa_hpi", 0.0) or 0.0)
             if _mqa_mushra_local > 0:
                 self._mqa_mushra = _mqa_mushra_local
             _mqa_report = _MQA().validate_final_quality(

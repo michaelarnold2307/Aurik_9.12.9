@@ -1,6 +1,6 @@
 # TASK_CHANGES — Live-Ledger der aktuellen Aufgabe
 
-> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-08-22 20:51 CEST).
+> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-08-22 21:39 CEST).
 > CI (`ci-lite.yml` pr-evidence-gate) erzwingt Abdeckung: jede geänderte Code-Datei muss hier stehen.
 
 ## Geänderte Dateien
@@ -17,10 +17,8 @@
 | M | .github/workflows/ci-lite.yml | modifiziert |
 | M | .gitignore | modifiziert |
 | M | AGENTS.md | modifiziert |
-| M | Aurik10/core/aurik_icons.py | modifiziert |
 | M | Aurik10/ui/keyboard_shortcuts.py | modifiziert |
 | M | Aurik10/ui/modern_window.py | modifiziert |
-| M | TASK_CHANGES.md | modifiziert |
 | M | audit/real_audio_defect_golden_manifest.json | modifiziert |
 | M | audit/real_audio_execution_golden_report.json | modifiziert |
 | M | audit/real_audio_restoration_quality_report.json | modifiziert |
@@ -29,8 +27,6 @@
 | M | backend/core/adaptive_resource_manager.py | modifiziert |
 | M | backend/core/artifact_freedom_gate.py | modifiziert |
 | M | backend/core/aurik_orchestrator.py | modifiziert |
-| M | backend/core/defect_consensus_pipeline.py | modifiziert |
-| M | backend/core/defect_scanner.py | modifiziert |
 | M | backend/core/dsp/sota_vocal_model_router.py | modifiziert |
 | M | backend/core/dsp/stem_level_restorer.py | modifiziert |
 | M | backend/core/dsp/vocal_harmonic_decomp.py | modifiziert |
@@ -55,6 +51,7 @@
 | M | backend/core/mushra_proxy.py | modifiziert |
 | M | backend/core/music_model_flags.py | modifiziert |
 | M | backend/core/musical_goals/semantic_goals.py | modifiziert |
+| M | backend/core/musical_quality_assurance.py | modifiziert |
 | M | backend/core/onnx/runtime.py | modifiziert |
 | M | backend/core/phase_dag.py | modifiziert |
 | M | backend/core/phase_effect_catalog.py | modifiziert |
@@ -62,6 +59,7 @@
 | M | backend/core/phases/phase_09_crackle_removal.py | modifiziert |
 | M | backend/core/phases/phase_12_wow_flutter_fix.py | modifiziert |
 | M | backend/core/phases/phase_19_de_esser.py | modifiziert |
+| M | backend/core/phases/phase_53_semantic_audio.py | modifiziert |
 | M | backend/core/phases/phase_56_spectral_band_gap_repair.py | modifiziert |
 | M | backend/core/phases/phase_66_stem_targeted_nr.py | modifiziert |
 | M | backend/core/pipeline_guard.py | modifiziert |
@@ -69,21 +67,16 @@
 | M | backend/core/pre_export_validator.py | modifiziert |
 | M | backend/core/resampling_utils.py | modifiziert |
 | M | backend/core/runtime_env_selector.py | modifiziert |
-| M | backend/core/signal_flow_tracer.py | modifiziert |
 | M | backend/core/spec_constitution.py | modifiziert |
 | M | backend/core/startup_model_check.py | modifiziert |
 | M | backend/core/stem_remix_balancer.py | modifiziert |
 | M | backend/core/sweet_spot_optimizer.py | modifiziert |
 | M | backend/core/unified_restorer_v3.py | modifiziert |
-| M | backend/core/vocal_focus_analyzer.py | modifiziert |
 | M | backend/core/vocoder_chain.py | modifiziert |
-| M | backend/core/watchdog_monitor.py | modifiziert |
 | M | cli/aurik_cli.py | modifiziert |
 | M | corpus/shellac/manifest.yaml | modifiziert |
 | M | denker/aurik_denker.py | modifiziert |
-| M | denker/cross_phase_coordinator.py | modifiziert |
 | M | denker/defekt_denker.py | modifiziert |
-| M | denker/phase_interaction_denker.py | modifiziert |
 | M | denker/restaurier_denker.py | modifiziert |
 | M | denker/strategie_denker.py | modifiziert |
 | M | docs/CHANGELOG_HISTORY.md | modifiziert |
@@ -115,6 +108,7 @@
 | M | tests/unit/test_hybrid_wow_flutter.py | modifiziert |
 | M | tests/unit/test_ml_device_manager.py | modifiziert |
 | M | tests/unit/test_ml_device_manager_amd.py | modifiziert |
+| M | tests/unit/test_musical_quality_assurance_intensity.py | modifiziert |
 | M | tests/unit/test_session_manager.py | modifiziert |
 | M | tests/unit/test_sota_gap_fixes_2026_05.py | modifiziert |
 | M | tests/unit/test_stem_remix_balancer.py | modifiziert |
@@ -182,12 +176,5 @@
 
 ## Entscheidungen
 
-- **Icon-Bug**: `EMOJI_TO_SVG` fehlten 🎯/📝/✅/⚠(️) → get_icon baute `<Emoji>.svg` und warnte. Mapping auf bestehende Stems (strategy/plan/quality_check/status_medium).
-- **FeedbackChain 38.6s-Initial-Call**: Ursache Voll-Audio-VQI (224 s) im Vor-Fix-Prozess; VQI-Fensterung (Commit a3c8aeca) begrenzt — Log-Warnung verschwindet im nächsten Lauf.
-- **2-Sample-Scan + HPE-Skip + B3-Doppel-Scan im Lauf 20:19–20:42**: Artefakte des Pre-Commit-Stash (20:20:30–20:23:42) — GUI importierte HEAD-Versionen; Fixes existierten bereits im Baum. Zusätzlich: degenerierte-Eingabe-Guard in DefectConsensusPipeline.analyze + layout-sichere Mono-Konvertierung in detect_impulse_defects.
-- **transport_bump max_mag 66…127 (B3-Scan)**: unnormalisiertes Integer-Audio sättigte Severity (0.90) und deaktivierte den low_mag-Filter → Peak-Normalisierung in _detect_transport_bump; Forwarded-Log zählt jetzt tatsächlich übernommene Events.
-- **rs-Anzeige 63.5 vs 64**: nur Display-Rundung (`%.0f`) an 6 Stellen (CPC, PID-Strip, SFT, Watchdog, SongGoalTargets, AdaptiveGoalThresholds) → einheitlich `%.1f`; Werte waren bereits identisch.
-- **formant_f1=0Hz bei stable=True**: widersprüchlich → stable=False wenn F1-Schätzung ungültig.
-- **CACHE-BUST-String** auf 2026-08-22T20:30 aktualisiert.
-- **Offen (dokumentiert, kein Code-Fix):** SNR-Dreifachquelle (14.4/8.6/26.9 dB — Kanonisierung via CalibrationContext.snr_db als Folgeaufgabe), MediumDetector-vs-DefectScanner-Materialwiderspruch (vinyl vs cassette-Logit, advisory), VocalFocusAnalyzer 79.4 s, PANNs-Doppelload.
+- (Architektur-Entscheidungen, kanonische Symbole, Verbote — Aufgabe eintragen)
 
