@@ -1068,7 +1068,7 @@ def _print_prognose_terminal(
         [
             f"  {_ANSI_DIM}Aufnahme-Ära{_ANSI_RESET}    : {f'{decade}er' if decade else '—'}",
             f"  {_ANSI_DIM}Genre{_ANSI_RESET}           : {genre if genre else '—'}",
-            f"  {_ANSI_DIM}SNR{_ANSI_RESET}             : {snr_db:.1f} dB",
+            f"  {_ANSI_DIM}SNR{_ANSI_RESET}             : {snr_db:.1f} dB (source_snr_db)",
             "",
             f"  {_ANSI_BOLD}Chancen-Score{_ANSI_RESET}   : {_color_grade(grade, f'{score100:.0f} / 100  ({grade_de})')}",
             f"  {_ANSI_BOLD}MOS-Prognose{_ANSI_RESET}    : {predicted_mos:.2f}  [{mos_range[0]:.1f}–{mos_range[1]:.1f}]",

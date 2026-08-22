@@ -167,7 +167,7 @@ class BlindInternalReference:
             result.global_snr_proxy_db = float(np.median([c.snr_proxy_db for c in candidates]))
 
             logger.info(
-                "BlindInternalReference: best_Wert=%.3f snr_proxy=%.1fdB top=%d",
+                "BlindInternalReference: best_Wert=%.3f snr_proxy=%.1fdB (bir_snr_proxy, advisory) top=%d",
                 result.best_score,
                 result.global_snr_proxy_db,
                 len(result.segments),

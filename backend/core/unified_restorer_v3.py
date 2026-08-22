@@ -25105,7 +25105,7 @@ class UnifiedRestorerV3:
                 else None
             )
             logger.info(
-                "📌 QualityAnalyzer (Nachher): Wert=%.1f (Δ%s) SNR=%.1f warmth=%.3f naturalness=%.3f",
+                "📌 QualityAnalyzer (Nachher): Wert=%.1f (Δ%s) SNR(output_snr_db)=%.1f warmth=%.3f naturalness=%.3f",
                 _quality_after.overall_score,
                 (
                     f"+{_qa_delta:.1f}"
