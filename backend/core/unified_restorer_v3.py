@@ -46,9 +46,9 @@ import numpy as np
 from backend.core.adaptive_core_scheduler import AdaptiveCoreScheduler
 
 _uv3_logging.getLogger(__name__).info(
-    "§v10.14 CACHE-BUST: unified_restorer_v3.py loaded — version 2026-08-07T01:30 "
-    "(29 fixes: UQ-Drive, Bayesian-Prior, StereoAuth-2-Gate, PhaseCoherentSTFT, "
-    "MDEM-Clamp, TruePeak-Clamp, STOP_GRACEFUL≥12, Primum-non-nocere, ...)"
+    "§v10.14 CACHE-BUST: unified_restorer_v3.py loaded — version 2026-08-22T20:30 "
+    "(30 fixes: + rs-Display-Konsistenz 63.5, transport_bump-Normalisierung B3, "
+    "VQI-Fenster, OLA-Edge-Guard, Groove-Onset-Verlust-Guard, ...)"
 )
 from backend.core.defect_scanner import DefectScanner, DefectType, MaterialType
 from backend.core.musical_goals.adaptive_goal_resolver import (
@@ -6693,11 +6693,15 @@ class UnifiedRestorerV3:
         }
     )
     # Alias für Abwärtskompatibilität (wird in Tests und phase_selection referenziert)
-    # §0a: LITERALES Set — exakt die normativen drei Phasen.
+    # §0a: LITERALES Set — exakt die normativen sechs Phasen
+    # (Rev. 2026-08-16: +44/45/51 gem. tests/normative/test_section_0a_restoration_guard.py).
     _restoration_forbidden_stem_enhancement = {
         "phase_21_exciter",
         "phase_35_multiband_compression",
         "phase_42_vocal_enhancement",
+        "phase_44_guitar_enhancement",
+        "phase_45_brass_enhancement",
+        "phase_51_drums_enhancement",
     }
     _RESTORATION_FORBIDDEN_COALITION_PHASES: frozenset[str] = _RESTORATION_FORBIDDEN
 
@@ -8414,6 +8418,25 @@ class UnifiedRestorerV3:
             _mc_conf_val = float(getattr(_mc_result, "confidence", 0.0)) if _mc_result is not None else 0.0
             _era_prior_str = str(getattr(_era_result, "material_prior", "") or "") if _era_result is not None else ""
             _era_conf_val = float(getattr(_era_result, "confidence", 0.0)) if _era_result is not None else 0.0
+            # §v10.20 Material-Konsens (2026-08-22): Liegt ein pre_Analyse-Konsens
+            # vor, ist er die Single Source of Truth — die Era-Dominanz-Regel
+            # darunter würde sonst flip-floppen (Befund: vinyl → tape → vinyl).
+            # Der Medium-Primär bleibt für die Kalibrierung unangetastet; der
+            # Konsens liefert die konsistente Kette.
+            _consensus_mat = str(getattr(_mc_result, "consensus_material", "") or "") if _mc_result is not None else ""
+            if _consensus_mat and _consensus_mat not in ("unknown", ""):
+                _consensus_chain = list(getattr(_mc_result, "final_chain", []) or [])
+                if _consensus_chain:
+                    try:
+                        _mc_result.transfer_chain = _consensus_chain  # type: ignore[attr-defined]
+                    except Exception:
+                        logger.debug("Material-Konfliktregel: final_chain write-back fehlgeschlagen", exc_info=True)
+                logger.info(
+                    "Material-Konfliktregel (§Spec): pre_Analyse-Konsens aktiv — consensus=%s, chain=%s (kein Era-Dominanz-Flip-Flop)",
+                    _consensus_mat,
+                    " → ".join(_consensus_chain) if _consensus_chain else "—",
+                )
+                _era_prior_str = ""
             _era_conflict_mat: MaterialType | None = None
             if _era_prior_str and _era_prior_str not in ("unknown", "digital", ""):
                 try:
@@ -10188,6 +10211,41 @@ class UnifiedRestorerV3:
             )
             defect_result.material_type = material_type
 
+        # §2.59.1 Defekt-Hint-Ableitung: Der IntelligentPhasePruner (§AC) braucht
+        # GEMESSENE Defekt-Präsenz als Entscheidungsgrundlage. Wird kein externer
+        # defekt_hint übergeben (z.B. Execution-Golden-Gate mit precomputed_phase_plan),
+        # wird der Hint aus dem echten DefectScan abgeleitet. Sonst pruned der Pruner
+        # defektgebundene Pflichtphasen trotz hoher Severity — der dokumentierte
+        # Fehlermodus aus §2.59.1 ("PhasePruner löscht dann fälschlich Phasen") und
+        # ein Verstoß gegen "Niemals einen erkannten Defekt unbehandelt lassen"
+        # (README.md:107). Ein externer Hint bleibt autoritativ und wird nie überschrieben.
+        if not isinstance(getattr(self, "_active_defekt_hint", None), dict) or not (
+            self._active_defekt_hint.get("defect_types")
+        ):
+            try:
+                _dh_types: list[str] = []
+                _dh_sevs: dict[str, float] = {}
+                for _dt, _score in (getattr(defect_result, "scores", {}) or {}).items():
+                    _name = str(getattr(_dt, "value", _dt) or "").strip().lower()
+                    if not _name:
+                        continue
+                    _sev = float(getattr(_score, "severity", 0.0))
+                    _dh_types.append(_name)
+                    _dh_sevs[_name] = _sev
+                _existing_hint = self._active_defekt_hint if isinstance(self._active_defekt_hint, dict) else {}
+                self._active_defekt_hint = {
+                    **dict(_existing_hint),
+                    "defect_types": list(set(_dh_types)),
+                    "defect_severities": _dh_sevs,
+                }
+                if _dh_types:
+                    logger.info(
+                        "§2.59.1 Defekt-Hint aus DefectScan abgeleitet: %d Typen (kein externer Hint übergeben)",
+                        len(_dh_types),
+                    )
+            except Exception:
+                logger.debug("Defekt-Hint-Ableitung fehlgeschlagen (nicht blockierend)", exc_info=True)
+
         # §soft_saturation-Guard-Injection: Severity in _restoration_context eintragen,
         # damit alle Phasen (z.B. phase_38_presence_boost) bei saturiertem Material
         # ihre Intensität reduzieren können. Verhindert "kratzig/übersteuert" bei Vinyl.
@@ -10927,6 +10985,37 @@ class UnifiedRestorerV3:
                     _material_conf_ctx = 0.0
             except Exception:
                 _material_conf_ctx = 0.0
+            # §2.47a (pipeline.instructions.md): material_confidence = detect_result.confidence.
+            # Fehlt die Forensic-Chain-Messung (None → 0.0), ist die MediumDetector-
+            # Konfidenz die normative Quelle. Sonst behandelt der Low-Confidence-Gate
+            # (§v10.303.1) eine FEHLENDE Messung als gemessene Unsicherheit und strippt
+            # defektgebundene Phasen — Verstoß gegen README.md:107
+            # ("Material-Confidence beeinflusst die Stärke, nicht die Selektion").
+            if _mc_result is not None:
+                try:
+                    _mc_conf = float(getattr(_mc_result, "confidence", 0.0) or 0.0)
+                    if np.isfinite(_mc_conf) and _mc_conf > 0.0 and _mc_conf > _material_conf_ctx:
+                        _prev_conf = _material_conf_ctx
+                        _material_conf_ctx = _mc_conf
+                        if _prev_conf <= 0.0:
+                            logger.info(
+                                "§2.47a material_confidence-Fallback: Forensic-Wert fehlt → MediumDetector conf=%.3f",
+                                _mc_conf,
+                            )
+                        else:
+                            # Die Forensic-Messung friert den Wert zum Scan-Zeitpunkt ein;
+                            # die pre_Analyse verfeinert dieselbe MediumDetector-Instanz
+                            # danach bayesianisch. Der FINALE Wert ist normativ — sonst
+                            # strippt §v10.303 Planer-Intelligenz Phasen auf Basis eines
+                            # veralteten Werts (Befund 2026-08-22: 0.307 eingefroren vs.
+                            # 0.482 final → 17 Phasen fälschlich gestrichen).
+                            logger.info(
+                                "§2.47a material_confidence-Aktualisierung: %.3f → MediumDetector final %.3f",
+                                _prev_conf,
+                                _mc_conf,
+                            )
+                except Exception:
+                    pass
             self._restoration_context.update(
                 {
                     "song_calibration_global": self._song_calibration_profile.get("global_scalar", 1.0),
@@ -11454,7 +11543,7 @@ class UnifiedRestorerV3:
                 restoration_prior=_rm_prior if isinstance(_rm_prior, dict) else None,
             )
             logger.info(
-                "§09.2 SongGoalTargets: era=%s mat=%s studio=%s rest=%.0f | %s",
+                "§09.2 SongGoalTargets: era=%s mat=%s studio=%s rest=%.1f | %s",
                 _sgt_era_decade,
                 _sgt_mat_str,
                 _sgt_is_studio,
@@ -15653,7 +15742,7 @@ class UnifiedRestorerV3:
                 restorability_score=float(_pmgg_restorability_score),  # §2.31 SCALE_FACTORS
             )
             logger.info(
-                "🎯 AdaptiveGoalThresholds: konfiguriert (material=%s rest=%.0f)",
+                "🎯 AdaptiveGoalThresholds: konfiguriert (material=%s rest=%.1f)",
                 getattr(_classified_material, "value", str(_classified_material)),
                 float(_pmgg_restorability_score),
             )
@@ -21406,6 +21495,29 @@ class UnifiedRestorerV3:
             self._metadata["closed_loop"] = _cls.summary()
             self._metadata["closed_loop"]["phase_history"] = _cls.phase_history
 
+        # Conditional-Dict-Werte OUTSIDE des Literals berechnen — Inline-if/else
+        # im Dict-Literal triggert Ruff-F601-False-Positives (Rev. 2026-08-16).
+        _goal_importance_meta = (
+            {
+                "weights": dict(self._song_goal_importance.weights),  # type: ignore[attr-defined]
+                "genre_profile": self._song_goal_importance.genre_profile,  # type: ignore[attr-defined]
+                "era_profile": self._song_goal_importance.era_profile,  # type: ignore[attr-defined]
+                "material_profile": self._song_goal_importance.material_profile,  # type: ignore[attr-defined]
+                "vocal_detected": self._song_goal_importance.vocal_detected,  # type: ignore[attr-defined]
+                "reason": self._song_goal_importance.reason,  # type: ignore[attr-defined]
+            }
+            if getattr(self, "_song_goal_importance", None) is not None
+            else None
+        )
+        _uqm_meta = (
+            {
+                "override_applied": bool(_uqm_override_applied),
+                "decision": str(getattr(_uqm_decision, "decision", "") if "_uqm_decision" in dir() else ""),
+                "quality_score": float(getattr(_uqmd, "quality_score", 0.0)),
+            }
+            if (_uqmd := locals().get("_uqm_decision")) is not None
+            else {"override_applied": False}
+        )
         result = RestorationResult(
             audio=restored_audio,
             config=self.config,
@@ -21421,8 +21533,6 @@ class UnifiedRestorerV3:
             warnings=perf_report.warnings if perf_report is not None else [],
             metadata={
                 # ── §v10.700 A1: Guardian-Transparenz ──
-                # Guardian-Revert-Informationen ins Metadaten-Dict schreiben,
-                # damit die GUI den Revert erkennen und anzeigen kann.
                 "do_no_harm_reverted": bool(_do_no_harm_reverted),
                 "do_no_harm_reason": str(_do_no_harm_reason or ""),
                 "do_no_harm_scores": list(_do_no_harm_scores) if _do_no_harm_scores else [],
@@ -21875,6 +21985,18 @@ class UnifiedRestorerV3:
                     if _hpi_result is not None
                     else None
                 ),
+                # Artifact-Freedom-Kontrakt für den Real-Audio Execution Golden Gate:
+                # Der Gate liest meta["artifact_freedom"] als Top-Level-Dict {score, passed}.
+                # Hier wird der GEMESSENE HPI-Wert publiziert (keine Fabrikation):
+                # passed = score >= 0.95 — die dokumentierte Pass-Bedingung des Gates.
+                "artifact_freedom": (
+                    {
+                        "score": float(_hpi_result.artifact_freedom),
+                        "passed": bool(float(_hpi_result.artifact_freedom) >= 0.95),
+                    }
+                    if _hpi_result is not None and hasattr(_hpi_result, "artifact_freedom")
+                    else None
+                ),
                 # §2.48 Interaction Guard
                 "interaction_guard": getattr(self, "_interaction_guard_metadata", {}),
                 "hpi_reference_mode": (self._restoration_context or {}).get("hpi_reference_mode")
@@ -21915,18 +22037,7 @@ class UnifiedRestorerV3:
                     }
                 ),
                 # §2.56 Song-Goal-Importance: per-song goal weights
-                "goal_importance": (
-                    {
-                        "weights": dict(self._song_goal_importance.weights),  # type: ignore[attr-defined]
-                        "genre_profile": self._song_goal_importance.genre_profile,  # type: ignore[attr-defined]
-                        "era_profile": self._song_goal_importance.era_profile,  # type: ignore[attr-defined]
-                        "material_profile": self._song_goal_importance.material_profile,  # type: ignore[attr-defined]
-                        "vocal_detected": self._song_goal_importance.vocal_detected,  # type: ignore[attr-defined]
-                        "reason": self._song_goal_importance.reason,  # type: ignore[attr-defined]
-                    }
-                    if getattr(self, "_song_goal_importance", None) is not None
-                    else None
-                ),
+                "goal_importance": _goal_importance_meta,
                 "goal_recovery": locals().get("_goal_recovery_meta", {"attempted": False}),
                 # §v10.201 GUI-Transport: Guardian/UQM/Qualitäts-Daten für ehrliche Ergebnisanzeige
                 # Diese Felder waren VORHER lokale Variablen, die nach Funktionsende
@@ -21936,15 +22047,11 @@ class UnifiedRestorerV3:
                     "reason": str(_do_no_harm_reason or ""),
                     "degraded_metrics": list(_do_no_harm_scores or []),
                 },
-                "uqm": {
-                    "override_applied": bool(_uqm_override_applied),
-                    "decision": str(getattr(_uqm_decision, "decision", "") if "_uqm_decision" in dir() else ""),
-                    "quality_score": float(getattr(_uqmd, "quality_score", 0.0)),
-                }
-                if (_uqmd := locals().get("_uqm_decision")) is not None
-                else {"override_applied": False},
+                "uqm": _uqm_meta,
                 "hpi_score": float(getattr(_hpi_result, "hpi", 0.0) if _hpi_result is not None else 0.0),
-                "artifact_freedom": float(getattr(self, "_artifact_freedom_score", 0.0) or 0.0),
+                # Hinweis: "artifact_freedom" wird oben als {score, passed}-Dict publiziert
+                # (Real-Audio-Execution-Golden-Gate-Kontrakt). Kein zweiter Skalar-Eintrag
+                # — doppelter Key war F601 (Rev. 2026-08-16).
                 "phases_total": len(executed_phases) + len(skipped_phases) + len(deferred_phases),
                 # §v10.201 ENDE GUI-Transport
                 **_analytics_meta,
@@ -27259,55 +27366,40 @@ class UnifiedRestorerV3:
         # Phasen enthalten eigene hochauflösende Detektionslogik und
         # entscheiden selbst, ob eine Reparatur notwendig ist.
         # ════════════════════════════════════
+        # §6.2a [RELEASE_MUST] — exakt 1:1 zur normativen Tabelle Spec 05 §6.2
+        # (autoritativ gespiegelt in tests/normative/test_material_priority_phases_gate.py).
+        # Befund 2026-08-22: Die Listen enthielten nicht-normative Extras
+        # (reel_tape: +12/+59/+64, teils mit dangling Zitat „§v10.70“), die als
+        # „Pflicht“ injiziert wurden, obwohl sie nur kausal (CAUSE_TO_PHASES)
+        # definiert sind. Erkannte Defekte liefern diese Phasen weiterhin über
+        # den Kausal-Pfad.
         _MATERIAL_PRIORITY_PHASES: dict[str, list[str]] = {
-            "tape": [  # §2.46 ordering (2026-04-26): all subtractive BEFORE additive phase_06
+            "tape": [
                 "phase_24_dropout_repair",
                 "phase_29_tape_hiss_reduction",
                 "phase_12_wow_flutter_fix",
-                "phase_59_modulation_noise_reduction",
-                "phase_64_tape_splice_repair",
-                "phase_06_frequency_restoration",  # additive BW-extension LAST — §2.46 invariant
             ],
             "reel_tape": [
-                "phase_12_wow_flutter_fix",  # §v10.70: fehlte — Profi-Spulenmaschinen haben Capstan-Verschleiß
                 "phase_29_tape_hiss_reduction",
                 "phase_03_denoise",
                 "phase_24_dropout_repair",
                 "phase_55_diffusion_inpainting",
-                "phase_59_modulation_noise_reduction",
-                "phase_64_tape_splice_repair",
             ],
             "vinyl": [
                 "phase_09_crackle_removal",
                 "phase_12_wow_flutter_fix",
                 "phase_05_rumble_filter",
-                "phase_60_inner_groove_distortion_repair",
-                "phase_61_groove_echo_cancellation",
-                # Late-stage click/crackle re-sweep AFTER all spectral phases:
-                # phase_23/29/14/20 can introduce PGHI-ringing, STFT-discontinuities,
-                # and band-recombination transients. phase_27 (AR-residual click removal)
-                # runs as final cleanup pass — ordering enforced via _move_before below.
-                "phase_27_click_pop_removal",
             ],
-            "shellac": [  # §6.2a: pressed shellac; §2.46 ordering (2026-04-26): all subtractive BEFORE additive
-                "phase_09_crackle_removal",  # subtractive — carrier crackle
-                "phase_03_denoise",  # subtractive — broadband noise
-                "phase_01_click_removal",  # subtractive — clicks
-                "phase_28_surface_noise_profiling",  # subtractive — surface noise
-                "phase_05_rumble_filter",  # subtractive — 78-RPM turntable motor rumble (§6.2a Pflicht)
-                "phase_27_click_pop_removal",  # late-stage re-sweep — nach spectral phases (PGHI/STFT)
-                "phase_06_frequency_restoration",  # additive BW-extension LAST — §2.46 invariant
+            "shellac": [
+                "phase_03_denoise",
+                "phase_06_frequency_restoration",
+                "phase_01_click_removal",
             ],
-            "wax_cylinder": [  # §6.2a: mechanisch graviert; §2.46 subtractive BEFORE additive
-                "phase_09_crackle_removal",  # subtractive — carrier crackle
-                "phase_12_wow_flutter_fix",  # subtractive — wow/flutter
-                "phase_03_denoise",  # subtractive — broadband noise
-                "phase_01_click_removal",  # subtractive — clicks
-                "phase_24_dropout_repair",  # subtractive/restorative — dropout
-                "phase_29_tape_hiss_reduction",  # subtractive — surface hiss
-                "phase_05_rumble_filter",  # subtractive — Zylinderphonograph-Motorenrumpeln (§6.2a Pflicht)
-                "phase_55_diffusion_inpainting",  # restorative synthesis — before additive; BW-Cap 5 kHz
-                "phase_06_frequency_restoration",  # additive BW-extension LAST — §2.46; BW-Cap 5 kHz
+            "wax_cylinder": [
+                "phase_03_denoise",
+                "phase_06_frequency_restoration",
+                "phase_01_click_removal",
+                "phase_29_tape_hiss_reduction",
             ],
             "wire_recording": [
                 "phase_12_wow_flutter_fix",
@@ -27320,7 +27412,6 @@ class UnifiedRestorerV3:
                 "phase_09_crackle_removal",
                 "phase_03_denoise",
                 "phase_29_tape_hiss_reduction",
-                "phase_05_rumble_filter",  # Turntable-Rumpeln — §6.2a Pflicht
             ],
             "dat": [
                 "phase_24_dropout_repair",
@@ -27332,7 +27423,7 @@ class UnifiedRestorerV3:
                 "phase_06_frequency_restoration",
                 "phase_40_loudness_normalization",
             ],
-            "mp3_low": [
+            "mp3_low": [  # §6.2 + §8.5A (Spec 07): Presence/Air-Band auch ohne Vocals (Lossy)
                 "phase_23_spectral_repair",
                 "phase_03_denoise",
                 "phase_38_presence_boost",
@@ -27340,7 +27431,7 @@ class UnifiedRestorerV3:
                 "phase_06_frequency_restoration",
                 "phase_50_spectral_repair",
             ],
-            "mp3_high": [
+            "mp3_high": [  # §6.2 + §8.5A (Spec 07)
                 "phase_23_spectral_repair",
                 "phase_39_air_band_enhancement",
                 "phase_06_frequency_restoration",
@@ -27361,13 +27452,10 @@ class UnifiedRestorerV3:
                 "phase_23_spectral_repair",
                 "phase_50_spectral_repair",
             ],
-            "cassette": [  # §6.2a: IEC compact cassette: wow/flutter + hiss dominant; §2.46 ordering (2026-04-26)
-                "phase_12_wow_flutter_fix",  # subtractive — wow/flutter
-                "phase_03_denoise",  # §v10.70: Breitband-NR (war vorher nicht in Liste)
-                "phase_29_tape_hiss_reduction",  # subtractive — tape hiss
-                "phase_24_dropout_repair",  # subtractive/restorative — dropout
-                "phase_59_modulation_noise_reduction",  # subtractive — modulation noise BEFORE additive
-                "phase_06_frequency_restoration",  # additive BW-extension LAST — §2.46 invariant
+            "cassette": [
+                "phase_12_wow_flutter_fix",
+                "phase_29_tape_hiss_reduction",
+                "phase_24_dropout_repair",
             ],
         }
         _mat_key = material.value if hasattr(material, "value") else str(material)
@@ -27388,18 +27476,58 @@ class UnifiedRestorerV3:
             if isinstance(chain_info, dict):
                 _raw_stages = chain_info.get("chain", [])
                 _chain_stages = [str(s) for s in _raw_stages if s] if isinstance(_raw_stages, list) else []
+            # Evidenz-Quelle für ML-schwere Fremd-Injektion — identisch zum Risk-Guard
+            # (gleiche defect_focus_scores, gleicher 0.35-Schwellwert).
+            _ctx_chain = getattr(self, "_restoration_context", None) or {}
+            _focus_chain = _ctx_chain.get("defect_focus_scores", {})
+            if not isinstance(_focus_chain, dict):
+                _focus_chain = {}
+            _foreign_inpaint_evidence = 0.0
+            for _fk, _fv in _focus_chain.items():
+                try:
+                    _fk_name = str(_fk).lower()
+                    if any(_n in _fk_name for _n in ("dropout", "gap", "splice", "band_gap", "print_through")):
+                        _foreign_inpaint_evidence = max(_foreign_inpaint_evidence, float(_fv))
+                except Exception:
+                    continue
+            # ML-schwere Phasen werden bei FREMD-Kettengliedern nur mit Evidenz
+            # injiziert — sonst entsteht „Pflicht injizieren, Risk-Guard entfernt
+            # sie wieder“-Churn (Befund 2026-08-22: phase_55 auf vinyl-Primary mit
+            # inpaint_evidence=0.00). Subtraktive Band-Reparatur bleibt unbedingt.
+            _ML_GATED_FOREIGN = frozenset({"phase_55_diffusion_inpainting"})
             for _stage in _chain_stages:
                 if _stage == _mat_key:
                     continue  # primary material already handled above
                 _stage_priorities = _MATERIAL_PRIORITY_PHASES.get(_stage, [])
-                # §v10.705 B6: Chain-Injection ist korrekt — Defekte wandern durch
-                # die Kette. ABER: warne bei Material-Fremdlauf und reduziere später
-                # die Stärke (PhaseInteractionDenker §v10.706).
+                _injected: list[str] = []
+                _withheld: list[str] = []
                 for _sp in _stage_priorities:
+                    if _sp in _ML_GATED_FOREIGN and _foreign_inpaint_evidence < 0.35:
+                        _withheld.append(_sp)
+                        continue
                     if _sp not in _selected_set_mat:
                         selected.append(_sp)
                         _selected_set_mat.add(_sp)
                         _mat_priority_added.append(_sp)
+                        _injected.append(_sp)
+                if _withheld:
+                    logger.info(
+                        "§v10.705 B6 Fremd-Injektion evidenz-gated: Kettenglied '%s' (primär=%s) — "
+                        "%s NICHT injiziert (inpaint_evidence=%.2f < 0.35)",
+                        _stage,
+                        _mat_key,
+                        ", ".join(_withheld),
+                        _foreign_inpaint_evidence,
+                    )
+                if _injected:
+                    logger.warning(
+                        "§v10.705 B6 Material-Fremdlauf: Kettenglied '%s' (primär=%s) injiziert %d Pflichtphase(n): %s — "
+                        "Stärke-Reduktion via PhaseInteractionDenker (§v10.706)",
+                        _stage,
+                        _mat_key,
+                        len(_injected),
+                        ", ".join(_injected),
+                    )
         if _mat_priority_added:
             logger.info(
                 "📋 §6.2a Material-Pflichtphasen: %d ergänzt für material=%s: %s",
@@ -31400,7 +31528,8 @@ class UnifiedRestorerV3:
                 logger.debug("Ersatzpfad in unified_restorer_v3.py", exc_info=True)
 
         # ── §DENKER: Zentrale Guard-Modulation via PhaseInteractionDenker ──
-        if "strength" in kwargs:
+        # §v10.53: Explizite Stärke bleibt autoritativ — nur implizite Stärke modulieren.
+        if (not _strength_explicit) and "strength" in kwargs:
             try:
                 from denker.phase_interaction_denker import PhaseInteractionDenker
 
@@ -31425,7 +31554,9 @@ class UnifiedRestorerV3:
         # unabhängig. Der CrossPhaseCoordinator prüft die kumulative Wirkung,
         # verteilt ein Budget pro Frequenzband und deckelt Überlappungen.
         # Ergebnis: kein "Zuviel" im Präsenzbereich, natürlicher Wohlklang.
-        if "strength" in kwargs:
+        # §v10.53: Explizite Stärke bleibt autoritativ — der Consensus-Cap
+        # überschreibt sie nicht (Stability-Guard-Invariante, Spec 07).
+        if (not _strength_explicit) and "strength" in kwargs:
             try:
                 from denker.cross_phase_coordinator import CrossPhaseCoordinator
 
@@ -34687,15 +34818,33 @@ class UnifiedRestorerV3:
 
             _pim_mono = current_audio.mean(axis=1) if current_audio.ndim == 2 else current_audio
             _pim_material = str(getattr(material_type, "value", str(material_type))).lower()
+            # §2.52b BUG-FIX 2026-08-22: Song-Struktur an den PIM durchreichen —
+            # der Mapper lief bisher ohne Kontext (Befund: „10 Bänder × 1 Segmente
+            # — 0 Entscheidungen“), die per-Segment-Intensität war de facto inert.
+            _pim_segments: list[dict] = []
+            for _seg in (self._ssa_segments or []):
+                _s_start = float(getattr(_seg, "start_s", 0.0) or 0.0)
+                _s_end = float(getattr(_seg, "end_s", 0.0) or 0.0)
+                if _s_end <= _s_start:
+                    continue
+                _pim_segments.append(
+                    {
+                        "label": str(getattr(_seg, "label", "verse") or "verse").lower(),
+                        "start_sample": int(_s_start * sample_rate),
+                        "end_sample": int(_s_end * sample_rate),
+                    }
+                )
             _pim_map = get_perceptual_intensity_mapper().compute_intensity_map(
                 np.asarray(_pim_mono, dtype=np.float32),
                 sample_rate,
                 material=_pim_material,
+                song_structure=_pim_segments if _pim_segments else None,
             )
             self._restoration_context["pim_intensity_map"] = _pim_map
             logger.info(
-                "PIM-first: Intensitäts-Map vor Phasen-Loop berechnet (%d Frequenzbänder, material=%s)",
+                "PIM-first: Intensitäts-Map vor Phasen-Loop berechnet (%d Frequenzbänder, %d Segmente, material=%s)",
                 len(getattr(_pim_map, "per_band", {}) or {}),
+                len(getattr(_pim_map, "per_segment", []) or []),
                 _pim_material,
             )
         except Exception as _pim_exc:
@@ -37653,6 +37802,21 @@ class UnifiedRestorerV3:
                 if self._should_skip_low_confidence_phase(phase_id):
                     skipped.append(phase_id)
                     _record_oom_probe("phase_skip_low_confidence", phase_id)
+                    # §v10.x Zähl-Transparenz (Befund 2026-08-22): Dieser Zweig
+                    # war silent — nach 4/32 schienen "weitere Phasen ohne
+                    # Zählung" zu laufen, tatsächlich waren es Skips. Jetzt
+                    # mit Plan-Position loggen, damit die 1/32…32/32-Sequenz
+                    # lückenlos nachvollziehbar ist.
+                    try:
+                        _plan_pos = selected_phases.index(phase_id) + 1
+                    except ValueError:
+                        _plan_pos = len(executed) + 1
+                    logger.info(
+                        "⏭️ %s übersprungen (%d/%d) — Material-Konfidenz zu niedrig (§v10.303)",
+                        phase_id,
+                        _plan_pos,
+                        len(selected_phases),
+                    )
                     continue
 
                 # §2.65 MAS-Early-Stop: wenn alle P1/P2-Goals das song-spezifische
@@ -37705,6 +37869,18 @@ class UnifiedRestorerV3:
                     skipped.append(phase_id)
                     deferred.append(phase_id)  # §2.38 KMV: RT-skipped → Stage 2
                     _record_oom_probe("phase_deferred_rt", phase_id, estimated_time_s=round(float(estimated_time), 3))
+                    # §v10.x Zähl-Transparenz (Befund 2026-08-22): silent defer
+                    # → Plan-Position explizit loggen (KMV Stufe 2).
+                    try:
+                        _plan_pos = selected_phases.index(phase_id) + 1
+                    except ValueError:
+                        _plan_pos = len(executed) + 1
+                    logger.info(
+                        "⏭️ %s deferred (%d/%d) — RT-Budget (KMV Stufe 2)",
+                        phase_id,
+                        _plan_pos,
+                        len(selected_phases),
+                    )
                     continue
 
                 # §Spec04 Wall-Time-Budget: Phasen überspringen die das Budget sprengen würden.
@@ -42359,7 +42535,17 @@ class UnifiedRestorerV3:
             all_absent = True
             for dt in target_defects:
                 dt_key = dt.value if hasattr(dt, "value") else str(dt)
-                sev = float(getattr(_defect_scores.get(dt_key), "severity", 0.0) or 0.0)
+                # §v10.707: defect_result.scores ist mit DefectType-ENUMS gekeyed
+                # (z.B. DefectType.CRACKLE), nicht mit Strings. Enum-Lookup zuerst,
+                # String-Fallback für denormalisierte Dicts — sonst schlägt der Lookup
+                # fehl, severity wird 0.0 und gemessene Defekte (crackle=1.00) werden
+                # fälschlich als "abwesend" übersprungen.
+                _score_obj = _defect_scores.get(dt)
+                if _score_obj is None:
+                    _score_obj = _defect_scores.get(dt_key)
+                if _score_obj is None and isinstance(dt_key, str):
+                    _score_obj = _defect_scores.get(dt_key.upper())
+                sev = float(getattr(_score_obj, "severity", 0.0) or 0.0) if _score_obj is not None else 0.0
                 if sev >= _AUDIBILITY_FLOOR:
                     all_absent = False
                     break
@@ -42397,7 +42583,8 @@ class UnifiedRestorerV3:
     def _should_skip_low_confidence_phase(self, phase_id: str) -> bool:
         """§v10.303: Überspringt Enhancement-Phasen bei kritisch niedriger Material-Confidence.
 
-        Wenn material_confidence < 0.35 (→ UQ-Risk > 0.65), haben Enhancement-Phasen
+        Wenn material_confidence unter dem adaptiven Threshold §v10.303.4 liegt
+        (rs-abhängig ~0.30–0.42), haben Enhancement-Phasen
         typischerweise Null-Effekt (PMGG-Delta +0.0000, kein Pegel-Drop), verbrauchen
         aber signifikant CPU-Zeit (z.B. Transient Shaper 215s).
 
@@ -42438,10 +42625,11 @@ class UnifiedRestorerV3:
         # source_enhancement, dynamics_control, semantic_guidance,
         # spectral_restoration, finalizer_output) wird geskippt.
         logger.info(
-            "§v10.303 Low-Confidence-Gate: %s (family=%s) uebersprungen — material_confidence=%.3f < 0.35",
+            "§v10.303 Low-Confidence-Gate: %s (family=%s) uebersprungen — material_confidence=%.3f < %.3f",
             phase_id,
             _family,
             _conf,
+            _threshold,
         )
         return True
 
@@ -42484,10 +42672,11 @@ class UnifiedRestorerV3:
         if _removed:
             logger.info(
                 "§v10.303 Planer-Intelligenz: %d/%d Phasen aus Denker-Plan gestrichen "
-                "(material_confidence=%.3f < 0.35): %s",
+                "(material_confidence=%.3f < %.3f): %s",
                 len(_removed),
                 len(phases),
                 _conf,
+                _threshold,
                 ", ".join(_removed),
             )
             # §v10.303.3 Denker-Feedback: Gestrichene Familien im Context + PID-Cache
@@ -42766,32 +42955,57 @@ class UnifiedRestorerV3:
             # Phasen-Selektion trifft. Verhindert, dass Defekte in späteren
             # Chunks (z.B. Crackle nur in Chunk 7) keine Reparatur-Phasen erhalten.
             _full_defect_types: set = set()
-            try:
-                # §v10.711: file_ext aus input_path ableiten (propagiert durch kwargs)
-                _input_path_for_chunk = str(kwargs.get("input_path", "") or kwargs.get("file_path", "") or "")
-                _file_ext = kwargs.get("file_ext", "") or ""
-                if not _file_ext and _input_path_for_chunk:
-                    import os as _os_chunk
+            # §v10.702 B3-P2 BUG-FIX 2026-08-22: Liegt der pre_Analyse-Scan vor
+            # (cached_defect_result, vom Denker durchgereicht), dessen Defekt-
+            # Typen deterministisch übernehmen — statt eines zweiten Full-Song-
+            # Scans (Befund: 95 s @48k in pre_Analyse + 77 s @44.1k in B3 mit
+            # inkonsistenten Thresholds und Träger-Ergebnissen). Der Presence-
+            # Scan bleibt Ersatzpfad ohne Cache.
+            _cached_pre_scan = kwargs.get("cached_defect_result")
+            if _cached_pre_scan is not None:
+                try:
+                    _cached_scores = getattr(_cached_pre_scan, "scores", None)
+                    if isinstance(_cached_scores, dict) and _cached_scores:
+                        _full_defect_types = {
+                            (getattr(_dt, "value", None) or str(_dt))
+                            for _dt, _score in _cached_scores.items()
+                            if getattr(_score, "severity", 0.0) >= 0.05
+                        }
+                except Exception as _b3cached_exc:
+                    logger.debug("§B3-Verarbeitungsschritt-2: Cache-Übernahme fehlgeschlagen: %s", _b3cached_exc)
+            if _full_defect_types:
+                _chunk_kwargs["_b3_full_song_defect_types"] = _full_defect_types
+                logger.info(
+                    "§B3-Verarbeitungsschritt-2: %d Defekttypen aus pre_Analyse-Scan übernommen (kein Doppel-Scan)",
+                    len(_full_defect_types),
+                )
+            else:
+                try:
+                    # §v10.711: file_ext aus input_path ableiten (propagiert durch kwargs)
+                    _input_path_for_chunk = str(kwargs.get("input_path", "") or kwargs.get("file_path", "") or "")
+                    _file_ext = kwargs.get("file_ext", "") or ""
+                    if not _file_ext and _input_path_for_chunk:
+                        import os as _os_chunk
 
-                    _file_ext = _os_chunk.path.splitext(_input_path_for_chunk)[1].lower()
-                _full_defect_types = self.defect_scanner.scan_defect_presence(
-                    audio,
-                    sample_rate,
-                    material_type=kwargs.get("material_type"),
-                    min_severity=0.05,
-                    file_ext=_file_ext,
-                )
-                if _full_defect_types:
-                    _chunk_kwargs["_b3_full_song_defect_types"] = _full_defect_types
-                    logger.info(
-                        "§B3-Verarbeitungsschritt-2: %d Defekttypen im Gesamt-Song erkannt → Chunk-0-Phasen-Selektion",
-                        len(_full_defect_types),
+                        _file_ext = _os_chunk.path.splitext(_input_path_for_chunk)[1].lower()
+                    _full_defect_types = self.defect_scanner.scan_defect_presence(
+                        audio,
+                        sample_rate,
+                        material_type=kwargs.get("material_type"),
+                        min_severity=0.05,
+                        file_ext=_file_ext,
                     )
-            except Exception as _b3pres_exc:
-                logger.warning(
-                    "§B3-Verarbeitungsschritt-2 Defect-Presence-Scan fehlgeschlagen: %s — Ersatzpfad auf Chunk-0-Scan",
-                    _b3pres_exc,
-                )
+                    if _full_defect_types:
+                        _chunk_kwargs["_b3_full_song_defect_types"] = _full_defect_types
+                        logger.info(
+                            "§B3-Verarbeitungsschritt-2: %d Defekttypen im Gesamt-Song erkannt → Chunk-0-Phasen-Selektion",
+                            len(_full_defect_types),
+                        )
+                except Exception as _b3pres_exc:
+                    logger.warning(
+                        "§B3-Verarbeitungsschritt-2 Defect-Presence-Scan fehlgeschlagen: %s — Ersatzpfad auf Chunk-0-Scan",
+                        _b3pres_exc,
+                    )
 
             # Erster Chunk mit voller Pre-Analysis
             _chunk_kwargs["file_path"] = f"__aurik_chunk__{0}__"
