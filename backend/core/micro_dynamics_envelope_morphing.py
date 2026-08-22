@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 def _lufs_frame(frame: np.ndarray) -> float:
     """ITU-R BS.1770: momentane LUFS eines Audio-Frames (vereinfacht)."""
     if frame.ndim == 2:
-        frame = frame.mean(axis=0)
+        # §v10.x Layout-sicher: Kanal-Achse statt Achse 0 ((N, C) → 1, (C, N) → 0).
+        frame = frame.mean(axis=1) if frame.shape[1] <= 2 else frame.mean(axis=0)
     rms = math.sqrt(max(1e-15, float(np.mean(frame.astype(np.float64) ** 2))))
     lufs = 20.0 * math.log10(rms + 1e-15)
     return lufs
@@ -76,7 +77,8 @@ class MicroDynamicsEnvelopeMorphing:
         assert sr == 48000, f"SR muss 48000 Hz sein, erhalten: {sr}"
         arr = np.nan_to_num(np.asarray(audio, dtype=np.float32))
         if arr.ndim == 2:
-            arr = arr.mean(axis=0)
+            # §v10.x Layout-sicher: Kanal-Achse statt Achse 0 (Befund 2026-08-22).
+            arr = arr.mean(axis=1) if arr.shape[1] <= 2 else arr.mean(axis=0)
 
         n = len(arr)
         hop = self.HOP_SIZE_SAMPLES
@@ -205,6 +207,19 @@ class MicroDynamicsEnvelopeMorphing:
         else:
             res_mono = res
             orig_mono = orig if orig.ndim == 1 else (orig.mean(axis=0) if orig_channel_first else orig.mean(axis=1))
+
+        # §v10.x Degenerate-Guard (Befund 2026-08-22): „cannot reshape array of
+        # size 2 into shape (1,480)“ — ein 2-Sample-Signal (Layout-Mix-Fehler
+        # upstream) darf nicht in die Frame-Reshapes laufen. Morphing ist dann
+        # sinnlos; Eingabe unverändert zurückgeben (Non-Blocking, §V6 mit Log).
+        if res_mono.size < self.FRAME_SIZE_SAMPLES or orig_mono.size < self.FRAME_SIZE_SAMPLES:
+            logger.warning(
+                "MDEM: degenerierte Eingabe (res=%d, orig=%d Samples) — Morphing übersprungen, "
+                "Eingabe unverändert",
+                int(res_mono.size),
+                int(orig_mono.size),
+            )
+            return res
 
         L_orig = self.compute_lufs_profile(orig_mono, sr)
         L_rest = self.compute_lufs_profile(res_mono, sr)
@@ -485,7 +500,7 @@ class MicroDynamicsEnvelopeMorphing:
         out = np.clip(out, -self.TRUE_PEAK_LIMIT, self.TRUE_PEAK_LIMIT)
 
         # Pearson-Korrelation pruefen, ggf. Retry
-        out_mono = out.mean(axis=0) if out.ndim == 2 else out
+        out_mono = (out.mean(axis=1) if (out.ndim == 2 and out.shape[1] <= 2) else (out.mean(axis=0) if out.ndim == 2 else out))
         r = self._pearson(orig_mono[: len(out_mono)], out_mono[: len(orig_mono)])
 
         if r < self.PEARSON_TARGET and max_gain < self.MAX_GAIN_LU:
@@ -533,7 +548,9 @@ class MicroDynamicsEnvelopeMorphing:
             else:
                 final = out2.astype(np.float32)
             # §8.2 Observability: log final pearson after retry (universal guarantee ≥ 0.92)
-            _final_mono = final.mean(axis=0) if final.ndim == 2 else final
+            _final_mono = (
+                final.mean(axis=1) if (final.ndim == 2 and final.shape[1] <= 2) else (final.mean(axis=0) if final.ndim == 2 else final)
+            )
             r_final = self._pearson(orig_mono[: len(_final_mono)], _final_mono[: len(orig_mono)])
             if r_final < 0.92:
                 # Pearson still < 0.92 after retry — signal structure limits correlation
