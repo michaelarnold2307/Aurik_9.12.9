@@ -1,6 +1,6 @@
 # TASK_CHANGES — Live-Ledger der aktuellen Aufgabe
 
-> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-08-22 20:14 CEST).
+> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-08-22 20:51 CEST).
 > CI (`ci-lite.yml` pr-evidence-gate) erzwingt Abdeckung: jede geänderte Code-Datei muss hier stehen.
 
 ## Geänderte Dateien
@@ -11,36 +11,24 @@
 | M | .github/instructions/dsp.instructions.md | modifiziert |
 | M | .github/instructions/pipeline.instructions.md | modifiziert |
 | M | .github/instructions/tests.instructions.md | modifiziert |
-| M | .github/specs/01_musical_goals.md | modifiziert |
 | M | .github/specs/04_dsp_standards.md | modifiziert |
 | M | .github/specs/05_material_system.md | modifiziert |
 | M | .github/specs/19_sota_gender_detection.md | modifiziert |
-| A | .github/specs/23_zero_touch_orchestration_contract.md | neu |
-| A | .github/specs/24_ml_fallback_architektur.md | neu |
 | M | .github/workflows/ci-lite.yml | modifiziert |
 | M | .gitignore | modifiziert |
-| A | .kun-canvas/code-thr_a8870da0acf8433e9d39246f9892091c/design-system.json | neu |
-| M | .pre-commit-config.yaml | modifiziert |
 | M | AGENTS.md | modifiziert |
+| M | Aurik10/core/aurik_icons.py | modifiziert |
 | M | Aurik10/ui/keyboard_shortcuts.py | modifiziert |
 | M | Aurik10/ui/modern_window.py | modifiziert |
-| A | audit/listening_study/round_2026-08-15/AERO_CHALLENGER_ROUND.md | neu |
-| A | audit/listening_study/round_2026-08-15/DECRACKLE_RBME_ROUND.md | neu |
-| A | audit/listening_study/round_2026-08-15/VOCAL_SNR_ROUND.md | neu |
-| A | audit/listening_study/round_2026-08-15/vocal_snr_round/round_manifest.json | neu |
+| M | TASK_CHANGES.md | modifiziert |
 | M | audit/real_audio_defect_golden_manifest.json | modifiziert |
 | M | audit/real_audio_execution_golden_report.json | modifiziert |
-| A | audit/real_audio_execution_golden_report_3case.json | neu |
-| A | audit/real_audio_execution_golden_report_3case_perf.json | neu |
 | M | audit/real_audio_restoration_quality_report.json | modifiziert |
 | M | backend/api/bridge.py | modifiziert |
 | M | backend/aurik_restore.py | modifiziert |
-| M | backend/core/adaptive_phase_rescheduler.py | modifiziert |
 | M | backend/core/adaptive_resource_manager.py | modifiziert |
 | M | backend/core/artifact_freedom_gate.py | modifiziert |
 | M | backend/core/aurik_orchestrator.py | modifiziert |
-| M | backend/core/calibration_context.py | modifiziert |
-| M | backend/core/calibration_matrix.py | modifiziert |
 | M | backend/core/defect_consensus_pipeline.py | modifiziert |
 | M | backend/core/defect_scanner.py | modifiziert |
 | M | backend/core/dsp/sota_vocal_model_router.py | modifiziert |
@@ -54,13 +42,9 @@
 | M | backend/core/fletcher_munson_curves.py | modifiziert |
 | M | backend/core/forensics/analysis_and_modules.py | modifiziert |
 | M | backend/core/genre_classifier.py | modifiziert |
-| M | backend/core/holistic_perceptual_gate.py | modifiziert |
 | M | backend/core/hybrid/hybrid_speed_pitch_ml.py | modifiziert |
 | M | backend/core/hybrid/hybrid_wow_flutter.py | modifiziert |
-| M | backend/core/joint_calibrator.py | modifiziert |
 | M | backend/core/lib/libmigraphx_bridge.so | modifiziert |
-| A | backend/core/lib/migraphx_bridge.cpp | neu |
-| A | backend/core/librosa_bootstrap.py | neu |
 | M | backend/core/lyrics_guided_enhancement.py | modifiziert |
 | M | backend/core/mert_mushra_proxy.py | modifiziert |
 | M | backend/core/migraphx_adapter.py | modifiziert |
@@ -70,7 +54,6 @@
 | M | backend/core/model_zoo_registry.py | modifiziert |
 | M | backend/core/mushra_proxy.py | modifiziert |
 | M | backend/core/music_model_flags.py | modifiziert |
-| M | backend/core/musical_goals/musical_goals_metrics.py | modifiziert |
 | M | backend/core/musical_goals/semantic_goals.py | modifiziert |
 | M | backend/core/onnx/runtime.py | modifiziert |
 | M | backend/core/phase_dag.py | modifiziert |
@@ -84,44 +67,31 @@
 | M | backend/core/pipeline_guard.py | modifiziert |
 | M | backend/core/pre_analysis.py | modifiziert |
 | M | backend/core/pre_export_validator.py | modifiziert |
-| M | backend/core/reflective_listening_pass.py | modifiziert |
 | M | backend/core/resampling_utils.py | modifiziert |
 | M | backend/core/runtime_env_selector.py | modifiziert |
+| M | backend/core/signal_flow_tracer.py | modifiziert |
 | M | backend/core/spec_constitution.py | modifiziert |
 | M | backend/core/startup_model_check.py | modifiziert |
 | M | backend/core/stem_remix_balancer.py | modifiziert |
 | M | backend/core/sweet_spot_optimizer.py | modifiziert |
 | M | backend/core/unified_restorer_v3.py | modifiziert |
+| M | backend/core/vocal_focus_analyzer.py | modifiziert |
 | M | backend/core/vocoder_chain.py | modifiziert |
 | M | backend/core/watchdog_monitor.py | modifiziert |
-| A | benchmarks/amrb_fresh_20260816_tape_vinyl.json | neu |
 | M | cli/aurik_cli.py | modifiziert |
 | M | corpus/shellac/manifest.yaml | modifiziert |
 | M | denker/aurik_denker.py | modifiziert |
+| M | denker/cross_phase_coordinator.py | modifiziert |
 | M | denker/defekt_denker.py | modifiziert |
+| M | denker/phase_interaction_denker.py | modifiziert |
 | M | denker/restaurier_denker.py | modifiziert |
 | M | denker/strategie_denker.py | modifiziert |
 | M | docs/CHANGELOG_HISTORY.md | modifiziert |
 | M | docs/GPU_SETUP.md | modifiziert |
 | M | docs/README.md | modifiziert |
 | M | docs/development/CONTRIBUTING.md | modifiziert |
-| A | docs/guides/SOTA_MIGRATION_PLAN.md | neu |
 | M | docs/guides/TROUBLESHOOTING.md | modifiziert |
-| M | dsp/dtw_groove.py | modifiziert |
 | M | forensics/medium_detector.py | modifiziert |
-| A | plugins/_vendor_aero/LICENSE | neu |
-| A | plugins/_vendor_aero/__init__.py | neu |
-| A | plugins/_vendor_aero/src/ddp/__init__.py | neu |
-| A | plugins/_vendor_aero/src/ddp/distrib.py | neu |
-| A | plugins/_vendor_aero/src/ddp/executor.py | neu |
-| A | plugins/_vendor_aero/src/enhance.py | neu |
-| A | plugins/_vendor_aero/src/evaluate.py | neu |
-| A | plugins/_vendor_aero/src/metrics.py | neu |
-| A | plugins/_vendor_aero/src/model_serializer.py | neu |
-| A | plugins/_vendor_aero/src/solver.py | neu |
-| A | plugins/_vendor_aero/src/utils.py | neu |
-| A | plugins/_vendor_aero/src/wandb_logger.py | neu |
-| A | plugins/aero_plugin.py | neu |
 | M | plugins/bs_roformer_plugin.py | modifiziert |
 | M | plugins/deepfilternet_v3_ii_plugin.py | modifiziert |
 | M | plugins/laion_clap_plugin.py | modifiziert |
@@ -133,67 +103,91 @@
 | M | requirements/requirements_aurik.txt | modifiziert |
 | M | run_aurik.sh | modifiziert |
 | M | scripts/aurik_verboten_linter.py | modifiziert |
-| A | scripts/build_migraphx_bridge.sh | neu |
-| A | scripts/corpus_fetcher.py | neu |
-| A | scripts/dsp_benchmark.py | neu |
-| A | scripts/external_benchmark_ffmpeg.py | neu |
 | M | scripts/golden_set_tool.py | modifiziert |
-| A | scripts/pitch_tracker_benchmark.py | neu |
-| A | scripts/prepare_vocal_snr_round.py | neu |
 | M | scripts/setup_gpu.sh | modifiziert |
 | M | scripts/spec_drift_check.py | modifiziert |
-| A | scripts/venv_sitecustomize.py | neu |
 | M | tests/corpus/test_corpus_pipeline_smoke.py | modifiziert |
-| A | tests/unit/test_aero_plugin.py | neu |
 | M | tests/unit/test_all_phases_smoke.py | modifiziert |
-| A | tests/unit/test_aurik_orchestrator_wiring.py | neu |
-| A | tests/unit/test_aurik_restore_uv3_alignment.py | neu |
-| A | tests/unit/test_banquet_gate.py | neu |
 | M | tests/unit/test_cross_depth_validation.py | modifiziert |
 | M | tests/unit/test_cross_phase_coordinator.py | modifiziert |
-| A | tests/unit/test_dsp_benchmark.py | neu |
-| M | tests/unit/test_excellence_optimizer.py | modifiziert |
 | M | tests/unit/test_excellence_optimizer_core_guard.py | modifiziert |
-| A | tests/unit/test_fallback_auditor_wiring.py | neu |
-| A | tests/unit/test_genre_classifier_dsp_fallbacks.py | neu |
 | M | tests/unit/test_golden_set_tool.py | modifiziert |
-| A | tests/unit/test_gpu_determinism_gate.py | neu |
 | M | tests/unit/test_hybrid_wow_flutter.py | modifiziert |
-| A | tests/unit/test_mcd_canonical.py | neu |
 | M | tests/unit/test_ml_device_manager.py | modifiziert |
 | M | tests/unit/test_ml_device_manager_amd.py | modifiziert |
-| A | tests/unit/test_pre_analysis_depth_cap_and_clap_sr.py | neu |
-| A | tests/unit/test_resampling_utils.py | neu |
-| A | tests/unit/test_rocm_cpu_fallback.py | neu |
 | M | tests/unit/test_session_manager.py | modifiziert |
-| A | tests/unit/test_sota_gap_closures.py | neu |
 | M | tests/unit/test_sota_gap_fixes_2026_05.py | modifiziert |
 | M | tests/unit/test_stem_remix_balancer.py | modifiziert |
 | M | tests/unit/test_stereo_axis_matrix.py | modifiziert |
-| A | tests/unit/test_sweet_spot_baseline_relative.py | neu |
-| A | tests/unit/test_threaded_librosa_import.py | neu |
 | M | tests/unit/test_unified_restorer_v3.py | modifiziert |
-| M | tests/unit/test_v9_dsp_pghi_psola_groove.py | modifiziert |
 | M | tests/unit/test_verboten_linter_compliance.py | modifiziert |
-| A | tests/unit/test_vocal_snr_round.py | neu |
-| A | tests/unit/test_zero_length_guards.py | neu |
 | ?? | .github/FILE_REGISTRY.md | ungetrackt |
+| ?? | .github/specs/23_zero_touch_orchestration_contract.md | ungetrackt |
+| ?? | .github/specs/24_ml_fallback_architektur.md | ungetrackt |
+| ?? | .kun-canvas/code-thr_a8870da0acf8433e9d39246f9892091c/design-system.json | ungetrackt |
 | ?? | .kun-canvas/code-thr_bea70de742434f29948fceb33362623e/canvas.json | ungetrackt |
 | ?? | .kun-canvas/code-thr_bea70de742434f29948fceb33362623e/design-system.json | ungetrackt |
-| ?? | TASK_CHANGES.md | ungetrackt |
+| ?? | audit/listening_study/round_2026-08-15/AERO_CHALLENGER_ROUND.md | ungetrackt |
+| ?? | audit/listening_study/round_2026-08-15/DECRACKLE_RBME_ROUND.md | ungetrackt |
+| ?? | audit/listening_study/round_2026-08-15/VOCAL_SNR_ROUND.md | ungetrackt |
+| ?? | audit/listening_study/round_2026-08-15/vocal_snr_round/round_manifest.json | ungetrackt |
+| ?? | audit/real_audio_execution_golden_report_3case.json | ungetrackt |
+| ?? | audit/real_audio_execution_golden_report_3case_perf.json | ungetrackt |
+| ?? | backend/core/lib/migraphx_bridge.cpp | ungetrackt |
+| ?? | backend/core/librosa_bootstrap.py | ungetrackt |
+| ?? | benchmarks/amrb_fresh_20260816_tape_vinyl.json | ungetrackt |
+| ?? | docs/guides/SOTA_MIGRATION_PLAN.md | ungetrackt |
+| ?? | plugins/_vendor_aero/LICENSE | ungetrackt |
+| ?? | plugins/_vendor_aero/__init__.py | ungetrackt |
+| ?? | plugins/_vendor_aero/src/ddp/__init__.py | ungetrackt |
+| ?? | plugins/_vendor_aero/src/ddp/distrib.py | ungetrackt |
+| ?? | plugins/_vendor_aero/src/ddp/executor.py | ungetrackt |
+| ?? | plugins/_vendor_aero/src/enhance.py | ungetrackt |
+| ?? | plugins/_vendor_aero/src/evaluate.py | ungetrackt |
+| ?? | plugins/_vendor_aero/src/metrics.py | ungetrackt |
+| ?? | plugins/_vendor_aero/src/model_serializer.py | ungetrackt |
+| ?? | plugins/_vendor_aero/src/solver.py | ungetrackt |
+| ?? | plugins/_vendor_aero/src/utils.py | ungetrackt |
+| ?? | plugins/_vendor_aero/src/wandb_logger.py | ungetrackt |
+| ?? | plugins/aero_plugin.py | ungetrackt |
+| ?? | scripts/build_migraphx_bridge.sh | ungetrackt |
 | ?? | scripts/change_ledger.py | ungetrackt |
+| ?? | scripts/corpus_fetcher.py | ungetrackt |
+| ?? | scripts/dsp_benchmark.py | ungetrackt |
+| ?? | scripts/external_benchmark_ffmpeg.py | ungetrackt |
 | ?? | scripts/file_registry_check.py | ungetrackt |
 | ?? | scripts/hor_pass_check.py | ungetrackt |
+| ?? | scripts/pitch_tracker_benchmark.py | ungetrackt |
+| ?? | scripts/prepare_vocal_snr_round.py | ungetrackt |
 | ?? | scripts/repo_graph.py | ungetrackt |
 | ?? | scripts/repo_search.py | ungetrackt |
-| ?? | tests/unit/test_reflective_listening_pass_layout.py | ungetrackt |
+| ?? | scripts/venv_sitecustomize.py | ungetrackt |
+| ?? | tests/unit/test_aero_plugin.py | ungetrackt |
+| ?? | tests/unit/test_aurik_orchestrator_wiring.py | ungetrackt |
+| ?? | tests/unit/test_aurik_restore_uv3_alignment.py | ungetrackt |
+| ?? | tests/unit/test_banquet_gate.py | ungetrackt |
+| ?? | tests/unit/test_dsp_benchmark.py | ungetrackt |
+| ?? | tests/unit/test_fallback_auditor_wiring.py | ungetrackt |
+| ?? | tests/unit/test_genre_classifier_dsp_fallbacks.py | ungetrackt |
+| ?? | tests/unit/test_gpu_determinism_gate.py | ungetrackt |
+| ?? | tests/unit/test_mcd_canonical.py | ungetrackt |
+| ?? | tests/unit/test_pre_analysis_depth_cap_and_clap_sr.py | ungetrackt |
+| ?? | tests/unit/test_resampling_utils.py | ungetrackt |
+| ?? | tests/unit/test_rocm_cpu_fallback.py | ungetrackt |
+| ?? | tests/unit/test_sota_gap_closures.py | ungetrackt |
+| ?? | tests/unit/test_sweet_spot_baseline_relative.py | ungetrackt |
+| ?? | tests/unit/test_threaded_librosa_import.py | ungetrackt |
+| ?? | tests/unit/test_vocal_snr_round.py | ungetrackt |
+| ?? | tests/unit/test_zero_length_guards.py | ungetrackt |
 
 ## Entscheidungen
 
-- **Bug 3 (Groove/OLA)**: Root-Cause war nicht der OLA-Fade (sample-exakt, 20 ms, außerhalb des gemessenen 30-s-Fensters), sondern eine instabile Messkette: (a) `no_onsets`-False-Pass (0 Onsets → score 1.0), (b) NaN/Inf → Flux NaN → 0 Onsets, (c) `detect_onsets` Mono-Achsen-Fehler bei Channels-first, (d) `measure_all`-Cache ignorierte die Referenz. Fixes: asymmetrischer Onset-Verlust-Guard (score 0.0, §V6 (VERBOTEN.md)), NaN/Inf-Guards, layout-sichere Mono-Achse, Cache-Schlüssel inkl. Referenz/material/panns. Zusätzlich OLA-Energie-Guard: Fades nur in stille Randbereiche (Schutz des ersten/letzten Onsets bei Musik ab t=0).
-- **Bug 1 (RLP-Shelf)**: `_filter_time_axis` filtert entlang der Zeitachse (layout-sicher): (N, C) → Achse 0, (C, N) → Achse 1. Beseitigt den padlen-Crash bei Channels-first.
-- **Bug 2 (FeedbackChain VQI)**: VQI läuft auf denselben deterministischen Analyse-Fenstern wie der ML-Scorer (≤90 s ⇒ Voll-Audio unverändert, >90 s ⇒ 3×30 s statt Voll-Länge) — Kosten-Bound ohne Verhaltensänderung für kurze Songs.
-- **Bug 4 (rs-Konsistenz)**: Neuer kanonischer Resolver `resolve_restorability_score` (explizit > CalibrationContext > Modul-Default); alle CALIB-Pfade (calibration_matrix, adaptive_phase_rescheduler, holistic_perceptual_gate, joint_calibrator, artifact_freedom_gate) verdrahtet — kein stiller 70.0-Fallback mehr, wenn der Lauf einen kalibrierten Wert (z. B. 64) gesetzt hat.
-- **Spec-Nachzug**: `01_musical_goals.md` §1.4.5b dokumentiert Onset-Verlust-Guard + Messdeterminismus normativ.
-- **Tests**: `TestDtwGrooveOnsetLossGuard` (5 Tests), `TestOlaEdgeCrossfadeGuard` (4 Tests), `test_reflective_listening_pass_layout.py` (6 Tests) — 328 Ziel-Tests grün.
+- **Icon-Bug**: `EMOJI_TO_SVG` fehlten 🎯/📝/✅/⚠(️) → get_icon baute `<Emoji>.svg` und warnte. Mapping auf bestehende Stems (strategy/plan/quality_check/status_medium).
+- **FeedbackChain 38.6s-Initial-Call**: Ursache Voll-Audio-VQI (224 s) im Vor-Fix-Prozess; VQI-Fensterung (Commit a3c8aeca) begrenzt — Log-Warnung verschwindet im nächsten Lauf.
+- **2-Sample-Scan + HPE-Skip + B3-Doppel-Scan im Lauf 20:19–20:42**: Artefakte des Pre-Commit-Stash (20:20:30–20:23:42) — GUI importierte HEAD-Versionen; Fixes existierten bereits im Baum. Zusätzlich: degenerierte-Eingabe-Guard in DefectConsensusPipeline.analyze + layout-sichere Mono-Konvertierung in detect_impulse_defects.
+- **transport_bump max_mag 66…127 (B3-Scan)**: unnormalisiertes Integer-Audio sättigte Severity (0.90) und deaktivierte den low_mag-Filter → Peak-Normalisierung in _detect_transport_bump; Forwarded-Log zählt jetzt tatsächlich übernommene Events.
+- **rs-Anzeige 63.5 vs 64**: nur Display-Rundung (`%.0f`) an 6 Stellen (CPC, PID-Strip, SFT, Watchdog, SongGoalTargets, AdaptiveGoalThresholds) → einheitlich `%.1f`; Werte waren bereits identisch.
+- **formant_f1=0Hz bei stable=True**: widersprüchlich → stable=False wenn F1-Schätzung ungültig.
+- **CACHE-BUST-String** auf 2026-08-22T20:30 aktualisiert.
+- **Offen (dokumentiert, kein Code-Fix):** SNR-Dreifachquelle (14.4/8.6/26.9 dB — Kanonisierung via CalibrationContext.snr_db als Folgeaufgabe), MediumDetector-vs-DefectScanner-Materialwiderspruch (vinyl vs cassette-Logit, advisory), VocalFocusAnalyzer 79.4 s, PANNs-Doppelload.
 

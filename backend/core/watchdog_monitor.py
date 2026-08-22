@@ -288,7 +288,13 @@ class WatchdogMonitor:
         with self._lock:
             self._cumulative_strength += phase_strength
 
-    def post_flight_validity(self, audio: np.ndarray, sr: int, chain_depth: int = 1) -> WatchdogReport:
+    def post_flight_validity(
+        self,
+        audio: np.ndarray,
+        sr: int,
+        chain_depth: int = 1,
+        restorability: float = 50.0,
+    ) -> WatchdogReport:
         """Erstellt den finalen Watchdog-Report nach Pipeline-Ende.
 
         Args:
@@ -381,7 +387,12 @@ class WatchdogMonitor:
             est_hpi = max(0.0, min(1.0, report.pleasantness_score * integrity_factor))
             # §0h Veto-Check
             pq_v = const.check_paragraph_zero(
-                audio, sr, artifact_freedom=est_artifact, hpi=est_hpi, chain_depth=chain_depth
+                audio,
+                sr,
+                artifact_freedom=est_artifact,
+                hpi=est_hpi,
+                chain_depth=chain_depth,
+                restorability=restorability,
             )
             for v in pq_v:
                 if "VETO" in v:
@@ -389,7 +400,9 @@ class WatchdogMonitor:
                 else:
                     report.warnings.append(f"CONSTITUTION: {v}")
             report.constitution_violations = pq_v
-            blocked, reason = const.is_export_blocked(est_artifact, est_hpi, chain_depth=chain_depth)
+            blocked, reason = const.is_export_blocked(
+                est_artifact, est_hpi, chain_depth=chain_depth, restorability=restorability
+            )
             if blocked:
                 report.criticals.append(f"§0h EXPORT-BLOCK: {reason}")
             # Goal-Evaluation via HPE
@@ -568,7 +581,7 @@ def calibrate_watchdog_thresholds(
     _warn, _crit = _cumulative_strength_thresholds(restorability_score)
     CUMULATIVE_STRENGTH_WARN = _warn
     CUMULATIVE_STRENGTH_CRITICAL = _crit
-    logger.info("§v10.46 Watchdog: rs=%.0f → kumul_stärke WARN=%.2f KRIT=%.2f", restorability_score, _warn, _crit)
+    logger.info("§v10.46 Watchdog: rs=%.1f → kumul_stärke WARN=%.2f KRIT=%.2f", restorability_score, _warn, _crit)
 
     # RMS-Drop: Tape-Medien haben natürliche Pegel-Variation → höhere Toleranz
     _mat_lower = str(material_type).lower()

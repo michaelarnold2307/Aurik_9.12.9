@@ -1891,6 +1891,23 @@ class DefectScanner:
                 )
                 material_type = None
 
+        # §Spec 24 Zero-Length-Guard: Scans auf (nahezu) leerem Audio liefern
+        # Unsinn (Befund 2026-08-16: „0.0s Audio“, 8 Consensus-Defekte aus Stille).
+        _sr_guard = int(sample_rate or 48000)
+        _n_guard = int(np.asarray(audio).size)
+        if _n_guard < int(_sr_guard * 0.05):
+            logger.warning(
+                "DefectScanner.scan(): Audio zu kurz (%d Samples) — Scan übersprungen (Zero-Length-Guard, Spec 24)",
+                _n_guard,
+            )
+            return DefectAnalysisResult(
+                material_type=material_type or MaterialType.CD_DIGITAL,
+                scores={},
+                analysis_time_seconds=0.0,
+                sample_rate=_sr_guard,
+                duration_seconds=float(_n_guard) / float(_sr_guard),
+            )
+
         # Normalize channel layout once: accept both (n_samples, n_channels) and
         # channel-first (n_channels, n_samples) without degenerating to 2-sample mono.
         if audio.ndim == 2 and audio.shape[0] <= 2 and audio.shape[1] > audio.shape[0]:
@@ -4344,6 +4361,18 @@ class DefectScanner:
         sr = self.sample_rate
         if n < sr * 2:
             return DefectScore(DefectType.TRANSPORT_BUMP, 0.0, 0.3)
+
+        # §Spec 24-Normalisierung (Befund 2026-08-22): Der B3-Full-Song-Scan
+        # füttert unnormalisiertes Integer-Audio (max_mag=66…127 im Log statt
+        # ~1.0). Die Severity-Formel 0.5·min(1.0, max_mag/2.0) sättigt dann bei
+        # 0.90 und der "low_mag"-Filter (< 1.5) feuert nie → falsche
+        # TAPE_HEAD_LEVEL_DIP-Forwardings. Peak-Normalisierung auf ±1 stellt
+        # die kalibrierten Schwellen wieder her (relative Features bleiben
+        # skaleninvariant).
+        audio = np.asarray(audio, dtype=np.float32)
+        _peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+        if _peak > 1.5:
+            audio = audio / _peak
 
         hop_s = 0.010  # 10 ms hop
         win_s = 0.030  # 30 ms window
@@ -7451,12 +7480,13 @@ class DefectScanner:
                         # Geschätzte Tiefe: 4 dB (konservativ, da vom Transport-Bump-
                         # Detektor als "≤0.90 max ratio" klassifiziert)
                         dip_depths.append(4.0)
+                _n_fwd_added = len(locations) - n_dips
                 logger.info(
                     "§v10.30 Forwarded %d head-dip events from TRANSPORT_BUMP → TAPE_HEAD_LEVEL_DIP "
                     "(%d existing + %d forwarded = %d total)",
-                    len(_forwarded),
+                    _n_fwd_added,
                     n_dips,
-                    len(locations) - n_dips,
+                    _n_fwd_added,
                     len(locations),
                 )
             n_dips = len(locations)  # Update nach Merge

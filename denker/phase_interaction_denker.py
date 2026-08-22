@@ -553,7 +553,7 @@ class PhaseInteractionDenker:
                     if _post < _pre:
                         logger.info(
                             "§v10.303.4 PID-Confidence-Strip: %d/%d Phasen entfernt "
-                            "(conf=%.3f < Schwelle=%.3f, rs=%.0f)",
+                            "(conf=%.3f < Schwelle=%.3f, rs=%.1f)",
                             _pre - _post,
                             _pre,
                             _mat_conf,

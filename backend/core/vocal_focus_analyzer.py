@@ -273,6 +273,11 @@ class VocalFocusAnalyzer:
         f1_mean, f2_mean, stable = self._analyze_formants(mono_seg, sr)
         result.formant_f1_mean = f1_mean
         result.formant_f2_mean = f2_mean
+        # §Spec 24-Konsistenz (Befund 2026-08-22): f1=0Hz bei stable=True ist
+        # widersprüchlich (Log: „formant_f1=0Hz stable=True“) — ohne gültige
+        # F1-Schätzung gibt es keine Stabilitätsaussage.
+        if f1_mean is not None and float(f1_mean) <= 0.0:
+            stable = False
         result.formant_stable = stable
 
         # 4. Passaggio-Zonen (F0-basiert, optional — leert sich bei Fehler)

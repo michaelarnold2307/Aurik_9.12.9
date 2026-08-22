@@ -1158,7 +1158,7 @@ def calibrate_sft_thresholds(
     _WET_CEILING_NONREPAIR = float(np.clip(0.72 + max(0, _depth_effective - 1) * 0.05, 0.65, 0.90))
     _WET_CEILING_REPAIR = float(np.clip(0.82 + max(0, _depth_effective - 1) * 0.05, 0.75, 0.95))
     logger.info(
-        "§G71 (GEBOTE.md) SFT-Wet-Ceilings: depth=%d rs=%.0f → nonrepair=%.2f repair=%.2f",
+        "§G71 (GEBOTE.md) SFT-Wet-Ceilings: depth=%d rs=%.1f → nonrepair=%.2f repair=%.2f",
         _depth,
         restorability_score,
         _WET_CEILING_NONREPAIR,

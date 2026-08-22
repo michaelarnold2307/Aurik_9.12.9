@@ -458,7 +458,7 @@ def calibrate_cross_phase_thresholds(
     ROUGHNESS_BUDGET_FLOOR = float(np.clip(0.70 / _rs_factor, 0.55, 0.70))
 
     logger.info(
-        "§v10.48 CPC: mat=%s rs=%.0f → rausch=%.2f kling=%.2f rau=%.2f",
+        "§v10.48 CPC: mat=%s rs=%.1f → rausch=%.2f kling=%.2f rau=%.2f",
         _mat_lower,
         restorability_score,
         MUSICAL_NOISE_THRESHOLD,

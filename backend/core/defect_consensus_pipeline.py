@@ -33,10 +33,10 @@ from __future__ import annotations
 import logging
 import time
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
-from collections.abc import Callable
 
 import numpy as np
 
@@ -193,7 +193,9 @@ def detect_impulse_defects(audio: np.ndarray, sr: int) -> list[DefectHypothesis]
     """
     audio = np.asarray(audio, dtype=np.float32)
     if audio.ndim > 1:
-        audio = audio.mean(axis=0)
+        # §Spec 24: Kanal-Mix über die Kanal-Achse — (N, C) → Achse 1,
+        # (C, N) → Achse 0 (alt: mean(axis=0) mittelte (N, 2) über die Zeit → (2,)).
+        audio = audio.mean(axis=0) if audio.shape[0] <= 2 and audio.shape[0] < audio.shape[1] else audio.mean(axis=1)
 
     hop = max(1, sr // 1000)  # 1 ms Hops
     win = max(4, sr // 250)  # 4 ms Fenster
@@ -313,7 +315,8 @@ def detect_reverb_tail(audio: np.ndarray, sr: int = SR) -> dict:
 
     mono = np.asarray(audio, dtype=np.float64)
     if mono.ndim > 1:
-        mono = mono.mean(axis=0)
+        # §Spec 24: Kanal-Mix über die Kanal-Achse (Befund 2026-08-22).
+        mono = mono.mean(axis=0) if mono.shape[0] <= 2 and mono.shape[0] < mono.shape[1] else mono.mean(axis=1)
     if len(mono) < sr:  # mindestens 1 s Audio
         return {"defects": []}
 
@@ -392,27 +395,28 @@ class ParallelDefectScanner:
         """Registriert alle verfügbaren Detektoren mit ihren ECHTEN APIs.
 
         §v10.700: Keine Silent Failures — jeder Detektor wird protokolliert:
-          - "registered":   Scan-Funktion aktiv
-          - "needs_context": braucht Zusatz-Kontext (Material/Onset/Original)
-          - "failed":       Import/API-Fehler — wird GELOGGT, nicht verschluckt
+          - "registered":       Scan-Funktion aktiv (Stufe 1)
+          - "deferred_stage2":  kontext-deferred — braucht Stufe-1-Ergebnisse (Defekte/Onsets)
+          - "deferred_stage3":  kontext-deferred — braucht Material/Ära/Vorher-Nachher
+          - "failed":           Import/API-Fehler — wird GELOGGT, nicht verschluckt
+
+        Kontext-Deferral ist ARCHITEKTUR (3-Stufen-Pipeline), keine Degradation →
+        INFO statt WARNING (Rev. 2026-08-16: Startup-Warnungen auf SOTA-Niveau).
         """
         self._registration_report: list[dict[str, str]] = []
 
-        def _reg(name: str, loader, context_needed: bool = False):
+        def _reg(name: str, loader, stage: str | None = None):
             try:
                 fn = loader()
                 if fn is not None:
                     self._detectors.append((name, fn))
                     self._registration_report.append({"name": name, "status": "registered"})
+                elif stage is not None:
+                    self._registration_report.append({"name": name, "status": stage})
+                    log.info("Defect Consensus: %s kontext-deferred (%s)", name, stage)
                 else:
-                    self._registration_report.append(
-                        {"name": name, "status": "needs_context" if context_needed else "failed"}
-                    )
-                    log.warning(
-                        "Defect Consensus: %s NICHT registriert (%s)",
-                        name,
-                        "braucht Zusatz-Kontext" if context_needed else "API nicht verfügbar",
-                    )
+                    self._registration_report.append({"name": name, "status": "failed"})
+                    log.warning("Defect Consensus: %s NICHT registriert (API nicht verfügbar)", name)
             except Exception as exc:
                 self._registration_report.append({"name": name, "status": "failed"})
                 log.warning("Defect Consensus: %s fehlgeschlagen — %s", name, exc)
@@ -470,27 +474,27 @@ class ParallelDefectScanner:
 
             return None  # refine_edges braucht Defects-Liste → Stufe 2
 
-        _reg("precision_defect_locator", _load_precision, context_needed=True)
+        _reg("precision_defect_locator", _load_precision, stage="deferred_stage2")
 
         # 7. Attack Type — classify(audio, sr, onset_sample): braucht Onset-Positionen
-        _reg("attack_type_classifier", lambda: None, context_needed=True)
+        _reg("attack_type_classifier", lambda: None, stage="deferred_stage2")
 
         # 8. Intentional Artifact — classify(material, era, freedom): braucht Material-Kontext
-        _reg("intentional_artifact_classifier", lambda: None, context_needed=True)
+        _reg("intentional_artifact_classifier", lambda: None, stage="deferred_stage3")
 
         # 9. Dolby NR — detect_dolby_encoding(audio, sr, material, era): braucht Material/Ära
-        _reg("dolby_nr_detector", lambda: None, context_needed=True)
+        _reg("dolby_nr_detector", lambda: None, stage="deferred_stage3")
 
         # 10. Cassette Verifier — verify(original, repaired): braucht Vorher/Nachher
-        _reg("cassette_defect_verifier", lambda: None, context_needed=True)
+        _reg("cassette_defect_verifier", lambda: None, stage="deferred_stage3")
 
         _registered = sum(1 for r in self._registration_report if r["status"] == "registered")
-        _needs = sum(1 for r in self._registration_report if r["status"] == "needs_context")
+        _deferred = sum(1 for r in self._registration_report if r["status"].startswith("deferred"))
         _failed = sum(1 for r in self._registration_report if r["status"] == "failed")
         log.info(
-            "Defect Consensus: %d registriert, %d brauchen Kontext, %d fehlgeschlagen (von %d)",
+            "Defect Consensus: %d registriert (Stufe 1), %d kontext-deferred (Stufe 2/3), %d fehlgeschlagen (von %d)",
             _registered,
-            _needs,
+            _deferred,
             _failed,
             len(self._registration_report),
         )
@@ -500,6 +504,7 @@ class ParallelDefectScanner:
         audio: np.ndarray,
         sample_rate: int = SR,
         metadata: dict | None = None,
+        precomputed: dict[str, Any] | None = None,
     ) -> list[DefectHypothesis]:
         """
         Führt ALLE registrierten Detektoren parallel aus (konzeptionell —
@@ -515,11 +520,18 @@ class ParallelDefectScanner:
             "cd_digital",
         )
 
+        precomputed = precomputed or {}
         for name, detector_fn in self._detectors:
             try:
-                t0 = time.time()
-                result = detector_fn(audio, sample_rate)
-                dt = time.time() - t0
+                if name in precomputed:
+                    # §v10.220-Seed: bereits vorhandenes Ergebnis (z. B. gecachter
+                    # DefectScan aus dem Denker) statt erneutem Voll-Scan verwenden.
+                    result = precomputed[name]
+                    dt = 0.0
+                else:
+                    t0 = time.time()
+                    result = detector_fn(audio, sample_rate)
+                    dt = time.time() - t0
 
                 hypotheses = self._normalize_result(name, result, sample_rate)
 
@@ -955,6 +967,7 @@ class DefectConsensusPipeline:
         audio: np.ndarray,
         sample_rate: int = SR,
         metadata: dict | None = None,
+        precomputed_results: dict[str, Any] | None = None,
     ) -> DefectManifest:
         """
         Führt die vollständige 3-Stufen-Defekt-Analyse durch.
@@ -970,10 +983,37 @@ class DefectConsensusPipeline:
         t0 = time.time()
 
         if audio.ndim > 1:
-            audio = audio.mean(axis=0)
+            # §Spec 24-Ergänzung (Befund 2026-08-22): Kanal-Mix über die KANAL-
+            # Achse, nie über die Zeit. Zeit-orientiertes Stereo (N, 2) →
+            # mean(axis=1); kanal-orientiert (2, N) → mean(axis=0). Das alte
+            # mean(axis=0) mittelte (N, 2) über die Zeit zu einem 2-Sample-Array
+            # → Zero-Length-Guard „Audio zu kurz (2 Samples)“ im Cached-Zweig.
+            if audio.shape[0] <= 2 and audio.shape[1] > audio.shape[0]:
+                audio = audio.mean(axis=0)
+            else:
+                audio = audio.mean(axis=1)
+
+        # §Spec 24-Härtung (Befund 2026-08-22): Auch 1-D-Eingaben können
+        # degeneriert ankommen (Log: (2,) → „Audio zu kurz (2 Samples)“,
+        # Stage 1: 0 Hypothesen, alle Detektoren auf 2 Samples). Solche
+        # Eingaben sofort ablehnen statt die Detektoren zu füttern — der
+        # Seed (gecachter DefectScan) trägt die Information ohnehin.
+        if audio.size < max(1, sample_rate // 2):
+            log.warning(
+                "DefectConsensusPipeline.analyze(): degenerierte Eingabe (shape=%s, %d Samples) "
+                "— Stage 1 übersprungen (Spec 24 Zero-Length-Guard)",
+                tuple(audio.shape),
+                int(audio.size),
+            )
+            return DefectManifest(
+                defects=[],
+                total_hypotheses=0,
+                processing_time=time.time() - t0,
+                module_count=0,
+            )
 
         # ── Stage 1: Parallel Scanning ──
-        all_hypotheses = self.scanner.scan_all(audio, sample_rate, metadata)
+        all_hypotheses = self.scanner.scan_all(audio, sample_rate, metadata, precomputed=precomputed_results)
         total_hypotheses = len(all_hypotheses)
         log.info(f"Stage 1: {total_hypotheses} Hypothesen von {self.scanner._detectors} Modulen")
 

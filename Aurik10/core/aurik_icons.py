@@ -42,6 +42,13 @@ EMOJI_TO_SVG: dict[str, str] = {
     # EQ / mastering
     "🎛": "eq",
     "🎚": "dynamics",
+    # Mode / planning / tone (Befund 2026-08-22: fehlten im Mapping →
+    # get_icon baute "🎯.svg" und warnte "SVG file not found".)
+    "🎯": "strategy",
+    "📝": "plan",
+    "✅": "quality_check",
+    "⚠": "status_medium",
+    "⚠️": "status_medium",
     # Vocal
     "🎤": "vocal",
     # Stereo / spatial
