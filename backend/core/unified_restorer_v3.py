@@ -17280,9 +17280,20 @@ class UnifiedRestorerV3:
 
                     _gpo_a_orig = original_audio_for_goals
                     _gpo_a_rest = restored_audio
-                    # Mono-Konvertierung für Loss-Berechnung (shape: (T,))
-                    _gpo_a_orig_m = np.mean(_gpo_a_orig, axis=0) if _gpo_a_orig.ndim == 2 else _gpo_a_orig
-                    _gpo_a_rest_m = np.mean(_gpo_a_rest, axis=0) if _gpo_a_rest.ndim == 2 else _gpo_a_rest
+                    # Mono-Konvertierung über die KANAL-Achse (Befund 2026-08-22):
+                    # mean(axis=0) mittelte (N, 2) über die ZEITACHSE → (2,) →
+                    # librosa „n_fft zu groß für 2 Samples“ + sliding_window_view
+                    # ValueError → kompletter GPO-Mel/STFT-Loss ausgefallen.
+                    _gpo_a_orig_m = (
+                        np.mean(_gpo_a_orig, axis=1)
+                        if (_gpo_a_orig.ndim == 2 and _gpo_a_orig.shape[1] <= 2)
+                        else (np.mean(_gpo_a_orig, axis=0) if _gpo_a_orig.ndim == 2 else _gpo_a_orig)
+                    )
+                    _gpo_a_rest_m = (
+                        np.mean(_gpo_a_rest, axis=1)
+                        if (_gpo_a_rest.ndim == 2 and _gpo_a_rest.shape[1] <= 2)
+                        else (np.mean(_gpo_a_rest, axis=0) if _gpo_a_rest.ndim == 2 else _gpo_a_rest)
+                    )
                     # Längenangleich
                     _gpo_len = min(len(_gpo_a_orig_m), len(_gpo_a_rest_m))
                     _gpo_a_orig_m = _gpo_a_orig_m[:_gpo_len]
