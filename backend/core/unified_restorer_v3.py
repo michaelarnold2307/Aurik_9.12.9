@@ -9215,12 +9215,12 @@ class UnifiedRestorerV3:
             logger.debug("§AF-MAX Denker-Init (nicht blockierend): %s", _denker_init_exc)
         # §Z BatchIntelligence: Batch-übergreifendes Lernen initialisieren
         try:
-            from backend.core.preference_learner import BatchIntelligence
+            from backend.core.preference_learner import PreferenceLearner
 
-            self._restoration_context["_batch_intelligence"] = BatchIntelligence()
+            self._restoration_context["_batch_intelligence"] = PreferenceLearner()
             self._restoration_context.setdefault("phase_strengths", {})
-        except Exception:
-            logger.debug("wiederherstellen: silent except suppressed", exc_info=True)
+        except Exception as _bi_exc:
+            logger.warning("§V6 (VERBOTEN.md): Batch-Lernen inaktiv — %s", _bi_exc)
         # §EraVocalProfile [RELEASE_MUST]: era-adaptierte Vokalprofile für VQI-Kalibrierung —
         # historisches Material (era_decade < 1960) benötigt andere Formant-Toleranzen, sonst
         # falsch-negative VQI-Scores → unnötige Recovery-Kaskaden in VocalNoHarmGate + SLR-VQI.
@@ -14694,7 +14694,7 @@ class UnifiedRestorerV3:
 
         # §1.4 StemRemixBalancer — LUFS-korrekter Stem-Re-Mix (nur bei Stem-Vorhandensein)
         try:
-            from backend.core.stem_remix_balancer import balance_remix
+            from backend.core.stem_remix_balancer import get_stem_remix_balancer
 
             _stems = kwargs.get("stems") or _auto_stems
             if _stems is not None and isinstance(_stems, dict):
@@ -14718,7 +14718,7 @@ class UnifiedRestorerV3:
                             _ptags.get("Speech", 0.0),
                         )
                         _vw = float(np.clip(_v_conf, 0.1, 0.9)) if _v_conf > 0.01 else None
-                    restored_audio = balance_remix(
+                    restored_audio = get_stem_remix_balancer().balance_remix(
                         _vocals,
                         _instruments,
                         original_audio_for_goals,

@@ -437,6 +437,13 @@ repos:
         pass_filenames: false
         files: ^(backend|plugins|denker|Aurik10|cli|scripts)/.*\.py$
 
+      - id: aurik-repo-graph-check
+        name: "Repo-Graph-Check (Bridge/Dead-Imports/Status — fail-closed)"
+        entry: .venv_aurik/bin/python scripts/repo_graph.py --check
+        language: system
+        pass_filenames: false
+        files: ^(backend|plugins|denker|Aurik10|cli|scripts)/.*\.py$
+
       # Conventional Commits Message Validation
       - id: conventional-commit-msg
         name: "Conventional Commits (feat/fix/docs/style/refactor/perf/test/chore/spec/build/ci)"

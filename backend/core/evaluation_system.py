@@ -235,9 +235,9 @@ def compute_objective_metrics(case: EvalCase) -> CaseMetrics:
 def _compute_utmos_delta(damaged: np.ndarray, restored: np.ndarray, sr: int) -> float | None:
     """UTMOS-MOS-Delta — None wenn Modell nicht ladbar (CI ohne ML-Gewichte)."""
     try:
-        from plugins.utmos_plugin import get_utmos_plugin
+        from plugins.utmos_plugin import get_utmos
 
-        plugin = get_utmos_plugin()
+        plugin = get_utmos()
         if plugin is None or getattr(plugin, "model", None) is None:
             return None
         mos_damaged = float(plugin.estimate_mos(np.asarray(damaged), sr))

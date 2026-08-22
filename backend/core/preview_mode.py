@@ -97,20 +97,14 @@ class PreviewMode:
         recommendations: list[str] = []
         if self._restorer is not None:
             try:
-                from backend.core.pre_analysis import analyze as _pre_analyze
-
-                _pa = _pre_analyze(preview_audio, sample_rate)
-                quality = float(getattr(_pa, "quality_estimate", 0.0) or 0.0)
-                defects = int(getattr(_pa, "defect_count", 0) or 0)
-                # Empfehlung aus Pre-Analyse ableiten
-                if quality >= 0.80:
-                    recommendations.append("Ausgezeichnet — Volle Restaurierung empfohlen")
-                elif quality >= 0.60:
-                    recommendations.append("Gut — Restaurierung empfohlen")
-                else:
-                    recommendations.append("Grenzwertig — stärkere Restaurierung nötig")
-                if defects > 10:
-                    recommendations.append(f"{defects} Defekte erkannt — gezielte Phasen empfohlen")
+                # §v10.x Toter-Code-Triage (Befund 2026-08-22): `analyze` existiert
+                # in backend.core.pre_analysis nicht, und run_pre_analysis wäre für
+                # den Preview-Modus viel zu teuer (kompletter ML-Pre-Flight).
+                # Die Preview nutzt ihre eigenen schnellen DSP-Schätzer.
+                logger.warning(
+                    "Preview Pre-Analyse inaktiv — vollständige Analyse nur im Hauptlauf "
+                    "(backend.core.pre_analysis.run_pre_analysis)"
+                )
             except Exception as _pre_exc:
                 logger.warning("Preview Pre-Analyse fehlgeschlagen: %s", _pre_exc)
 

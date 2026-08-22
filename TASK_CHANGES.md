@@ -1,6 +1,6 @@
 # TASK_CHANGES — Live-Ledger der aktuellen Aufgabe
 
-> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-08-22 21:39 CEST).
+> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-08-22 21:53 CEST).
 > CI (`ci-lite.yml` pr-evidence-gate) erzwingt Abdeckung: jede geänderte Code-Datei muss hier stehen.
 
 ## Geänderte Dateien
@@ -16,6 +16,7 @@
 | M | .github/specs/19_sota_gender_detection.md | modifiziert |
 | M | .github/workflows/ci-lite.yml | modifiziert |
 | M | .gitignore | modifiziert |
+| M | .pre-commit-config.yaml | modifiziert |
 | M | AGENTS.md | modifiziert |
 | M | Aurik10/ui/keyboard_shortcuts.py | modifiziert |
 | M | Aurik10/ui/modern_window.py | modifiziert |
@@ -31,6 +32,7 @@
 | M | backend/core/dsp/stem_level_restorer.py | modifiziert |
 | M | backend/core/dsp/vocal_harmonic_decomp.py | modifiziert |
 | M | backend/core/era_classifier.py | modifiziert |
+| M | backend/core/evaluation_system.py | modifiziert |
 | M | backend/core/excellence_optimizer.py | modifiziert |
 | M | backend/core/exception_forensics.py | modifiziert |
 | M | backend/core/fallback_auditor.py | modifiziert |
@@ -51,22 +53,23 @@
 | M | backend/core/mushra_proxy.py | modifiziert |
 | M | backend/core/music_model_flags.py | modifiziert |
 | M | backend/core/musical_goals/semantic_goals.py | modifiziert |
-| M | backend/core/musical_quality_assurance.py | modifiziert |
 | M | backend/core/onnx/runtime.py | modifiziert |
+| M | backend/core/phase_aligned_overlap_add.py | modifiziert |
 | M | backend/core/phase_dag.py | modifiziert |
 | M | backend/core/phase_effect_catalog.py | modifiziert |
 | M | backend/core/phases/phase_03_denoise.py | modifiziert |
 | M | backend/core/phases/phase_09_crackle_removal.py | modifiziert |
 | M | backend/core/phases/phase_12_wow_flutter_fix.py | modifiziert |
 | M | backend/core/phases/phase_19_de_esser.py | modifiziert |
-| M | backend/core/phases/phase_53_semantic_audio.py | modifiziert |
 | M | backend/core/phases/phase_56_spectral_band_gap_repair.py | modifiziert |
 | M | backend/core/phases/phase_66_stem_targeted_nr.py | modifiziert |
 | M | backend/core/pipeline_guard.py | modifiziert |
 | M | backend/core/pre_analysis.py | modifiziert |
 | M | backend/core/pre_export_validator.py | modifiziert |
+| M | backend/core/preview_mode.py | modifiziert |
 | M | backend/core/resampling_utils.py | modifiziert |
 | M | backend/core/runtime_env_selector.py | modifiziert |
+| M | backend/core/sota_vocal_pipeline.py | modifiziert |
 | M | backend/core/spec_constitution.py | modifiziert |
 | M | backend/core/startup_model_check.py | modifiziert |
 | M | backend/core/stem_remix_balancer.py | modifiziert |
@@ -74,6 +77,7 @@
 | M | backend/core/unified_restorer_v3.py | modifiziert |
 | M | backend/core/vocoder_chain.py | modifiziert |
 | M | cli/aurik_cli.py | modifiziert |
+| M | cli/aurik_debug.py | modifiziert |
 | M | corpus/shellac/manifest.yaml | modifiziert |
 | M | denker/aurik_denker.py | modifiziert |
 | M | denker/defekt_denker.py | modifiziert |
@@ -87,7 +91,6 @@
 | M | forensics/medium_detector.py | modifiziert |
 | M | plugins/bs_roformer_plugin.py | modifiziert |
 | M | plugins/deepfilternet_v3_ii_plugin.py | modifiziert |
-| M | plugins/laion_clap_plugin.py | modifiziert |
 | M | plugins/miipher_dit_plugin.py | modifiziert |
 | M | plugins/miipher_plugin.py | modifiziert |
 | M | plugins/panns_plugin.py | modifiziert |
@@ -108,7 +111,6 @@
 | M | tests/unit/test_hybrid_wow_flutter.py | modifiziert |
 | M | tests/unit/test_ml_device_manager.py | modifiziert |
 | M | tests/unit/test_ml_device_manager_amd.py | modifiziert |
-| M | tests/unit/test_musical_quality_assurance_intensity.py | modifiziert |
 | M | tests/unit/test_session_manager.py | modifiziert |
 | M | tests/unit/test_sota_gap_fixes_2026_05.py | modifiziert |
 | M | tests/unit/test_stem_remix_balancer.py | modifiziert |

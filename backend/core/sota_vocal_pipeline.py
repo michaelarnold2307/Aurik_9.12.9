@@ -133,36 +133,43 @@ class VocalAnalyzer:
 
         # 3. Formant Tracking (LPC-based)
         try:
-            from backend.core.dsp.lpc_formant_tracker import LPCFormantTracker
+            from backend.core.dsp.lpc_formant_tracker import _LPCFormantTracker as LPCFormantTracker
 
             lpc = LPCFormantTracker()
             formants = lpc.track(audio, sample_rate)
             if formants:
-                profile.formant_f1_hz = formants.get("f1_hz", 500.0)
-                profile.formant_f2_hz = formants.get("f2_hz", 1500.0)
-                profile.formant_f3_hz = formants.get("f3_hz", 2500.0)
-        except Exception:
-            pass
+                profile.formant_f1_hz = formants.get("f1_mean", 500.0)
+                profile.formant_f2_hz = formants.get("f2_mean", 1500.0)
+                profile.formant_f3_hz = formants.get("f3_mean", 2500.0)
+        except Exception as _frm_exc:
+            log.warning("§V6 (VERBOTEN.md): Formant-Tracking inaktiv — %s", _frm_exc)
 
         # 4. Intonation Classification
         try:
-            from backend.core.dsp.intonation_classifier import classify_intonation
+            from backend.core.dsp.intonation_classifier import classify_intonation_events
 
-            into = classify_intonation(audio, sample_rate)
-            profile.intonation_style = into.get("style", "neutral")
-            profile.pitch_stability = into.get("stability", 1.0)
-        except Exception:
-            pass
+            # API erwartet eine F0-Kontur (CREPE/FCPE); im Vocal-Profil-Kontext
+            # nicht verdrahtbar → laut als inaktiv markieren statt still skip.
+            _ = classify_intonation_events
+            log.debug(
+                "Intonations-Klassifikation im Vocal-Profil inaktiv "
+                "(API braucht F0-Kontur — classify_intonation_events)"
+            )
+        except Exception as _int_exc:
+            log.warning("§V6 (VERBOTEN.md): Intonations-Klassifikation inaktiv — %s", _int_exc)
 
         # 5. Breath Emotion
         try:
-            from backend.core.dsp.breath_emotion_classifier import classify_breath_emotion
+            from backend.core.dsp.breath_emotion_classifier import classify_breath_emotions
 
-            breath = classify_breath_emotion(audio, sample_rate)
-            profile.breath_emotion = breath.get("emotion", "neutral")
-            profile.emotional_intensity = breath.get("intensity", 0.0)
-        except Exception:
-            pass
+            breath_segs = classify_breath_emotions(audio, sample_rate)
+            if breath_segs:
+                _b0 = breath_segs[0]
+                _b0_cat = getattr(_b0, "category", None)
+                profile.breath_emotion = str(getattr(_b0_cat, "value", _b0_cat) or "natural")
+                profile.emotional_intensity = float(getattr(_b0, "energy_slope", 0.0) or 0.0)
+        except Exception as _breath_exc:
+            log.warning("§V6 (VERBOTEN.md): Breath-Emotion inaktiv — %s", _breath_exc)
 
         # ── Calibrate NR parameters from profile ──
         profile.nr_strength = self._calibrate_nr(profile)
@@ -252,12 +259,18 @@ class PhonemeAwareDeEsser:
         """
         # Detect sibilant frames
         try:
-            from backend.core.dsp.sibilance_pathology import classify_sibilance
+            from backend.core.dsp.sibilance_pathology import classify_sibilance_pathology
 
-            sib_result = classify_sibilance(audio, sample_rate)
-            pathology = sib_result.get("pathology", "natural")
-            sib_mask = sib_result.get("sibilant_mask", None)
-        except Exception:
+            sib_segments = classify_sibilance_pathology(audio, sample_rate)
+            if sib_segments:
+                _s0 = sib_segments[0]
+                _s0_path = getattr(_s0, "sibilance_type", None)
+                pathology = str(getattr(_s0_path, "value", _s0_path) or "natural")
+            else:
+                pathology = "natural"
+            sib_mask = None  # Segment-API liefert keine Frame-Maske; konservativ None
+        except Exception as _sib_exc:
+            log.warning("§V6 (VERBOTEN.md): Sibilanz-Klassifikation inaktiv — %s", _sib_exc)
             pathology = "natural"
             sib_mask = None
 

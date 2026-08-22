@@ -199,9 +199,9 @@ def should_skip_alignment(overlap: np.ndarray, sr: int, erb_masker=None) -> bool
 
     # Check against ERB masking threshold
     try:
-        from backend.core.erb_auditory_masking import get_erb_masker
+        from backend.core.erb_auditory_masking import ERBMaskingThreshold
 
-        masker = erb_masker or get_erb_masker()
+        masker = erb_masker or ERBMaskingThreshold()
         threshold = masker.compute_masking_threshold(overlap, sr)
         residual_db = 10.0 * np.log10(energy + 1e-12)
         threshold_db = 10.0 * np.log10(np.mean(threshold) + 1e-12)
