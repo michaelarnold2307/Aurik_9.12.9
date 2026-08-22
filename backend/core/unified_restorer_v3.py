@@ -19198,12 +19198,46 @@ class UnifiedRestorerV3:
                         if _vqi_rb is None:
                             _vqi_rb = getattr(self, "_best_carrier_checkpoint", None)
                         if _vqi_rb is not None:
-                            restored_audio = _vqi_rb
-                            logger.warning(
-                                "§0p VQI-Rollback: vqi=%.3f < %.2f → Post-Processing-Checkpoint",
-                                _vqi_score,
-                                _vqi_threshold,
-                            )
+                            # §v10.x Rollback-Verifikation (§0 Primum non nocere):
+                            # Befund 2026-08-22 — der blinde Rollback auf den
+                            # Checkpoint verschlechterte das Ergebnis (HPI
+                            # 0.900→0.619 nach Rollback). Der Checkpoint muss
+                            # das Rollback-ZIEL (VQI) tatsächlich verbessern;
+                            # sonst bleibt der aktuelle Stand erhalten.
+                            _rb_vqi = _vqi_score
+                            try:
+                                _rb_result = _compute_vqi(
+                                    audio_orig=_vqi_orig,
+                                    audio_restored=np.asarray(_vqi_rb, dtype=np.float32),
+                                    sr=sample_rate,
+                                    vocal_segments=_vqi_segments or None,
+                                    skip_singer_identity=_is_multi_singer_gate,
+                                    genre=str(self._restoration_context.get("genre_label") or ""),
+                                    era_profile=__import__(
+                                        "backend.core.musical_goals.era_vocal_profile",
+                                        fromlist=["get_era_vocal_profile"],
+                                    ).get_era_vocal_profile(
+                                        int(self._restoration_context.get("decade", 1975) or 1975)
+                                    ),
+                                )
+                                _rb_vqi = float(_rb_result.get("vqi", _vqi_score))
+                            except Exception as _rb_vqi_exc:
+                                logger.debug("VQI-Rollback-Verifikation nicht verfügbar: %s", _rb_vqi_exc)
+                            if _rb_vqi > _vqi_score:
+                                restored_audio = _vqi_rb
+                                logger.warning(
+                                    "§0p VQI-Rollback: vqi=%.3f < %.2f → Checkpoint (checkpoint_vqi=%.3f, besser)",
+                                    _vqi_score,
+                                    _vqi_threshold,
+                                    _rb_vqi,
+                                )
+                            else:
+                                logger.warning(
+                                    "§0p VQI-Rollback verworfen: Checkpoint-VQI %.3f ≤ aktuell %.3f — "
+                                    "aktueller Stand beibehalten (§0)",
+                                    _rb_vqi,
+                                    _vqi_score,
+                                )
 
                 # §0a [RELEASE_MUST] Phase_65 VQI-Korrektiv-Recovery (v10.0.0)
                 # VQI < 0.74 oder unter Maximum-Alignment + panns_singing ≥ 0.25 + Restoration-Modus
