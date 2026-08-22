@@ -107,13 +107,27 @@ class FeedbackChain:
                 if _versa_plugin is not None:
                     self._versa_score_fn = _versa_plugin.score
             except Exception as exc:
-                logger.debug("FeedbackChain: VERSA scorer nicht verfuegbar, Ersatzpfad active: %s", exc)
+                logger.warning(
+                    "FeedbackChain: VERSA scorer nicht verfügbar — PQS/RMS-Ersatzpfad (§V6 (copilot-instructions.md)): %s", exc
+                )
+                try:
+                    from backend.core.fallback_auditor import get_fallback_auditor
+
+                    get_fallback_auditor().record(
+                        "FeedbackChain", "versa_mos", "pqs_rms_dsp", "versa_load_failed"
+                    )
+                except Exception:
+                    logger.debug("FallbackAuditor nicht verfügbar (unkritisch)", exc_info=True)
         # target_score: explizit gesetzt oder aus excellence_mode abgeleitet
         excellence_target = EXCELLENCE_TARGET_SCORE if excellence_mode else DEFAULT_TARGET_SCORE
         if target_score is not None:
             self.target_score = float(max(target_score, excellence_target))
         else:
             self.target_score = excellence_target
+
+    _SCORE_EXCERPT_S = 90.0
+    _SCORE_WINDOW_S = 30.0
+    _SCORE_WINDOWS_N = 3
 
     @staticmethod
     def compute_perceptual_score(audio: np.ndarray) -> float:
@@ -123,19 +137,33 @@ class FeedbackChain:
         rms = float(np.sqrt(np.mean(mono.astype(np.float64) ** 2) + 1e-12))
         return float(np.clip(1.0 + 4.0 * (1.0 - np.exp(-8.0 * rms)), 1.0, 5.0))
 
-    def _compute_iteration_score(self, audio: np.ndarray, sr: int) -> float:
-        """Berechnet loop score with PQS-first strategy and heuristic fallback.
+    @classmethod
+    def _score_windows(cls, audio: np.ndarray, sr: int) -> list[np.ndarray]:
+        """Deterministische Analyse-Fenster für ML-Scorer (§G5 (copilot-instructions.md), §9 Performance-Budget).
 
-        Primary: VERSA mos (if enabled) or PerceptualQualityScorer.score_audio_absolute(...).
-        Fallback: legacy RMS heuristic from compute_perceptual_score().
+        Bei Signalen > 90 s: 3 Fenster à 30 s (Anfang/Mitte/Ende). Gleicher Input
+        ⇒ gleiche Fenster ⇒ bit-identische Scores. Kürzere Signale: als Ganzes.
         """
+        arr = np.asarray(audio, dtype=np.float32)
+        if arr.ndim == 2:
+            _axis = 0 if arr.shape[-1] <= 2 else -1
+        else:
+            _axis = 0
+        total = arr.shape[_axis]
+        win = int(cls._SCORE_WINDOW_S * sr)
+        if total <= win * cls._SCORE_WINDOWS_N or total <= int(cls._SCORE_EXCERPT_S * sr):
+            return [arr]
+        starts = [0, (total - win) // 2, total - win]
+        return [np.take(arr, np.arange(s, s + win), axis=_axis) for s in starts]
+
+    def _score_single(self, audio: np.ndarray, sr: int) -> float:
+        """VERSA → PQS → RMS-Heuristik für EIN Audio-Signal."""
         if self._versa_score_fn is not None:
             try:
                 versa_mos = self._compute_versa_segmented_score(audio, sr)
                 if np.isfinite(versa_mos):
                     self._last_score_source = "versa_segmented"
-                    base_mos = float(np.clip(versa_mos, 1.0, 5.0))
-                    return self._apply_vqi_dual_objective(audio, sr, base_mos)
+                    return float(np.clip(versa_mos, 1.0, 5.0))
             except Exception as exc:
                 logger.debug("FeedbackChain: VERSA loop Wert fehlgeschlagen, trying PQS Ersatzpfad: %s", exc)
         if self._pqs_score_fn is not None:
@@ -144,12 +172,23 @@ class FeedbackChain:
                 pqs_mos = float(getattr(pqs, "pqs_mos", getattr(pqs, "mos", np.nan)))
                 if np.isfinite(pqs_mos):
                     self._last_score_source = "pqs_absolute"
-                    base_mos = float(np.clip(pqs_mos, 1.0, 5.0))
-                    return self._apply_vqi_dual_objective(audio, sr, base_mos)
+                    return float(np.clip(pqs_mos, 1.0, 5.0))
             except Exception as exc:
                 logger.debug("FeedbackChain: PQS loop Wert fehlgeschlagen, Ersatzpfad active: %s", exc)
         self._last_score_source = "heuristic_rms"
-        base_mos = self.compute_perceptual_score(audio)
+        return self.compute_perceptual_score(audio)
+
+    def _compute_iteration_score(self, audio: np.ndarray, sr: int) -> float:
+        """Loop-Score: ML-Scorer auf deterministischen Fenstern bei langen Signalen.
+
+        §9 Performance-Budget BUG-FIX 2026-08-22: Der ML-Scorer hat kein
+        Längen-Cap — 224 s kosteten 37.3 s pro Aufruf und erschöpften das
+        Iterations-Budget. Fenster-Scoring (Mittelwert der Fenster-Scores)
+        senkt die Kosten ~2.5× und bleibt deterministisch.
+        """
+        _windows = self._score_windows(audio, sr)
+        _scores = [self._score_single(w, sr) for w in _windows]
+        base_mos = float(np.mean(_scores)) if _scores else 1.0
         return self._apply_vqi_dual_objective(audio, sr, base_mos)
 
     def _apply_vqi_dual_objective(self, audio: np.ndarray, sr: int, base_mos: float) -> float:
@@ -180,8 +219,19 @@ class FeedbackChain:
             except Exception as _ep_exc:
                 logger.debug("FeedbackChain era_Profil nicht geladen: %s", _ep_exc)
 
-            vqi_result = compute_vqi(self._vqi_orig_audio, audio, sr, era_profile=_era_profile)
-            vqi_score = float(np.clip(vqi_result.get("vqi", 1.0), 0.01, 1.0))
+            # §9 Performance-Budget (Befund 2026-08-22): compute_vqi hat kein
+            # Längen-Cap — Voll-Audio-VQI dominierte die Iterations-Latenz
+            # (224 s ⇒ ~30+ s pro Aufruf). VQI daher NUR auf den denselben
+            # deterministischen Analyse-Fenstern wie der ML-Scorer berechnen:
+            # ≤90 s ⇒ 1 Fenster (Voll-Audio, identisch zum alten Verhalten),
+            # >90 s ⇒ 3×30 s statt Voll-Länge (Kosten-Bound, §G5 (copilot-instructions.md) deterministisch).
+            _vqi_windows_o = self._score_windows(self._vqi_orig_audio, sr)
+            _vqi_windows_c = self._score_windows(audio, sr)
+            _vqi_scores: list[float] = []
+            for _ow, _cw in zip(_vqi_windows_o, _vqi_windows_c):
+                _w_result = compute_vqi(_ow, _cw, sr, era_profile=_era_profile)
+                _vqi_scores.append(float(np.clip(_w_result.get("vqi", 1.0), 0.01, 1.0)))
+            vqi_score = float(np.mean(_vqi_scores)) if _vqi_scores else 1.0
             # §0p F-06: VQI^0.5 (sqrt) — stärkere Penalty bei sub-threshold VQI.
             # VQI=0.60 → Faktor 0.775 (war 0.849); VQI=0.72 → 0.849 (war 0.906).
             # Verhindert, dass VERSA-MOS-Gewinn (+0.15) die VQI-Penalty neutralisiert
@@ -664,10 +714,12 @@ class FeedbackChain:
 
         current = np.nan_to_num(np.asarray(audio, dtype=np.float32))
 
-        # §Performance-Budget: ≤120s per minute audio for FeedbackChain (all iterations).
-        # Spec §2.38: FeedbackChain ≤ 120 s per minute audio.
+        # §Performance-Budget (copilot-instructions.md, Tabelle „pro Minute Audio“):
+        # FeedbackChain (alle Iterationen) ≤ 120 s pro Minute Audio.
+        # Für 30-s-Fragmente: 60 s. Floor 60 s für Kurzfragmente (dokumentierte
+        # Abweichung: darunter kann kein vollständiger Phasen-Durchlauf stattfinden).
         _audio_dur_s = float(max(current.shape) if current.ndim == 2 else len(current)) / float(_sr)
-        _time_budget_s = max(120.0, 2.0 * _audio_dur_s)  # 120s per minute, min 120s
+        _time_budget_s = max(60.0, (_audio_dur_s / 60.0) * 120.0)
         best = current.copy()
         _t_before_init_score = time.perf_counter()
         best_mos = self._compute_iteration_score(best, _sr)

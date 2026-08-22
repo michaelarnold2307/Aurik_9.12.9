@@ -749,7 +749,7 @@ def estimate_song_goal_targets(
     *,
     is_studio_2026: bool = False,
     goal_weights: dict[str, float] | None = None,
-    restorability_score: float = 70.0,
+    restorability_score: float | None = None,
     era_decade: int | None = None,
     genre_label: str | None = None,
     material_type: str | None = None,
@@ -787,6 +787,10 @@ def estimate_song_goal_targets(
     Returns:
         dict[str, float]: Per-goal targets, same keys as CANONICAL_THRESHOLDS.
     """
+    # §v10.x rs-Konsistenz: kanonische Quelle (explizit > CalibrationContext > 70.0).
+    from backend.core.calibration_context import resolve_restorability_score
+
+    restorability_score = resolve_restorability_score(restorability_score)
     canonical = CANONICAL_THRESHOLDS_STUDIO2026 if is_studio_2026 else CANONICAL_THRESHOLDS_RESTORATION
     weights = goal_weights or {}
     rest_norm = float(np.clip(restorability_score / 100.0, 0.0, 1.0))
@@ -1259,7 +1263,7 @@ def resolve_effective_goal_targets(
     *,
     is_studio_2026: bool = False,
     goal_weights: dict[str, float] | None = None,
-    restorability_score: float = 70.0,
+    restorability_score: float | None = None,
     era_decade: int | None = None,
     genre_label: str | None = None,
     material_type: str | None = None,
@@ -1269,6 +1273,10 @@ def resolve_effective_goal_targets(
     production_profile: object | None = None,
 ) -> dict[str, float]:
     """Berechnet effektive, physikalisch gedeckelte Goal-Zielwerte (§1.2b/§09.2b)."""
+    # §v10.x rs-Konsistenz: kanonische Quelle (explizit > CalibrationContext > 70.0).
+    from backend.core.calibration_context import resolve_restorability_score
+
+    restorability_score = resolve_restorability_score(restorability_score)
     canonical = CANONICAL_THRESHOLDS_STUDIO2026 if is_studio_2026 else CANONICAL_THRESHOLDS_RESTORATION
     mat = str(material_type or "").strip().lower() or (
         str((transfer_chain or [""])[0]).strip().lower() if transfer_chain else "unknown"
@@ -1400,7 +1408,7 @@ _DEFAULT_STRENGTH_RANGE: tuple[float, float] = (0.05, 1.0)
 def get_phase_strength_range(
     phase_id: str,
     material_type: str | None = None,
-    restorability_score: float = 70.0,
+    restorability_score: float | None = None,
 ) -> tuple[float, float]:
     """Gibt (min_strength, max_strength) for a phase given material and restorability zurück.
 
@@ -1418,6 +1426,10 @@ def get_phase_strength_range(
     """
     mat = str(material_type or "").strip().lower()
     mat_class = _MATERIAL_CLASS.get(mat, "analog")
+    # §v10.x rs-Konsistenz: kanonische Quelle (explizit > CalibrationContext > 70.0).
+    from backend.core.calibration_context import resolve_restorability_score
+
+    restorability_score = resolve_restorability_score(restorability_score)
 
     mat_ranges = _PHASE_STRENGTH_RANGES.get(mat_class, {})
     min_s, max_s = mat_ranges.get(phase_id, _DEFAULT_STRENGTH_RANGE)

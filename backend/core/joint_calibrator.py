@@ -55,7 +55,7 @@ def joint_calibrate(
     codec_avg_discount: float = 1.0,
     terminal_codec: str | None = None,
     min_strength: float | None = None,
-    restorability_score: float = 65.0,
+    restorability_score: float | None = None,
     default_strength: float = 0.85,
     transfer_chain_depth: int = 1,
 ) -> dict[str, float]:
@@ -79,6 +79,10 @@ def joint_calibrate(
     Returns:
         {phase_id: calibrated_strength}
     """
+    # §v10.x rs-Konsistenz: kanonische Quelle (explizit > CalibrationContext > 65.0).
+    from backend.core.calibration_context import resolve_restorability_score
+
+    restorability_score = resolve_restorability_score(restorability_score, default=65.0)
     from backend.core.phase_effect_catalog import PHASE_EFFECT_CATALOG
 
     # §G71 (GEBOTE.md) Adaptive min_strength aus Restorability

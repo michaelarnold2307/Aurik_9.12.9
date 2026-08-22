@@ -572,3 +572,88 @@ class TestDtwGrooveMeasurer:
         result = measure_groove(orig, rest)
         assert math.isfinite(result.groove_score)
         assert 0.0 <= result.groove_score <= 1.0
+
+
+class TestDtwGrooveOnsetLossGuard:
+    """Regressionstests für den Onset-Verlust-Guard (§v10.x, Befund 2026-08-22).
+
+    Der alte symmetrische "no_onsets"-Pfad lieferte groove_score=1.0, wenn EINE
+    Seite keine Onsets hatte — ein False-Pass, der kaputtes Audio (0 Onsets)
+    als "perfekter Groove" durchließ (Log: onsets_orig=185, onsets_rest=0 →
+    Wert=1.000 trotz katastrophalem Onset-Verlust).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _seed(self):
+        np.random.seed(7)
+
+    def _signal(self, duration_s: float = 3.0, sr: int = 48000) -> np.ndarray:
+        n = int(sr * duration_s)
+        audio = np.random.randn(n).astype(np.float32) * 0.05
+        for t in [0.5, 1.0, 1.5, 2.0, 2.5]:
+            idx = int(t * sr)
+            if idx < n:
+                decay = np.exp(-np.arange(min(2400, n - idx)) * 0.003)
+                audio[idx : idx + len(decay)] += 0.8 * decay.astype(np.float32)
+        return np.clip(audio, -1.0, 1.0)
+
+    def test_01_restored_silent_reports_onset_loss(self):
+        """Original hat Onsets, Restauriert ist still → 0.0 statt False-Pass."""
+        from dsp.dtw_groove import measure_groove
+
+        orig = self._signal()
+        rest = np.zeros(48000 * 3, dtype=np.float32)
+        result = measure_groove(orig, rest)
+        assert result.n_onsets_original >= 4
+        assert result.n_onsets_restored == 0
+        assert result.groove_score == 0.0
+        assert result.passes_threshold is False
+        assert result.method_used == "onset_loss_restored"
+
+    def test_02_original_silent_reports_onset_loss(self):
+        """Restauriert hat Onsets, Original ist still → symmetrisch gemeldet."""
+        from dsp.dtw_groove import measure_groove
+
+        orig = np.zeros(48000 * 3, dtype=np.float32)
+        rest = self._signal()
+        result = measure_groove(orig, rest)
+        assert result.n_onsets_restored >= 4
+        assert result.groove_score == 0.0
+        assert result.method_used == "onset_loss_original"
+
+    def test_03_both_silent_stays_neutral(self):
+        """Beide still → weiterhin neutral (1.0), kein False-Pass-Umkehrfehler."""
+        from dsp.dtw_groove import measure_groove
+
+        silence = np.zeros(48000, dtype=np.float32)
+        result = measure_groove(silence, silence.copy())
+        assert result.groove_score == 1.0
+        assert result.method_used == "no_onsets"
+
+    def test_04_nan_input_deterministic_no_false_pass(self):
+        """NaN im Signal → deterministisch, kein Absturz, kein False-Pass."""
+        from dsp.dtw_groove import measure_groove
+
+        orig = self._signal()
+        rest = self._signal().copy()
+        rest[::997] = np.nan  # verstreute NaNs
+        result = measure_groove(orig, rest)
+        assert math.isfinite(result.groove_score)
+        assert 0.0 <= result.groove_score <= 1.0
+        # Gleicher Input ⇒ gleiches Ergebnis (Determinismus, §G5 (GEBOTE.md)).
+        result2 = measure_groove(orig, rest)
+        assert result.groove_score == result2.groove_score
+
+    def test_05_channels_first_detect_parity(self):
+        """detect_onsets((2, N)) == detect_onsets(mono) — Zeitachse korrekt."""
+        from dsp.dtw_groove import detect_onsets
+
+        mono = self._signal()
+        stereo_cf = np.stack([mono, mono], axis=0)  # (2, N) channels-first
+        stereo_sf = np.stack([mono, mono], axis=1)  # (N, 2) samples-first
+        r_cf = detect_onsets(stereo_cf)
+        r_sf = detect_onsets(stereo_sf)
+        r_mono = detect_onsets(mono)
+        assert r_cf.n_onsets == r_mono.n_onsets
+        assert r_sf.n_onsets == r_mono.n_onsets
+        assert r_cf.n_onsets >= 4, "Layout-Fehler würde 0 Onsets ergeben"

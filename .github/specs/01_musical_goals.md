@@ -961,6 +961,39 @@ _is_noise_dominated = _max_onset_density > 6.0  # War: _gdur_s < 10.0 and ...
 
 ---
 
+### §1.4.5b GrooveMetric — Onset-Verlust-Guard + Messdeterminismus (v10.0.x)
+
+**Problem (Produktion 2026-08-22)**: Der symmetrische `no_onsets`-Pfad lieferte
+`groove_score=1.0`, sobald EINE Seite keine Onsets hatte — ein False-Pass, der
+einen Onset-Verlust der Restaurierung als „perfekter Groove" durchließ
+(Log: `onsets_orig=185, onsets_rest=0 → Wert=1.000`, danach echter DTW-Wert 0.000).
+Zusätzlich war die Messkette nicht deterministisch: (a) NaN/Inf im Signal
+infizierte den Spectral-Flux → 0 Onsets; (b) `detect_onsets` mittelte bei
+Channels-first (2, N) über die Zeitachse → 2 Samples statt N; (c) der
+`measure_all`-Cache ignorierte die Referenz → referenzfreies IOI-Ergebnis
+wurde auch bei Aufrufen MIT Referenz geliefert.
+
+**Normative Regeln**:
+
+1. **Asymmetrischer Onset-Verlust**: Hat eine Seite ≥ 4 Onsets und die andere 0,
+   ist das kein „nichts messbar", sondern `groove_score=0.0`,
+   `passes_threshold=False`, `method_used="onset_loss_restored|original"`
+   (§V6 (VERBOTEN.md): kein Silent-Failure). Nur wenn BEIDE Seiten 0 Onsets
+   haben (Stille/Drone), bleibt `no_onsets` → 1.0 neutral.
+2. **NaN/Inf-Guard**: `detect_onsets` und `_measure_with_dtw` wenden vor der
+   Messung `np.nan_to_num(..., nan=0, posinf=0, neginf=0)` an. Gleicher Input
+   ⇒ gleiches Ergebnis (§G5 (copilot-instructions.md)).
+3. **Layout-sicherheit**: `detect_onsets` wählt die Mono-Achse explizit —
+   (C, N) channels-first → Achse 0, (N, C) samples-first → Achse 1.
+4. **Cache-Korrektheit**: `measure_all`-Cache-Schlüssel = (audio-Hash,
+   Referenz-Hash, sr, material_type, panns_singing). Ein ohne Referenz
+   gemessenes Ergebnis darf nie einen Aufruf MIT Referenz bedienen.
+
+> Implementierung: `dsp/dtw_groove.py`, `backend/core/musical_goals/musical_goals_metrics.py`
+> Tests: `tests/unit/test_v9_dsp_pghi_psola_groove.py::TestDtwGrooveOnsetLossGuard`
+
+---
+
 ### §1.4.6 [RELEASE_MUST] TransientEnergyMetric — Algorithmus-Spezifikation (v10.0.0)
 
 > **Neue Sub-Spec für das in §1.2 neu eingeführte Goal `Transient-Energie`** (Prio 2).

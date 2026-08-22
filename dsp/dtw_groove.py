@@ -93,7 +93,7 @@ def detect_onsets(
         2. Half-Wave Gleichrichtung: nur positive Energiezunahmen
         3. Peak-Picking mit Mindestabstand min_onset_gap_ms
 
-    Fallback wenn madmom nicht verfügbar (out-of-the-box DSP).  # §V6: logger.warning handled at call site
+    Fallback wenn madmom nicht verfügbar (out-of-the-box DSP).  # §V6 (copilot-instructions.md): logger.warning handled at call site
 
     Args:
         audio:             Audio [n_samples], float32/64
@@ -107,7 +107,17 @@ def detect_onsets(
         OnsetDetectionResult mit Onset-Positionen und Stärken.
     """
     if audio.ndim > 1:
-        audio = np.mean(audio, axis=-1)
+        # §v10.x Layout-sicher (Befund 2026-08-22): axis=-1 mittelt bei
+        # Channels-first (2, N) über die ZEITACHSE → (2,) statt (N,) →
+        # 1 STFT-Frame → 0 Onsets → False-Pass. Zeitachse explizit wählen:
+        # (N, C) samples-first → Achse 1, (C, N) channels-first → Achse 0.
+        _mono_axis = 0 if audio.shape[0] <= 2 and audio.shape[0] < audio.shape[1] else 1
+        audio = np.mean(audio, axis=_mono_axis)
+    # §v10.x NaN-Guard (Befund 2026-08-22): Ein NaN im Signal infiziert den
+    # kompletten Spectral-Flux (NaN-Vergleiche sind False) → 0 Onsets → der
+    # alte "no_onsets"-Pfad lieferte groove_score=1.0 als False-Pass und
+    # maskierte echten Groove-Verlust. NaN/Inf werden deterministisch zu 0.
+    audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
     audio = audio.astype(np.float64)
     # §9.7.6 Performance-Cap — pure-Python STFT loop is O(N/hop); cap to 30 s.
     _max_samples = int(sr * max_duration_s)
@@ -355,8 +365,8 @@ class DtwGrooveMeasurer:
         orig_onsets = _filter_salient(orig_onsets)
         rest_onsets = _filter_salient(rest_onsets)
 
-        if orig_onsets.n_onsets == 0 or rest_onsets.n_onsets == 0:
-            # Keine Onsets messbar → perfektes Ergebnis
+        if orig_onsets.n_onsets == 0 and rest_onsets.n_onsets == 0:
+            # Beide Seiten onset-frei (Stille/Drone): nichts messbar → neutral.
             return GrooveMeasurementResult(
                 dtw_distance_ms=0.0,
                 dtw_rms_ms=0.0,
@@ -366,6 +376,33 @@ class DtwGrooveMeasurer:
                 n_onsets_restored=rest_onsets.n_onsets,
                 onset_deviations_ms=np.array([], dtype=np.float32),
                 method_used="no_onsets",
+            )
+
+        if orig_onsets.n_onsets == 0 or rest_onsets.n_onsets == 0:
+            # §v10.x Asymmetrischer Onset-Verlust (Befund 2026-08-22):
+            # Eine Seite hat hörbare Events, die andere keine. Der alte
+            # symmetrische "no_onsets"-False-Pass (score=1.0) ließ
+            # ExcellenceOptimizer-Re-Verifikationen durchlaufen, obwohl das
+            # restaurierte Signal seine Onsets vollständig verloren hatte
+            # (Log: onsets_orig=185, onsets_rest=0 → Wert=1.000).
+            # Das ist katastrophaler Groove-Verlust, kein "nichts messbar".
+            _lost_side = "restored" if rest_onsets.n_onsets == 0 else "original"
+            _surviving = orig_onsets.n_onsets if rest_onsets.n_onsets == 0 else rest_onsets.n_onsets
+            logger.warning(
+                "dtw_groove: Onset-Verlust erkannt (%s: 0 Onsets, Gegenseite %d) "
+                "— groove_score=0.0 statt False-Pass (§V6 (copilot-instructions.md))",
+                _lost_side,
+                _surviving,
+            )
+            return GrooveMeasurementResult(
+                dtw_distance_ms=0.0,
+                dtw_rms_ms=0.0,
+                groove_score=0.0,
+                passes_threshold=False,
+                n_onsets_original=orig_onsets.n_onsets,
+                n_onsets_restored=rest_onsets.n_onsets,
+                onset_deviations_ms=np.array([], dtype=np.float32),
+                method_used=f"onset_loss_{_lost_side}",
             )
 
         # DTW-Alignierung der Onset-Zeiten (in ms)

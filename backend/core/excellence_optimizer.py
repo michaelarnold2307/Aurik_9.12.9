@@ -759,18 +759,55 @@ def _ola_crossfade_edges(audio: np.ndarray, sample_rate: int) -> tuple[np.ndarra
     fade_out = 0.5 * (1.0 + np.cos(t))  # 1 → 0 (Hanning fade-out)
 
     result = audio.copy()
-    if audio.ndim == 1:
-        result[:xfade_samples] *= fade_in
-        result[-xfade_samples:] *= fade_out
-    else:
-        if audio.shape[0] > audio.shape[1]:  # (samples, channels)
-            result[:xfade_samples, :] *= fade_in[:, np.newaxis]
-            result[-xfade_samples:, :] *= fade_out[:, np.newaxis]
-        else:  # (channels, samples)
-            result[:, :xfade_samples] *= fade_in[np.newaxis, :]
-            result[:, -xfade_samples:] *= fade_out[np.newaxis, :]
 
-    return result, 2
+    # §v10.x Energie-Guard (Befund 2026-08-22): Der Fade multipliziert Sample 0
+    # mit 0.0 — beginnt Musik direkt bei t=0 (kein Lead-in-Silence), wird der
+    # erste Onset bis zu 100 % gedämpft (Attack-Verlust statt Phase-Glättung).
+    # Der Fade gehört nur in stille Randbereiche; aktive Kanten bleiben
+    # bit-identisch erhalten. Deterministisch: reine RMS-Schwelle, kein Zufall.
+    def _edge_is_quiet(edge: np.ndarray, full: np.ndarray) -> bool:
+        if edge.size == 0:
+            return True
+        _edge_vals = np.nan_to_num(edge, nan=0.0, posinf=0.0, neginf=0.0)
+        _full_vals = np.nan_to_num(full, nan=0.0, posinf=0.0, neginf=0.0)
+        _edge_rms = float(np.sqrt(np.mean(_edge_vals.astype(np.float64) ** 2)) + 1e-12)
+        _full_rms = float(np.sqrt(np.mean(_full_vals.astype(np.float64) ** 2)) + 1e-12)
+        # Rand gilt als aktiv, wenn sein RMS ≥ 25 % (−12 dB) des Gesamt-RMS beträgt.
+        return _edge_rms < max(_full_rms * 0.25, 1e-6)
+
+    def _edge_slice(sig: np.ndarray, at_start: bool) -> np.ndarray:
+        if at_start:
+            return sig[:xfade_samples] if sig.ndim == 1 else (
+                sig[:xfade_samples, :] if sig.shape[0] > sig.shape[1] else sig[:, :xfade_samples]
+            )
+        return sig[-xfade_samples:] if sig.ndim == 1 else (
+            sig[-xfade_samples:, :] if sig.shape[0] > sig.shape[1] else sig[:, -xfade_samples:]
+        )
+
+    _n_xfades = 0
+    if audio.ndim == 1:
+        if _edge_is_quiet(_edge_slice(result, True), result):
+            result[:xfade_samples] *= fade_in
+            _n_xfades += 1
+        if _edge_is_quiet(_edge_slice(result, False), result):
+            result[-xfade_samples:] *= fade_out
+            _n_xfades += 1
+    else:
+        _samples_first = audio.shape[0] > audio.shape[1]
+        if _edge_is_quiet(_edge_slice(result, True), result):
+            if _samples_first:  # (samples, channels)
+                result[:xfade_samples, :] *= fade_in[:, np.newaxis]
+            else:  # (channels, samples)
+                result[:, :xfade_samples] *= fade_in[np.newaxis, :]
+            _n_xfades += 1
+        if _edge_is_quiet(_edge_slice(result, False), result):
+            if _samples_first:
+                result[-xfade_samples:, :] *= fade_out[:, np.newaxis]
+            else:
+                result[:, -xfade_samples:] *= fade_out[np.newaxis, :]
+            _n_xfades += 1
+
+    return result, _n_xfades
 
 
 # ─── Haupt-API ───────────────────────────────────────────────────────────────

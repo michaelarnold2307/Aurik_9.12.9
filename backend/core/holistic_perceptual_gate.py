@@ -144,7 +144,7 @@ class HolisticPerceptualGate:
         sr: int,
         artifact_freedom: float = 1.0,
         emotional_arc_score: float = 1.0,
-        restorability_score: float = 70.0,
+        restorability_score: float | None = None,
         genre: str = "DEFAULT",
         material: str = "digital",
         era_bin: str = "post-1990",
@@ -169,6 +169,10 @@ class HolisticPerceptualGate:
                misst ob Signal in Richtung "sauber + musikalisch" verbessert wurde
           Input-Ähnlichkeit dient nur als Content-Integrity-Anteil (klein).
         """
+        # §v10.x rs-Konsistenz: kanonische Quelle (explizit > CalibrationContext > 70.0).
+        from backend.core.calibration_context import resolve_restorability_score
+
+        restorability_score = resolve_restorability_score(restorability_score)
         self._mert_proxy_used = False  # reset per evaluation
         _reference_audio = reference_audio if reference_audio is not None else original
         _reference_mode = "best_carrier_checkpoint" if reference_audio is not None else "degraded_input"

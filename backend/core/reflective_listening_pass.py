@@ -303,10 +303,38 @@ class ReflectiveListeningPass:
 
         return issues
 
+    @staticmethod
+    def _filter_time_axis(sos, arr: np.ndarray) -> np.ndarray:
+        """SOS-Filter entlang der ZEITACHSE — layout-sicher (§v10.x).
+
+        Befund 2026-08-22: ``arr[:, ch]`` setzt Samples-first-Layout voraus.
+        Bei Channels-first (2, N) ist ``arr[:, ch]`` eine Spalte der Länge 2
+        → sosfiltfilt crasht mit „length must be greater than padlen“. Der
+        frühe Kurzsignal-Guard (≤16 Samples) schützt dagegen nicht, weil er
+        die Zeitachse korrekt erkennt — die Filterzweige taten es nicht.
+        Zeitachse: (N, C) → Achse 0, (C, N) → Achse 1, mono → Achse 0.
+        """
+        from scipy import signal as scipy_signal
+
+        if arr.ndim == 2:
+            # Zeitachse: (N, C) samples-first → Achse 0; (C, N) channels-first → Achse 1.
+            _axis = 0 if arr.shape[1] <= 2 else 1
+        else:
+            _axis = 0
+        return scipy_signal.sosfiltfilt(sos, arr, axis=_axis)
+
     def _apply_corrections(self, audio: np.ndarray, sr: int, issues: list[RLPIssue], material: str) -> np.ndarray:
         """Wendet Mikro-Korrekturen an — kumulativ, aber mit strengen Limits."""
         arr = np.asarray(audio, dtype=np.float64).copy()
-        _mono = arr.mean(axis=0) if arr.ndim == 2 else arr
+        # §III RLP-last: Die Korrektur-Filter (SOS, Ordnung 2–4) brauchen
+        # padlen 9–15 Samples. Bei kürzeren Signalen ist die Identität die
+        # einzige korrekte Antwort — kein Exception-Fallback (Befund
+        # 2026-08-22: „length of input vector x must be greater than padlen, 9“
+        # → kompletter RLP-Pass fiel aus, V1 beibehalten).
+        _time_len = arr.shape[0] if (arr.ndim == 1 or arr.shape[-1] <= 2) else arr.shape[-1]
+        if _time_len <= 16:
+            logger.debug("RLP: Mikro-Korrekturen übersprungen (Signal zu kurz: %d Samples)", _time_len)
+            return arr
 
         for issue in issues:
             corr = issue.correction
@@ -319,11 +347,7 @@ class ReflectiveListeningPass:
                 if abs(gain_db) > 0.1:
                     # High-Shelf EQ (sanft)
                     sos = self._make_high_shelf(sr, freq_hz, gain_db)
-                    if arr.ndim == 2:
-                        for ch in range(arr.shape[1]):
-                            arr[:, ch] = scipy_signal.sosfiltfilt(sos, arr[:, ch])
-                    else:
-                        arr = scipy_signal.sosfiltfilt(sos, arr)
+                    arr = self._filter_time_axis(sos, arr)
                     logger.debug("RLP: High-Shelf %.1f dB @ %.0f Hz", gain_db, freq_hz)
 
             if "eq_low_shelf_db" in corr:
@@ -333,11 +357,7 @@ class ReflectiveListeningPass:
                 freq_hz = float(corr.get("eq_freq_hz", 150.0))
                 if abs(gain_db) > 0.1:
                     sos = self._make_low_shelf(sr, freq_hz, gain_db)
-                    if arr.ndim == 2:
-                        for ch in range(arr.shape[1]):
-                            arr[:, ch] = scipy_signal.sosfiltfilt(sos, arr[:, ch])
-                    else:
-                        arr = scipy_signal.sosfiltfilt(sos, arr)
+                    arr = self._filter_time_axis(sos, arr)
                     logger.debug("RLP: Low-Shelf %.1f dB @ %.0f Hz", gain_db, freq_hz)
 
             if "de_ess_strength" in corr:
@@ -571,7 +591,14 @@ class ReflectiveListeningPass:
 
     # ── DSP-Hilfsmethoden ────────────────────────────────────────────────
 
-    def _make_high_shelf(self, sr: int, freq: float, gain_db: float):
+    @staticmethod
+    def _make_high_shelf(sr: int, freq: float, gain_db: float):
+        """RBJ-High-Shelf (Audio-EQ-Cookbook-Formeln).
+
+        scipy.butter kennt KEINE Bandtypen 'highshelf'/'lowshelf' — die alte
+        Butter-Variante warf ValueError ("'lowshelf' is an invalid bandtype for
+        filter") und ließ RLP-last regelmäßig fehlschlagen (Befund 2026-08-16).
+        """
         from scipy import signal as scipy_signal
 
         w0 = 2.0 * np.pi * freq / sr
@@ -583,24 +610,23 @@ class ReflectiveListeningPass:
         a0 = (A + 1) - (A - 1) * np.cos(w0) + 2 * np.sqrt(A) * alpha
         a1 = 2 * ((A - 1) - (A + 1) * np.cos(w0))
         a2 = (A + 1) - (A - 1) * np.cos(w0) - 2 * np.sqrt(A) * alpha
-        return scipy_signal.sosfiltfilt(
-            scipy_signal.tf2sos([b0, b1, b2], [a0, a1, a2]), np.zeros(100)
-        )  # noop — just return filter coefficients
-        # Actually, return the SOS directly
-        # return np.array([[b0/a0, b1/a0, b2/a0, 1.0, a1/a0, a2/a0]])
-
-    # Simplified: just use butter-based shelves
-    @staticmethod  # type: ignore[no-redef]
-    def _make_high_shelf(sr: int, freq: float, gain_db: float):
-        from scipy import signal as scipy_signal
-
-        return scipy_signal.butter(2, freq, "highshelf", fs=sr, output="sos")
+        return scipy_signal.tf2sos([b0, b1, b2], [a0, a1, a2])
 
     @staticmethod
     def _make_low_shelf(sr: int, freq: float, gain_db: float):
+        """RBJ-Low-Shelf (Audio-EQ-Cookbook) — komplementär zum High-Shelf."""
         from scipy import signal as scipy_signal
 
-        return scipy_signal.butter(2, freq, "lowshelf", fs=sr, output="sos")
+        w0 = 2.0 * np.pi * freq / sr
+        A = 10.0 ** (gain_db / 40.0)
+        alpha = np.sin(w0) / (2.0 * 0.7)
+        b0 = A * ((A + 1) - (A - 1) * np.cos(w0) + 2 * np.sqrt(A) * alpha)
+        b1 = 2 * A * ((A - 1) - (A + 1) * np.cos(w0))
+        b2 = A * ((A + 1) - (A - 1) * np.cos(w0) - 2 * np.sqrt(A) * alpha)
+        a0 = (A + 1) + (A - 1) * np.cos(w0) + 2 * np.sqrt(A) * alpha
+        a1 = -2 * ((A - 1) + (A + 1) * np.cos(w0))
+        a2 = (A + 1) + (A - 1) * np.cos(w0) - 2 * np.sqrt(A) * alpha
+        return scipy_signal.tf2sos([b0, b1, b2], [a0, a1, a2])
 
     @staticmethod
     def _gentle_de_ess(audio: np.ndarray, sr: int, freq: float, strength: float) -> np.ndarray:
@@ -608,7 +634,11 @@ class ReflectiveListeningPass:
 
         # Einfaches De-Essing: Low-Pass-Filter oberhalb der Zielfrequenz mit sanfter Stärke
         sos = scipy_signal.butter(2, freq, "lowpass", fs=sr, output="sos")
-        filtered = scipy_signal.sosfiltfilt(sos, audio, axis=0)
+        # Layout-sicher über die ZEIT-Achse filtern: (N, 2) → axis 0,
+        # kanal-orientiert (2, N) → axis -1 (Befund 2026-08-22: axis=0 auf
+        # (2, N) filtert 2-Sample-Vektoren → padlen-Crash).
+        _axis = -1 if (audio.ndim == 2 and audio.shape[-1] > 2) else 0
+        filtered = scipy_signal.sosfiltfilt(sos, audio, axis=_axis)
         mix = 1.0 - strength * 0.8  # Max 40% Mix des gefilterten Signals
         return audio * mix + filtered * (1.0 - mix)  # type: ignore[no-any-return]
 
@@ -618,7 +648,9 @@ class ReflectiveListeningPass:
 
         # Sanfte Hochton-Rauschunterdrückung via Low-Pass + Mix
         sos = scipy_signal.butter(2, freq, "lowpass", fs=sr, output="sos")
-        filtered = scipy_signal.sosfiltfilt(sos, audio, axis=0)
+        # Layout-sicher über die ZEIT-Achse filtern (wie _gentle_de_ess).
+        _axis = -1 if (audio.ndim == 2 and audio.shape[-1] > 2) else 0
+        filtered = scipy_signal.sosfiltfilt(sos, audio, axis=_axis)
         mix = 1.0 - strength  # Sanftes Blending
         return audio * mix + filtered * (1.0 - mix)  # type: ignore[no-any-return]
 

@@ -42,16 +42,36 @@ from typing import Any
 
 try:
     import librosa
-    import librosa.core.constantq  # CQT/VQT-Pfad — von chroma_cqt ausgelöst
-    import librosa.core.pitch  # estimate_tuning/piptrack — von constantq.vqt ausgelöst
-    import librosa.feature  # lazy_loader-Deadlock verhindern: Submodul vorab laden
-    import librosa.util  # librosa.util.frame muss vor Threading verfügbar sein
-    import librosa.util.utils  # util.expand_to lebt hier — direkter Import bypass lazy_loader
-
-    _LIBROSA_AVAILABLE = True
 except ImportError:
     librosa = None  # type: ignore[assignment]
     _LIBROSA_AVAILABLE = False
+else:
+    # §Spec 24 (Root-Fix 2026-08-16): Die Submodul-Warmups EINZELN absichern.
+    # Im ROCm-Venv crasht die numba-GUfunc-Kompilierung von
+    # librosa.core.constantq mit AttributeError ('get_call_template'). Das alte
+    # Sammel-try fing nur ImportError — der AttributeError schlug durch und
+    # machte den GESAMTEN Modul-Import unmöglich → musical_goals unladbar →
+    # UnifiedRestorerV3 nicht verfügbar → 0 Restaurierungs-Phasen (RT=0.00×,
+    # Orchestrator "unchanged"). Ein defektes Submodul degradiert jetzt einzeln
+    # (DSP-Ersatzpfade), nie das ganze Modul.
+    _LIBROSA_AVAILABLE = True
+    _LIBROSA_WARMUP = (
+        "librosa.core.constantq",  # CQT/VQT-Pfad — von chroma_cqt ausgelöst
+        "librosa.core.pitch",  # estimate_tuning/piptrack — von constantq.vqt ausgelöst
+        "librosa.feature",  # lazy_loader-Deadlock verhindern: Submodul vorab laden
+        "librosa.util",  # librosa.util.frame muss vor Threading verfügbar sein
+        "librosa.util.utils",  # util.expand_to lebt hier — direkter Import bypass lazy_loader
+    )
+    for _librosa_sub in _LIBROSA_WARMUP:
+        try:
+            importlib.import_module(_librosa_sub)
+        except (ImportError, AttributeError) as _librosa_exc:
+            # §V6 (copilot-instructions.md): Fallback sichtbar machen — kein Silent Failure.
+            logging.getLogger(__name__).warning(
+                "librosa-Submodul %s nicht ladbar (%s) — DSP-Ersatzpfade aktiv (Spec 24)",
+                _librosa_sub,
+                _librosa_exc,
+            )
 import numpy as np
 
 from backend.core.calibration_matrix import (
@@ -319,19 +339,30 @@ def _warm_up_librosa() -> None:
     except Exception as exc:
         logger.debug("librosa warm-up stft: %s", exc)
 
-    # feature-Submodule einzeln auflösen
-    for _call, _args, _kwargs in [
-        (librosa.feature.mfcc, (), {"y": _dummy_short, "sr": _sr_low, "n_mfcc": 13}),
-        (librosa.feature.spectral_centroid, (), {"y": _dummy_short, "sr": _sr_low}),
-        (librosa.feature.spectral_rolloff, (), {"y": _dummy_short, "sr": _sr_low}),
-        (librosa.feature.zero_crossing_rate, (), {"y": _dummy_short}),
-        (librosa.feature.chroma_stft, (), {"y": _dummy_short, "sr": _sr_low}),
-        (librosa.feature.rms, (), {"y": _dummy_short}),
-        # CQT-Pfad: feature.chroma_cqt → constantq.vqt → pitch.piptrack → util.expand_to
-        # MUSS _sr_cqt=22050 verwenden — bei sr=4000 oder sr=8000 schlägt CQT fehl
-        (librosa.feature.chroma_cqt, (), {"y": np.zeros(int(_sr_cqt * 0.5), dtype=np.float32) + 0.1, "sr": _sr_cqt}),
-        (librosa.onset.onset_strength, (), {"y": _dummy_short, "sr": _sr_low}),
-    ]:
+    # feature-Submodule einzeln auflösen. Auch die Call-Listen-Konstruktion wird
+    # abgesichert: Ist ein Submodul nicht ladbar (numba-Defekt → AttributeError),
+    # darf sie den Warmup nicht abbrechen (Spec 24).
+    try:
+        _warmup_calls = [
+            (librosa.feature.mfcc, (), {"y": _dummy_short, "sr": _sr_low, "n_mfcc": 13}),
+            (librosa.feature.spectral_centroid, (), {"y": _dummy_short, "sr": _sr_low}),
+            (librosa.feature.spectral_rolloff, (), {"y": _dummy_short, "sr": _sr_low}),
+            (librosa.feature.zero_crossing_rate, (), {"y": _dummy_short}),
+            (librosa.feature.chroma_stft, (), {"y": _dummy_short, "sr": _sr_low}),
+            (librosa.feature.rms, (), {"y": _dummy_short}),
+            # CQT-Pfad: feature.chroma_cqt → constantq.vqt → pitch.piptrack → util.expand_to
+            # MUSS _sr_cqt=22050 verwenden — bei sr=4000 oder sr=8000 schlägt CQT fehl
+            (
+                librosa.feature.chroma_cqt,
+                (),
+                {"y": np.zeros(int(_sr_cqt * 0.5), dtype=np.float32) + 0.1, "sr": _sr_cqt},
+            ),
+            (librosa.onset.onset_strength, (), {"y": _dummy_short, "sr": _sr_low}),
+        ]
+    except (AttributeError, ImportError) as exc:
+        logger.warning("librosa warm-up: feature-Submodule nicht ladbar (%s) — DSP-Ersatzpfade aktiv", exc)
+        _warmup_calls = []
+    for _call, _args, _kwargs in _warmup_calls:
         try:
             with warnings.catch_warnings():
                 warnings.filterwarnings(
@@ -395,7 +426,21 @@ def _warm_up_librosa() -> None:
 
 
 if _LIBROSA_AVAILABLE:
-    _warm_up_librosa()
+    try:
+        # §Spec 24: Erst den zentralen, thread-sicheren Bootstrap (idempotent),
+        # dann den eigenen Feinstruktur-Warmup — der Lock serialisiert gegen
+        # parallele Erst-Importe aus anderen Threads.
+        from backend.core.librosa_bootstrap import ensure_librosa_ready
+
+        ensure_librosa_ready()
+        _warm_up_librosa()
+    except Exception as _warm_exc:
+        # §V6 (copilot-instructions.md): Der Deadlock-Warmup darf den Modul-Import nie töten — sonst wird
+        # UnifiedRestorerV3 unladebar (0 Phasen). Ersatzpfade in den Aufrufern.
+        logging.getLogger(__name__).warning(
+            "librosa warm-up fehlgeschlagen (%s) — Thread-Warmup übersprungen, DSP-Ersatzpfade aktiv",
+            _warm_exc,
+        )
 
 # ---------------------------------------------------------------------------
 # Lazy-Import-Hilfsfunktionen für ML-Plugins (Graceful Degradation §3.4)
@@ -2243,6 +2288,11 @@ class GrooveMetric:
             audio = np.mean(audio, axis=1 if audio.shape[1] <= 2 else 0)
         if reference.ndim > 1:
             reference = np.mean(reference, axis=1 if reference.shape[1] <= 2 else 0)
+        # §v10.x NaN-Guard: Der DTW-Pfad hatte (anders als der IOI-Pfad) kein
+        # nan_to_num — NaN-Audio → Flux NaN → 0 Onsets → "no_onsets"-False-Pass
+        # (groove_score=1.0 für kaputtes Signal, Log 2026-08-22).
+        audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+        reference = np.nan_to_num(reference, nan=0.0, posinf=0.0, neginf=0.0)
         if len(audio) > _MAX_DTW_SAMPLES:
             _g_start = (len(audio) - _MAX_DTW_SAMPLES) // 2
             audio = audio[_g_start : _g_start + _MAX_DTW_SAMPLES]
@@ -4275,8 +4325,15 @@ class MusicalGoalsChecker:
         # §v10.101: Hash MUSS NACH der Format-Normalisierung berechnet werden,
         # sonst mismatch zwischen pre-T (input) und post-T (cached) hash.
         _audio_hash = hash(audio.tobytes()) if hasattr(audio, "tobytes") else id(audio)
+        # §v10.x Cache-Korrektheit (Befund 2026-08-22): Der Cache-Schlüssel
+        # ignorierte die Referenz — ein zuvor ohne Referenz (IOI-Pfad)
+        # gemessenes Ergebnis wurde auch bei Aufrufen MIT Referenz geliefert.
+        # Referenz, material_type und panns_singing ändern den Messpfad
+        # (DTW vs. IOI, SingMOS) und gehören daher in den Schlüssel.
+        _ref_hash = hash(reference.tobytes()) if reference is not None and hasattr(reference, "tobytes") else None
+        _cache_key = (_audio_hash, _ref_hash, sr, material_type, float(panns_singing))
         _cache = getattr(self, "_measure_all_cache", {})
-        if _cache.get("hash") == _audio_hash and _cache.get("sr") == sr:
+        if _cache.get("key") == _cache_key:
             logger.debug("measure_all: Zwischenspeicher hit (hash=%d, gespeichert 6s)", _audio_hash % 10000)
             return dict(_cache["result"])
         if _is_fast_validation_context():
@@ -4402,8 +4459,9 @@ class MusicalGoalsChecker:
 
         # Key ist "artikulation" (konsistent mit goal_priority_protocol, goal_applicability_filter)
         # §v10.98 Cache: Ergebnis speichern für nächsten Aufruf mit identischem Audio
+        # §v10.x: Schlüssel inkl. Referenz/material/panns (siehe Cache-Lesen oben).
         if hasattr(audio, "tobytes"):
-            self._measure_all_cache = {"hash": hash(audio.tobytes()), "sr": sr, "result": dict(scores)}
+            self._measure_all_cache = {"key": _cache_key, "result": dict(scores)}
         return scores
 
     def _measure_all_fast_validation(

@@ -421,6 +421,22 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # FILE_REGISTRY Write-Gate — neue Code-Dateien brauchen Registry-Eintrag (fail-closed)
+      - id: aurik-file-lifecycle
+        name: "File-Lifecycle (Write-Gate: neue Code-Dateien ⇒ FILE_REGISTRY-Eintrag)"
+        entry: .venv_aurik/bin/python scripts/file_registry_check.py
+        language: system
+        pass_filenames: false
+        files: ^(backend|plugins|denker|Aurik10|cli|scripts)/.*\.py$
+
+      # Symbol-Duplikate — Klassen-Kollisionen pro Domain (fail-closed), Suffix-Varianten (WARN)
+      - id: aurik-symbol-duplicates
+        name: "Symbol-Duplicates (Klassen-Kollisionen pro Domain via repo_graph)"
+        entry: .venv_aurik/bin/python scripts/repo_graph.py --duplicates
+        language: system
+        pass_filenames: false
+        files: ^(backend|plugins|denker|Aurik10|cli|scripts)/.*\.py$
+
       # Conventional Commits Message Validation
       - id: conventional-commit-msg
         name: "Conventional Commits (feat/fix/docs/style/refactor/perf/test/chore/spec/build/ci)"

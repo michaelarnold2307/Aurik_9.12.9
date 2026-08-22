@@ -308,6 +308,32 @@ def get_calibration_context() -> CalibrationContext | None:
     return getattr(_calibration_context, "value", None)
 
 
+def resolve_restorability_score(
+    restorability_score: float | None = None,
+    *,
+    default: float = 70.0,
+) -> float:
+    """Kanonische rs-Quelle (§G76 (GEBOTE.md), §v10.x).
+
+    Befund 2026-08-22 (rs-Inkonsistenz): CALIB-Pfade hatten verstreute
+    Hardcode-Defaults (70.0 / 65.0 / 64.0) — Module, die den kalibrierten
+    Wert nicht explizit bekamen, arbeiteten still mit 70.0 weiter, während
+    andere denselben Song mit dem echten Estimator-Wert (z. B. 64) verarbeiteten.
+    Ergebnis: inkonsistente Schwellwerte innerhalb eines Laufs.
+
+    Auflösungs-Reihenfolge:
+        1. Explizit übergebener Wert (höchste Autorität).
+        2. Thread-lokaler CalibrationContext (von der Pre-Analysis gesetzt).
+        3. Modul-Default (konservativ, nur für Tests ohne Pipeline-Kontext).
+    """
+    if restorability_score is not None:
+        return float(np.clip(restorability_score, 0.0, 100.0))
+    _ctx = get_calibration_context()
+    if _ctx is not None and _ctx.restorability_score is not UNSET:
+        return float(np.clip(_ctx.restorability_score, 0.0, 100.0))
+    return float(np.clip(default, 0.0, 100.0))
+
+
 def require_calibration_context() -> CalibrationContext:
     """Gibt den CalibrationContext zurück oder wirft eine laute Exception.
 

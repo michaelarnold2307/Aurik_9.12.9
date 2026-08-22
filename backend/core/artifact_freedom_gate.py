@@ -663,7 +663,14 @@ class ArtifactFreedomGate:
         # tiefe Chain) bekommt eine niedrigere Schwelle — es wäre unfair,
         # eine 4.-Gen-Kassette mit denselben Artefakt-Limits zu messen wie
         # eine pristine CD.
-        _rs_veto = float(restorability_score if isinstance(restorability_score, (int, float)) else 70.0)
+        # §v10.x rs-Konsistenz: kanonische Quelle (explizit > CalibrationContext > 70.0).
+        from backend.core.calibration_context import resolve_restorability_score
+
+        _rs_veto = float(
+            resolve_restorability_score(
+                restorability_score if isinstance(restorability_score, (int, float)) else None
+            )
+        )
         _depth_veto = max(1, int(transfer_chain_depth if isinstance(transfer_chain_depth, (int, float)) else 1))
         # Restorability-Faktor: rs 0→0.82, rs 50→0.91, rs 100→1.00
         _rs_factor = float(np.clip(0.82 + (_rs_veto / 100.0) * 0.18, 0.80, 1.0))

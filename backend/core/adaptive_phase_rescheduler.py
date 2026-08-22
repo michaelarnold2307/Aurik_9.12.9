@@ -336,7 +336,7 @@ class AdaptivePhaseRescheduler:
         is_studio_2026: bool = False,
         transfer_chain: list[str] | None = None,
         material_type: str = "unknown",
-        restorability_score: float = 70.0,
+        restorability_score: float | None = None,
         goal_confidence: dict[str, float] | None = None,
         uncertainty_budget: float | None = None,
     ) -> RescheduleResult:
@@ -359,6 +359,10 @@ class AdaptivePhaseRescheduler:
 
         Non-blocking: Exceptions → leeres RescheduleResult (Pipeline läuft weiter).
         """
+        # §v10.x rs-Konsistenz: kanonische Quelle (explizit > CalibrationContext > 70.0).
+        from backend.core.calibration_context import resolve_restorability_score
+
+        restorability_score = resolve_restorability_score(restorability_score)
         try:
             return self._reschedule_internal(
                 current_goal_scores=current_goal_scores,
@@ -389,10 +393,14 @@ class AdaptivePhaseRescheduler:
         is_studio_2026: bool,
         transfer_chain: list[str],
         material_type: str,
-        restorability_score: float = 70.0,
+        restorability_score: float | None = None,
         goal_confidence: dict[str, float] | None = None,
         uncertainty_budget: float | None = None,
     ) -> RescheduleResult:
+        # §v10.x rs-Konsistenz: kanonische Quelle (explizit > CalibrationContext > 70.0).
+        from backend.core.calibration_context import resolve_restorability_score
+
+        restorability_score = resolve_restorability_score(restorability_score)
         with self._op_lock:
             _injected_this_call: list[str] = []
             _gaps_triggered: dict[str, float] = {}
