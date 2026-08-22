@@ -7618,6 +7618,21 @@ class UnifiedRestorerV3:
 
     # _register_phases entfällt, Lazy Loading übernimmt die Instanziierung
 
+    def _next_step(self, register_new: bool = False) -> tuple[int, int]:
+        """§v10.x Additive Schritt-Zählung über Haupt-Loop, Post-Passes und FC.
+
+        Ein Zähler für den GESAMTEN Restaurationslauf eines Songs: Jede
+        Phase des Haupt-Loops (ausgeführt, übersprungen, deferred), jeder
+        Post-Pass und jeder FeedbackChain-Phasen-Aufruf erhöht k um 1.
+        register_new=True registriert einen ZUSÄTZLICHEN Schritt außerhalb
+        des Phasenplans (Post/FC) und erhöht damit den Nenner — additiv,
+        nicht hart codiert, je Song unterschiedlich.
+        """
+        if register_new:
+            self._step_total += 1
+        self._step_no += 1
+        return int(self._step_no), int(self._step_total)
+
     def restore(  # pyright: ignore[reportGeneralTypeIssues]
         self,
         audio: np.ndarray,
@@ -7655,6 +7670,9 @@ class UnifiedRestorerV3:
         # in den finalen Report (Befund 2026-08-22: HPI=0.85 gemessen, Report HPI=0.00).
         self._mqa_mushra = 0.0
         self._mqa_hpi = 0.0
+        # §v10.x Additive Schritt-Zählung pro Song zurücksetzen.
+        self._step_no = 0
+        self._step_total = 0
         _n_total = audio.shape[0]
         if _n_total / max(sample_rate, 1) > 120.0 and not getattr(self, "_in_chunked", False):
             logger.info("🎵 Chunked-Streaming: %.1fs Audio → RAM O(1)", _n_total / sample_rate)
@@ -14590,7 +14608,20 @@ class UnifiedRestorerV3:
                     logger.debug("unified_restorer_v3.py:13841: Silent exception absorbed", exc_info=True)
                 if isinstance(getattr(self, "_restoration_context", None), dict):
                     self._restoration_context["_fc_active"] = True  # Legacy compat
-                _fc_chain_result = _fc_chain.run(restored_audio, _fc_phases_list, ceiling=_fc_ceiling_val)
+                # §v10.x Additive Zählung: FC-Phasen-Aufrufe nummerieren —
+                # jede Phase registriert sich additiv im Gesamt-Zähler.
+                _fc_numbered_list: list[Any] = []
+                for _fc_n, _fc_f, _fc_k in _fc_phases_list:
+                    def _fc_wrap(_n=_fc_n, _f=_fc_f, _k2=_fc_k):
+                        def _inner(a, s, **_extra):
+                            _kk, _tt = self._next_step(register_new=True)
+                            logger.info("▶ FC: %s (%d/%d)", _n, _kk, _tt)
+                            return _f(a, s, **_k2) if _k2 else _f(a, s)
+
+                        return _inner
+
+                    _fc_numbered_list.append((_fc_n, _fc_wrap(), {}))
+                _fc_chain_result = _fc_chain.run(restored_audio, _fc_numbered_list, ceiling=_fc_ceiling_val)
                 restored_audio = _fc_chain_result.audio
                 # §v10.x Chunk-Längen-Invariante (Befund 2026-08-22): letzte
                 # shape-kompatible Pipeline-Ausgabe als Fallback-Checkpoint —
@@ -15078,6 +15109,9 @@ class UnifiedRestorerV3:
         _tqc = None
         try:
             from backend.core.temporal_quality_coherence import measure_temporal_coherence
+
+            _k_step, _n_step = self._next_step(register_new=True)
+            logger.info("▶ TemporalQualityCoherence (%d/%d)", _k_step, _n_step)
 
             _tqc_mat_key = getattr(_mc_result, "primary_material", None) if _mc_result else None
             _tqc_chain = (getattr(self, "_restoration_context", {}) or {}).get("transfer_chain", [])
@@ -17556,7 +17590,8 @@ class UnifiedRestorerV3:
                     frisson_zones=_frisson_zones,  # §Frisson: Gänsehaut-Schutz
                 )
                 restored_audio = np.clip(np.nan_to_num(restored_audio, nan=0.0, posinf=0.0, neginf=0.0), -1.0, 1.0)
-                logger.info("§2.30 MDEM: Mikro-Dynamik-Morphing abgeschlossen (Betriebsart=%s)", _mdem_mode)
+                _k_step, _n_step = self._next_step(register_new=True)
+                logger.info("§2.30 MDEM: Mikro-Dynamik-Morphing abgeschlossen (%d/%d, Betriebsart=%s)", _k_step, _n_step, _mdem_mode)
             except Exception as _mdem_exc:
                 logger.warning("MicroDynamicsEnvelopeMorphing fehlgeschlagen: %s", _mdem_exc)
 
@@ -21009,6 +21044,7 @@ class UnifiedRestorerV3:
             return cast(np.ndarray, _cand)
 
         _pre_final_shape = tuple(np.asarray(restored_audio).shape)
+        logger.info("🏁 Restoration abgeschlossen: %d Schritte gesamt (Haupt-Loop, Post, FC additiv)", int(self._step_no))
         restored_audio = _normalize_to_external_layout(restored_audio)
         if tuple(np.asarray(restored_audio).shape) != _pre_final_shape:
             _final_output_layout_meta = {
@@ -37895,21 +37931,44 @@ class UnifiedRestorerV3:
                             _wall_budget_guard_events
                         )
 
+            # §v10.x Additive Zählung: Nenner auf Plan-Größe setzen; Post-/FC-
+            # Schritte registrieren sich später additiv dazu.
+            self._step_total = max(int(self._step_total), len(selected_phases))
+
             for phase_id in selected_phases:
                 phase = self._get_phase(phase_id)
                 if not phase:
-                    logger.warning("Verarbeitungsschritt %s konnte nicht lazy-geladen werden, skipping", phase_id)
+                    _k_step, _n_step = self._next_step()
+                    logger.warning(
+                        "⏭️ Verarbeitungsschritt %s konnte nicht lazy-geladen werden, skipping (%d/%d)",
+                        phase_id,
+                        _k_step,
+                        _n_step,
+                    )
                     skipped.append(phase_id)
                     _record_oom_probe("phase_skip_not_loaded", phase_id)
                     continue
                 # §v10.24: Skip phase if all primary defects already resolved
                 if self._should_skip_resolved_phase(phase_id):
-                    logger.info("Verarbeitungsschritt %s uebersprungen: all primary defects resolved", phase_id)
+                    _k_step, _n_step = self._next_step()
+                    logger.info(
+                        "⏭️ %s uebersprungen (%d/%d): all primary defects resolved",
+                        phase_id,
+                        _k_step,
+                        _n_step,
+                    )
                     skipped.append(phase_id)
                     _record_oom_probe("phase_skip_resolved_defects", phase_id)
                     continue
                 # §v10.707: Skip-Phase wenn der Defekt gar nicht im Signal vorhanden ist
                 if self._should_skip_absent_defect_phase(phase_id):
+                    _k_step, _n_step = self._next_step()
+                    logger.info(
+                        "⏭️ %s uebersprungen (%d/%d) — Defekt nicht im Signal vorhanden (§v10.707)",
+                        phase_id,
+                        _k_step,
+                        _n_step,
+                    )
                     skipped.append(phase_id)
                     _record_oom_probe("phase_skip_defect_absent", phase_id)
                     continue
@@ -37920,17 +37979,13 @@ class UnifiedRestorerV3:
                     # §v10.x Zähl-Transparenz (Befund 2026-08-22): Dieser Zweig
                     # war silent — nach 4/32 schienen "weitere Phasen ohne
                     # Zählung" zu laufen, tatsächlich waren es Skips. Jetzt
-                    # mit Plan-Position loggen, damit die 1/32…32/32-Sequenz
-                    # lückenlos nachvollziehbar ist.
-                    try:
-                        _plan_pos = selected_phases.index(phase_id) + 1
-                    except ValueError:
-                        _plan_pos = len(executed) + 1
+                    # mit der additiven Gesamt-Zählung loggen.
+                    _k_step, _n_step = self._next_step()
                     logger.info(
                         "⏭️ %s übersprungen (%d/%d) — Material-Konfidenz zu niedrig (§v10.303)",
                         phase_id,
-                        _plan_pos,
-                        len(selected_phases),
+                        _k_step,
+                        _n_step,
                     )
                     continue
 
@@ -37985,16 +38040,13 @@ class UnifiedRestorerV3:
                     deferred.append(phase_id)  # §2.38 KMV: RT-skipped → Stage 2
                     _record_oom_probe("phase_deferred_rt", phase_id, estimated_time_s=round(float(estimated_time), 3))
                     # §v10.x Zähl-Transparenz (Befund 2026-08-22): silent defer
-                    # → Plan-Position explizit loggen (KMV Stufe 2).
-                    try:
-                        _plan_pos = selected_phases.index(phase_id) + 1
-                    except ValueError:
-                        _plan_pos = len(executed) + 1
+                    # → additive Gesamt-Zählung.
+                    _k_step, _n_step = self._next_step()
                     logger.info(
                         "⏭️ %s deferred (%d/%d) — RT-Budget (KMV Stufe 2)",
                         phase_id,
-                        _plan_pos,
-                        len(selected_phases),
+                        _k_step,
+                        _n_step,
                     )
                     continue
 
@@ -38055,11 +38107,12 @@ class UnifiedRestorerV3:
                 # im Log erscheint, BEVOR PLM-Eviction das RAM-Niveau ändert.
                 # Ohne diesen Log kann bei einem OOM-Kill nicht mehr zurückverfolgt werden,
                 # welche Phase die Allokation ausgelöst hat.
+                _step_tag = self._next_step()
                 logger.info(
                     "▶ %s geplant (%d/%d) — Eviction + RAM-Pruefung folgen",
                     phase_id,
-                    len(executed) + 1,
-                    len(selected_phases),
+                    _step_tag[0],
+                    _step_tag[1],
                 )
                 # ── §2.37 Automatische ML-RAM-Verwaltung: Vor jeder Phase ──
                 # Entlade alle ML-Modelle die für die kommende Phase NICHT benötigt
@@ -38179,8 +38232,8 @@ class UnifiedRestorerV3:
                 logger.info(
                     "▶ %s (%d/%d)",
                     phase_human_name_with_icon(phase_id),
-                    len(executed) + 1,
-                    len(selected_phases),
+                    _step_tag[0],
+                    _step_tag[1],
                 )
                 _record_oom_probe("phase_start", phase_id, estimated_time_s=round(float(estimated_time), 3))
                 # §2.61 Input-Länge für Output-Length-Guard festhalten
