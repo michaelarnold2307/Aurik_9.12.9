@@ -913,6 +913,12 @@ class LAIONCLAPPlugin:
         self._clap_model = None
         self._audio_session = None
         self._model_loaded = False
+        # §v10.x Reload-Vertrag (Befund 2026-08-22): _load_attempted bleibt sonst
+        # True → _ensure_loaded() no-op't nach der Eviction → embed_audio() wirft
+        # dauerhaft „No CLAP model loaded“ → EraClassifier Tier-1 fällt für den
+        # REST DES PROZESSES in den DSP-Ersatzpfad, obwohl das Modell nachladbar
+        # wäre. Reset erlaubt Lazy-Reload beim nächsten Bedarf (Budget-geprüft).
+        self._load_attempted = False
         gc.collect()
         try:
             from backend.core.ml_memory_budget import release as _rel  # pylint: disable=import-outside-toplevel  # noqa: I001
