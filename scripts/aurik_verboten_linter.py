@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""V01–V50 VERBOTEN-Linter v4 — vollständig an VERBOTEN.md angepasst.
+"""V01–V75 VERBOTEN-Linter v5 — vollständig an VERBOTEN.md angepasst.
 
-Abdeckung: 15 von 26 regex-detectable Regeln (AST/Runtime-Regeln separat).
+Abdeckung: 27 von 44 regex-detectable Regeln (AST/Runtime-Regeln separat).
 Referenz: .github/VERBOTEN.md — Linter-Referenz-Tabelle.
 """
 
@@ -154,6 +154,34 @@ RULES: dict[str, dict] = {
         "skip": {"test_", "feedback_chain", "cumulative_interaction_guard"},
         "sev": "ERROR",
     },
+    # ── V04: gate_dbfs=-36.0 ohne reference_for_gate (§2.45a) ─────────
+    "V04": {
+        "p": r"gate_dbfs\s*=\s*-?3[0-9]\.\d+",
+        "negate": r"reference_for_gate",
+        "d": "gate_dbfs ohne reference_for_gate — compute_signal_relative_gate_dbfs() verwenden (§2.45a)",
+        "skip": {"test_", "exporter.py", "dsp/", "scripts/"},
+        "sev": "ERROR",
+    },
+    # ── V12: CausalDefectReasoner einseitige Tabellen (AST-Check) ──────
+    # Wird in _scan_v32_v33_ast() als AST-Check implementiert — Regex hier nur für
+    # schnelle Vorabprüfung auf CAUSE_TO_PHASES ohne CAUSES-Konsistenz
+    "V12": {
+        "p": r"CAUSE_TO_PHASES\s*=\s*\{",
+        "negate": r"\bCAUSES\b.*\{[^}]*Cause\.|CAUSES\s*=\s*\[",
+        "d": "CAUSE_TO_PHASES ohne bidirektionale CAUSES-Konsistenz — CausalDefectReasoner (§2.59)",
+        "skip": {"test_", "causal_defect_reasoner.py", "scripts/", "docs/"},
+        "sev": "ERROR",
+    },
+    # ── V13: _MATERIAL_PRIORITY_PHASES Duplikat-Schlüssel (AST-Check) ──
+    # Wird in _scan_v32_v33_ast() als AST-Check implementiert — Regex hier nur für
+    # schnelle Vorabprüfung auf Duplikate im Dict-Literal
+    "V13": {
+        "p": r"_MATERIAL_PRIORITY_PHASES\s*=\s*\{",
+        "negate": r"#.*no-dup-check|#.*F601-ignore",
+        "d": "_MATERIAL_PRIORITY_PHASES Duplikat-Schlüssel prüfen — F601-Scan in unified_restorer_v3.py",
+        "skip": {"test_", "unified_restorer_v3.py", "scripts/", "docs/"},
+        "sev": "ERROR",
+    },
     # ── V11: sosfilt() ohne sosfiltfilt() im selben File ───────────────
     "V11": {
         "p": r"\bsosfilt\s*\(",
@@ -300,9 +328,65 @@ RULES: dict[str, dict] = {
         "skip": {"test_", "dsp/"},
         "sev": "ERROR",
     },
+    # ── V47: DR-Expansion ohne Ceiling UND Noise-Floor-Guard (§6.2b, §v10.61) ──
+    "V47": {
+        "p": r"(?:phase_26|dynamic_range_expansion).*\n.*(?:strength|intensity)\s*[+\-*\/]",
+        "negate": r"_MATERIAL_DR_CEILING_DB|Per-Band-Noise-Floor-Guard|noise_floor_guard",
+        "d": "DR-Expansion ohne Material-Ceiling und Noise-Floor-Guard (§6.2b, §v10.61)",
+        "skip": {"test_", "phase_26_dynamic_range_expansion.py", "scripts/", "docs/"},
+        "sev": "ERROR",
+    },
+    # ── V48: BW-Extension ohne Ceiling (§6.2c) ────────────────────────
+    "V48": {
+        "p": r"(?:phase_0[67]|phase_23|phase_39).*\n.*(?:bw_extension|bandwidth_extend|harm_ext)",
+        "negate": r"_MATERIAL_BW_CEILING_HZ|material_bw_ceiling",
+        "d": "BW-Extension ohne Material-Ceiling (§6.2c) — Shellac≤8kHz, Vinyl≤16kHz, Cassette≤12kHz",
+        "skip": {"test_", "phase_06.py", "phase_07.py", "phase_23.py", "phase_39.py", "scripts/", "docs/"},
+        "sev": "ERROR",
+    },
+    # ── V49: Rauschtextur-Check fehlt (§4.7) ──────────────────────────
+    "V49": {
+        "p": r"(?:phase_03|denoise|noise_reduction).*\n.*(?:result|output)\s*=",
+        "negate": r"NoiseTextureCoherenceGuard|texture_coherence",
+        "d": "Denoising ohne NoiseTextureCoherenceGuard (§4.7) — Kohärenz≥0.80 in Restoration",
+        "skip": {"test_", "phase_03_denoise.py", "scripts/", "docs/"},
+        "sev": "WARNING",
+    },
+    # ── V53: Pitch-Kaskade ohne RMVPE (§4.4) ──────────────────────────
+    "V53": {
+        "p": r"(?:FCPE|CREPE|PESTO|pYIN).*pitch.*(?:fallback|cascade)",
+        "negate": r"RMVPE|get_rmvpe_plugin|rmvpe",
+        "d": "Pitch-Kaskade ohne RMVPE als Tier-2 (§4.4) — FCPE→RMVPE→PESTO→pYIN",
+        "skip": {"test_", "pitch_detector.py", "scripts/", "docs/"},
+        "sev": "ERROR",
+    },
+    # ── V58: Phase-50 Spike-Detection ohne HF-Guard (§2.57) ───────────
+    "V58": {
+        "p": r"phase_50.*spike|spike_detection.*repair_channel",
+        "negate": r"_hf_protected_bin_start|material_rolloff.*bin_hz",
+        "d": "Phase-50 Spike-Detection ohne HF-Guard (§2.57) — analoge Harmoniken schützen",
+        "skip": {"test_", "phase_50.py", "scripts/", "docs/"},
+        "sev": "ERROR",
+    },
+    # ── V73: Phase-23 Inpainting ohne POCS (§4.7c) ────────────────────
+    "V73": {
+        "p": r"phase_23.*inpaint|spectral_inpaint.*repair_channel",
+        "negate": r"POCS|pocs_iter|consistency_projection",
+        "d": "Phase-23 Inpainting ohne POCS-Schleife (§4.7c) — material-adaptiv n_iter=2–5 vor PGHI",
+        "skip": {"test_", "phase_23.py", "scripts/", "docs/"},
+        "sev": "ERROR",
+    },
+    # ── V74: signal.lfilter in Vocal Bell-EQ (Phase 42) ───────────────
+    "V74": {
+        "p": r"signal\.lfilter\s*\([^)]*(_boost_presence|_enhance_chest)",
+        "negate": r"signal\.filtfilt",
+        "d": "signal.lfilter in Vocal Bell-EQ — filtfilt verwenden (zero-phase, §V74)",
+        "skip": {"test_", "phase_42_vocal_enhancement.py", "scripts/", "docs/"},
+        "sev": "ERROR",
+    },
 }
 
-SKIP_DIRS = {".venv", ".venv_aurik", "__pycache__", "node_modules", ".git", "models/", "temp_repro/"}
+SKIP_DIRS = {".venv", ".venv_aurik", "__pycache__", "node_modules", ".git", "models/", "temp_repro/", "plugins/_vendor_"}  # _vendor_* = unverändert kopierter Drittanbieter-Code (MIT, LICENSE beiliegend) — nie umstylen
 
 # ═══════════════════════════════════════════════════════════════════════════
 # File-scope skip: certain file patterns are globally excluded per rule
@@ -380,7 +464,10 @@ def _scan_v32_v33_ast(fp: Path, source: str, rel: Path) -> list[Violation]:
         value = _assigned_value(node)
         if name == "_PHASE_SPECIFIC_DRIFT_EXCLUSIONS" and isinstance(value, ast.Dict):
             for key, val in zip(value.keys, value.values, strict=False):
-                key_text = _literal_str(key) if key is not None else None
+                if isinstance(key, ast.AST):
+                    key_text = _literal_str(key)
+                else:
+                    key_text = None
                 if key_text:
                     exclusions[key_text] = _string_values(val)
         if name == "CRITICAL_PAIRS" and isinstance(value, (ast.List, ast.Tuple)):
@@ -408,6 +495,29 @@ def _scan_v32_v33_ast(fp: Path, source: str, rel: Path) -> list[Violation]:
                     )
                 )
                 break
+    # --- AST checks for V12 and V13 ---
+    # V12: CAUSE_TO_PHASES without bidirectional CAUSES consistency
+    if isinstance(node, (ast.Assign, ast.AnnAssign)):
+        name = _assigned_name(node)
+        value = _assigned_value(node)
+        if name == "CAUSE_TO_PHASES" and isinstance(value, ast.Dict):
+            for key_node in value.keys:
+                key_text = _literal_str(key_node)
+                if key_text and not re.search(r"\\bCAUSES\\b", key_text):
+                    issues.append(Violation(rule="V12", severity="ERROR", description=RULES["V12"]["d"], file=str(rel)))
+    # V13: _MATERIAL_PRIORITY_PHASES duplicate keys
+    if isinstance(node, (ast.Assign, ast.AnnAssign)):
+        name = _assigned_name(node)
+        value = _assigned_value(node)
+        if name == "_MATERIAL_PRIORITY_PHASES" and isinstance(value, ast.Dict):
+            seen: set[str] = set()
+            for key_node in value.keys:
+                key_text = _literal_str(key_node)
+                if key_text:
+                    if key_text in seen:
+                        issues.append(Violation(rule="V13", severity="ERROR", description=RULES["V13"]["d"], file=str(rel)))
+                    else:
+                        seen.add(key_text)
 
     phase_path = str(fp).replace("\\", "/")
     if "/phases/phase_" in phase_path or fp.name.startswith("phase_"):
