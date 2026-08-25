@@ -1583,7 +1583,7 @@ class UnifiedRestorerV3:
 
         # §v10.14 Wohlklang-Garantie (§v10.703.4): MUSHRA < 80 → Re-Run mit 50% Strengths.
         self._wohlklang_retry_count: int = 0
-        self._wohlklang_strength_multiplier: float = 1.0
+        self._wohlklang_strength_multiplier: float = 0.50
         self._wohlklang_best_mushra: float = 0.0
         self._wohlklang_best_audio: np.ndarray | None = None
 
@@ -8195,6 +8195,29 @@ class UnifiedRestorerV3:
             logger.info(
                 "UV3: pre_repair_Referenz als Goal-Referenz übernommen (shape=%s)", original_audio_for_goals.shape
             )
+            # §v10.704 B28 [FIX 2026-08-23] Defense-in-Depth: Die Goal-Referenz darf
+            # nicht länger als das zu restaurierende Audio sein — sonst laufen Proxy/
+            # FC/Post-Blöcke auf der falschen Länge (Befund: 224s-Referenz in 30s-Chunk
+            # → FC-Ausgabe 224s → FATAL-Trim → kaputte End-Messung → Re-Run-Schleife).
+            # _restore_chunked schneidet die Referenz bereits pro Chunk zu; dieser
+            # Guard fängt Pfade ab, die restore() direkt mit überlanger Referenz rufen.
+            _ppr_guard_audio_len = int(audio.shape[-1])
+            _ppr_guard_ref_len = int(
+                original_audio_for_goals.shape[-1]
+                if original_audio_for_goals.ndim == 2 and original_audio_for_goals.shape[0] <= 8
+                else original_audio_for_goals.shape[0]
+            )
+            if _ppr_guard_ref_len > int(_ppr_guard_audio_len * 1.05):
+                logger.warning(
+                    "§G1 (GEBOTE.md) pre_repair_Referenz länger als Chunk-Audio (%d vs %d Samples) — "
+                    "Goal-Referenz auf Audio-Länge zugeschnitten (Chunk-Fenster-Anfang)",
+                    _ppr_guard_ref_len,
+                    _ppr_guard_audio_len,
+                )
+                if original_audio_for_goals.ndim == 2 and original_audio_for_goals.shape[0] <= 8:
+                    original_audio_for_goals = original_audio_for_goals[:, :_ppr_guard_audio_len]
+                else:
+                    original_audio_for_goals = original_audio_for_goals[:_ppr_guard_audio_len]
         else:
             original_audio_for_goals: np.ndarray = audio.copy()  # type: ignore[no-redef]
         # §2.72: Für Post-Pipeline Vitality-Restoration vorhalten
@@ -14592,6 +14615,38 @@ class UnifiedRestorerV3:
                             _gpp_prev_scores = _sa  # cache for next iteration
                             # §2.56: Pass song-specific goal weights to GPP abort check
                             _res = _check_gpp(_sb, _sa, goal_weights=getattr(self, "_song_goal_weights", None))
+                            # Hörordnung Ebene 3 (hoerordnung.instructions.md §5): strikte
+                            # Dominanz auch im UV3-verdrahteten FC-Pfad (der interne
+                            # FC-Guard ist bei wired callback deaktiviert). Kein Gewinn
+                            # auf Stufe 3/4 darf ein Stufe-1/2-Ziel senken.
+                            try:
+                                from backend.core.goal_priority_protocol import (
+                                    get_goal_priority_protocol as _get_gpp_ho,
+                                )
+
+                                _gpp_ho = _get_gpp_ho()
+                                _ho_dropped_tier = 99
+                                _ho_gained_tier = 99
+                                for _g_ho2, _v_prev2 in (_sb or {}).items():
+                                    _v_curr2 = float((_sa or {}).get(_g_ho2, _v_prev2))
+                                    _d_ho2 = _v_curr2 - float(_v_prev2)
+                                    _t_ho2 = int(_gpp_ho.hearing_tier(str(_g_ho2)))
+                                    if _d_ho2 < -_gpp_ho.REGRESSION_EPSILON:
+                                        _ho_dropped_tier = min(_ho_dropped_tier, _t_ho2)
+                                    elif _d_ho2 > _gpp_ho.REGRESSION_EPSILON:
+                                        _ho_gained_tier = min(_ho_gained_tier, _t_ho2)
+                                if _ho_dropped_tier < _ho_gained_tier:
+                                    logger.warning(
+                                        "§FC-GPP: Hörordnungs-Verstoß (Senkung Stufe %d gegen Gewinn Stufe %d) — Kandidat verworfen",
+                                        _ho_dropped_tier,
+                                        _ho_gained_tier,
+                                    )
+                                    return True, (
+                                        f"Hörordnungs-Verstoß (Senkung Stufe {_ho_dropped_tier} "
+                                        f"gegen Gewinn Stufe {_ho_gained_tier})"
+                                    )
+                            except Exception as _ho_cb_exc:
+                                logger.debug("Hörordnungs-Guard im FC-Callback nicht verfügbar: %s", _ho_cb_exc)
                             if _res.should_abort:
                                 _gpp_consecutive_aborts[0] += 1
                                 if _gpp_consecutive_aborts[0] >= 2:
@@ -14632,6 +14687,7 @@ class UnifiedRestorerV3:
                 # jede Phase registriert sich additiv im Gesamt-Zähler.
                 _fc_numbered_list: list[Any] = []
                 for _fc_n, _fc_f, _fc_k in _fc_phases_list:
+
                     def _fc_wrap(_n=_fc_n, _f=_fc_f, _k2=_fc_k):
                         def _inner(a, s, **_extra):
                             _kk, _tt = self._next_step(register_new=True)
@@ -16734,12 +16790,43 @@ class UnifiedRestorerV3:
 
                     # §2.80 Transparenz-Objektiv: Primär nach Rank (Hard-Gates),
                     # Tiebreaker nach höchstem transparency_objective (kein hörbarer Eingriff).
+                    # Hörordnung Ebene 3: Kandidaten, die ein Stufe-1/2-Ziel gegen
+                    # den aktuellen Stand senken, während sie nur Stufe-3/4-Ziele
+                    # verbessern, werden im Ranking nach hinten gestellt (strikte Dominanz).
+                    _current_scores_for_ho = next(
+                        (c.get("scores") or {} for c in _ranked_candidates if c.get("name") == "current"),
+                        {},
+                    )
+                    try:
+                        from backend.core.goal_priority_protocol import (
+                            get_goal_priority_protocol as _get_gpp_eg,
+                        )
+
+                        _gpp_eg = _get_gpp_eg()
+                    except Exception:
+                        _gpp_eg = None
+
                     def _final_rank_key_80(item: dict) -> tuple:
                         base = item["rank"]  # 8-Tuple (violations, critical_violations, …)
                         # Negieren: höheres t_obj → niedrigerer Tiebreaker → wird bevorzugt
                         t_neg = -float(item.get("transparency_objective", 0.0) or 0.0)
+                        _ho_pen = 0
+                        _sc = item.get("scores") or {}
+                        if _gpp_eg is not None and _current_scores_for_ho:
+                            _dropped_hi = False
+                            _gained_lo = False
+                            for _g_ho3, _v_c in _sc.items():
+                                _v_ref = float(_current_scores_for_ho.get(_g_ho3, _v_c))
+                                _d_ho3 = float(_v_c) - _v_ref
+                                _t_ho3 = int(_gpp_eg.hearing_tier(str(_g_ho3)))
+                                if _d_ho3 < -_gpp_eg.REGRESSION_EPSILON and _t_ho3 <= 2:
+                                    _dropped_hi = True
+                                if _d_ho3 > _gpp_eg.REGRESSION_EPSILON and _t_ho3 >= 3:
+                                    _gained_lo = True
+                            if _dropped_hi and _gained_lo:
+                                _ho_pen = 1
                         # Einbetten zwischen Position 6 (regressions) und 7 (-excellence)
-                        return (*base[:7], t_neg, *base[7:])
+                        return (_ho_pen, *base[:7], t_neg, *base[7:])
 
                     _best_ranked = min(_ranked_candidates, key=_final_rank_key_80)
                     if _best_ranked["name"] != "current" and _best_ranked["rank"] < _current_rank:
@@ -17611,7 +17698,12 @@ class UnifiedRestorerV3:
                 )
                 restored_audio = np.clip(np.nan_to_num(restored_audio, nan=0.0, posinf=0.0, neginf=0.0), -1.0, 1.0)
                 _k_step, _n_step = self._next_step(register_new=True)
-                logger.info("§2.30 MDEM: Mikro-Dynamik-Morphing abgeschlossen (%d/%d, Betriebsart=%s)", _k_step, _n_step, _mdem_mode)
+                logger.info(
+                    "§2.30 MDEM: Mikro-Dynamik-Morphing abgeschlossen (%d/%d, Betriebsart=%s)",
+                    _k_step,
+                    _n_step,
+                    _mdem_mode,
+                )
             except Exception as _mdem_exc:
                 logger.warning("MicroDynamicsEnvelopeMorphing fehlgeschlagen: %s", _mdem_exc)
 
@@ -17623,6 +17715,18 @@ class UnifiedRestorerV3:
             if _mdem_silence_mask is not None and bool(np.any(_mdem_silence_mask < 0.5)):
                 from backend.core.dsp.silence_mask import apply_silence_preservation as _asp_mdem
 
+                # Hörordnung/§silence-guarantee [FIX 2026-08-23]: Die Mask kann
+                # (Full-Song-)Länge des Kontext-Signals haben, während restored
+                # chunk-lang ist → Broadcast-Fehler (Befund: shapes (10764960,2)
+                # vs (10765312,1), MDEM-Post-Schritt schlug still fehl). Mask
+                # deterministisch auf die gemeinsame min-Länge trimmen.
+                _sm_min_len = min(
+                    int(original_audio_for_goals.shape[-1]),
+                    int(restored_audio.shape[-1]),
+                    int(np.asarray(_mdem_silence_mask).shape[-1]),
+                )
+                if int(np.asarray(_mdem_silence_mask).shape[-1]) != _sm_min_len:
+                    _mdem_silence_mask = np.asarray(_mdem_silence_mask)[..., :_sm_min_len]
                 restored_audio = _asp_mdem(original_audio_for_goals, restored_audio, _mdem_silence_mask)
         except Exception as _mdem_sm_exc:
             logger.debug("§silence-guarantee MDEM: nicht blockierend: %s", _mdem_sm_exc)
@@ -18251,6 +18355,9 @@ class UnifiedRestorerV3:
                 # Schwellwert aus Material + Depth ableiten, nicht hartcodieren.
                 # Cassette: höherer Noise-Floor maskiert leise Defekte → höhere Schwelle.
                 # Vinyl: breiterer Frequenzgang → niedrigere Schwelle (mehr hörbar).
+                # Hörordnung Ebene 2 (hoerordnung.instructions.md §4): Die JND-Schwelle ist
+                # die operative Hörbarkeits-Näherung. Log/Report müssen sie als
+                # „über Hörbarkeits-Schwelle“ ausweisen — nicht als volles Bark-Masking.
                 _mat_key = str(getattr(material_type, "value", str(material_type))).lower()
                 _MATERIAL_JND_OFFSET = {
                     "cassette": 0.04,
@@ -18297,14 +18404,14 @@ class UnifiedRestorerV3:
                     "threshold": _AUDIBLE_THRESHOLD,
                 }
                 logger.info(
-                    "§v10.703 Defekt-Countdown: %d gefunden → %d hörbar → %d behoben → %d hörbar verbleibend → %s",
+                    "§v10.703 Defekt-Countdown: %d gefunden → %d über Hörbarkeits-Schwelle → %d behoben → %d über Schwelle verbleibend → %s",
                     _defects_total,
                     _defects_audible_pre,
                     _defects_resolved,
                     _defects_audible_post,
-                    "✅ KEINE HÖRBAREN DEFEKTE"
+                    "✅ KEINE ÜBER-SCHWELLE-DEFEKTE"
                     if _defects_audible_post == 0
-                    else f"⚠️ {_defects_audible_post} Defekte hörbar",
+                    else f"⚠️ {_defects_audible_post} Defekte über Hörbarkeits-Schwelle",
                 )
                 logger.info(
                     "§B2 Per-Defekt-Reduktion: %s",
@@ -19216,9 +19323,7 @@ class UnifiedRestorerV3:
                                     era_profile=__import__(
                                         "backend.core.musical_goals.era_vocal_profile",
                                         fromlist=["get_era_vocal_profile"],
-                                    ).get_era_vocal_profile(
-                                        int(self._restoration_context.get("decade", 1975) or 1975)
-                                    ),
+                                    ).get_era_vocal_profile(int(self._restoration_context.get("decade", 1975) or 1975)),
                                 )
                                 _rb_vqi = float(_rb_result.get("vqi", _vqi_score))
                             except Exception as _rb_vqi_exc:
@@ -20383,6 +20488,28 @@ class UnifiedRestorerV3:
             _ref_src_late = original_audio_for_goals
             _orig_m_late = _ref_src_late if _ref_src_late.ndim == 1 else _ref_src_late.mean(axis=0)
             _rest_m_late = restored_audio if restored_audio.ndim == 1 else restored_audio.mean(axis=0)
+            # §8.1 [FIX 2026-08-23] Längen-Mismatch-Guard: Post-Pipeline-Blöcke können
+            # restored_audio auf Full-Song-Länge aufblasen (Befund: 224s vs. 30s-Ziel,
+            # Referenz dabei mit Stille gepadded). Eine MUSHRA-Messung über gemischte
+            # Längen liefert Müll (NSIM≈0.015, MCD=0 dB, LUFS-Δ≈60 LU → OQS≈39 statt 80)
+            # und triggert fälschlich die Wohlklang-Garantie → Re-Run-Endlosschleife.
+            # Messung deterministisch auf das gemeinsame min-Längen-Fenster legen.
+            _ref_len_late = int(_orig_m_late.shape[-1])
+            _rest_len_late = int(_rest_m_late.shape[-1])
+            if _ref_len_late != _rest_len_late:
+                _min_len_late = min(_ref_len_late, _rest_len_late)
+                _mismatch_pct_late = abs(_ref_len_late - _rest_len_late) / max(_min_len_late, 1)
+                if _mismatch_pct_late > 0.01:
+                    logger.warning(
+                        "§8.1 MUSHRA post-LUFS: Längen-Mismatch ref=%d vs restored=%d (%.1f%%) — "
+                        "Messung auf gemeinsames Fenster (%d Samples) gelegt",
+                        _ref_len_late,
+                        _rest_len_late,
+                        _mismatch_pct_late * 100.0,
+                        _min_len_late,
+                    )
+                _orig_m_late = _orig_m_late[..., :_min_len_late]
+                _rest_m_late = _rest_m_late[..., :_min_len_late]
             # §8.1 [BUG-FIX v10.0.0] Self-Comparison Guard: detect no-op pipeline
             # (restored == original) before computing MUSHRA. NSIM=1.000 from self-compare
             # produces OQS≈100 which is semantically invalid — it means "no improvement",
@@ -21098,7 +21225,9 @@ class UnifiedRestorerV3:
             return cast(np.ndarray, _cand)
 
         _pre_final_shape = tuple(np.asarray(restored_audio).shape)
-        logger.info("🏁 Restoration abgeschlossen: %d Schritte gesamt (Haupt-Loop, Post, FC additiv)", int(self._step_no))
+        logger.info(
+            "🏁 Restoration abgeschlossen: %d Schritte gesamt (Haupt-Loop, Post, FC additiv)", int(self._step_no)
+        )
         restored_audio = _normalize_to_external_layout(restored_audio)
         if tuple(np.asarray(restored_audio).shape) != _pre_final_shape:
             _final_output_layout_meta = {
@@ -22380,7 +22509,11 @@ class UnifiedRestorerV3:
         try:
             from backend.core.phase_fazit import log_restoration_summary
 
-            _summary_chain = self._restoration_context.get("transfer_chain") or self._restoration_context.get("chain")
+            _summary_chain = (
+                self._restoration_context.get("transfer_chain")
+                or self._restoration_context.get("chain")
+                or self._restoration_context.get("effective_chain")
+            )
             # §v10.101: MUSHRA/OQS-Score aus AnalyticsMeta in die Zusammenfassung integrieren
             _summary_mushra = float((_analytics_meta.get("mushra") or {}).get("mushra_score", 0.0))
             _summary_hpi = float(getattr(_hpi_result, "hpi", 0.0) if _hpi_result is not None else 0.0)
@@ -22391,7 +22524,7 @@ class UnifiedRestorerV3:
                 chain=_summary_chain,
                 genre=str(self._restoration_context.get("genre_label", "")),
                 era_decade=int(self._restoration_context.get("decade", 0)),
-                phases_count=0,
+                phases_count=int(len(getattr(result, "phases_executed", []) or [])),
                 mushra_score=_summary_mushra,
                 hpi_score=_summary_hpi,
             )
@@ -22535,6 +22668,26 @@ class UnifiedRestorerV3:
         # Material-spezifische Schwellen: CD=75, Vinyl=65, Cassette=55, Shellac=45.
         _wm_mushra = float(getattr(self, "_mqa_mushra", 0.0) or 0.0)
         _wm_mat = str(getattr(self, "_restoration_context", {}).get("primary_material", "unknown")).lower()
+        # §v10.14 [FIX 2026-08-23] Alignment-Artefakt-Guard: Eine kaputte End-Messung
+        # (Längen-Mismatch Ref vs. Restored) liefert NSIM≈0, MCD≈0 dB und |LUFS-Δ|>20 LU.
+        # Diese Signatur ist ein Messfehler, kein Qualitätsurteil — ein Re-Run darauf
+        # erzeugt dieselbe kaputte Messung erneut → Endlosschleife (Befund 2026-08-23:
+        # MUSHRA 38.9 < 71 → Re-Run → 39.7 → Folge-Chunk → … Pipeline lief 281+ min).
+        _wm_mushra_meta = _analytics_meta.get("mushra") or {}
+        _wm_nsim = float(_wm_mushra_meta.get("nsim", 1.0) or 1.0)
+        _wm_details = _wm_mushra_meta.get("details") or {}
+        _wm_mcd_db = float(_wm_details.get("mcd_db", 999.0) or 999.0)
+        _wm_lufs_d = float(_wm_details.get("lufs_diff_lu", 0.0) or 0.0)
+        _wm_alignment_suspect = _wm_nsim < 0.10 and (_wm_mcd_db < 1.0 or abs(_wm_lufs_d) > 20.0)
+        if _wm_alignment_suspect and _wm_mushra > 0:
+            logger.warning(
+                "⚡ Wohlklang-Garantie: MUSHRA %.1f als Messartefakt eingestuft "
+                "(nsim=%.3f, mcd=%.1f dB, lufs_delta=%.1f LU) — kein automatischer Re-Run",
+                _wm_mushra,
+                _wm_nsim,
+                _wm_mcd_db,
+                _wm_lufs_d,
+            )
         _MATERIAL_MUSHRA_MIN: dict[str, float] = {
             "cd": 75.0,
             "cd_digital": 75.0,
@@ -22570,6 +22723,7 @@ class UnifiedRestorerV3:
             and _wm_mushra < _wm_threshold
             and self._wohlklang_retry_count < 1
             and self._wohlklang_strength_multiplier > 0.9
+            and not _wm_alignment_suspect
         ):
             self._wohlklang_best_mushra = _wm_mushra
             self._wohlklang_best_audio = result.audio.copy()
@@ -22579,7 +22733,9 @@ class UnifiedRestorerV3:
             # MUSHRA 50/75 → 67% Strength (moderate Korrektur)
             # MUSHRA 30/75 → 40% Strength (starke Korrektur, Minimum 30%)
             _wm_ratio = _wm_mushra / max(_wm_threshold, 1.0)
-            self._wohlklang_strength_multiplier = float(np.clip(_wm_ratio, 0.30, 0.95))  # §G-DB7 base 0.50, proportional SOTA
+            self._wohlklang_strength_multiplier = float(
+                np.clip(_wm_ratio, 0.30, 0.95)
+            )  # §G-DB7 base 0.50, proportional SOTA
             logger.warning(
                 "⚡ Wohlklang-Garantie: MUSHRA %.1f < %.0f (%s) — "
                 "automatischer Re-Run mit %.0f%% Strengths (Versuch %d/2)",
@@ -28679,7 +28835,10 @@ class UnifiedRestorerV3:
             while _remaining_h:
                 _cur = _remaining_h.pop(0)
                 # If next phase is within stable band, preserve original relative order
-                if _remaining_h:
+                if not _remaining_h:
+                    _stabilised.append(_cur)
+                    continue
+                    # If next phase is within stable band, preserve original relative order
                     _nxt = _remaining_h[0]
                     if abs(_utility(_cur) - _utility(_nxt)) <= _STABLE_BAND:
                         # Keep original relative ordering for this pair
@@ -35027,7 +35186,7 @@ class UnifiedRestorerV3:
             # der Mapper lief bisher ohne Kontext (Befund: „10 Bänder × 1 Segmente
             # — 0 Entscheidungen“), die per-Segment-Intensität war de facto inert.
             _pim_segments: list[dict] = []
-            for _seg in (self._ssa_segments or []):
+            for _seg in self._ssa_segments or []:
                 _s_start = float(getattr(_seg, "start_s", 0.0) or 0.0)
                 _s_end = float(getattr(_seg, "end_s", 0.0) or 0.0)
                 if _s_end <= _s_start:
@@ -43172,6 +43331,38 @@ class UnifiedRestorerV3:
                 _total_s,
             )
 
+            # §v10.704 B28 [FIX 2026-08-23]: pre_repair_reference ist der FULL-SONG
+            # (Denker übergibt _work_audio). Unbeschnitten übernimmt jeder Chunk-Lauf
+            # die 224s-Referenz als Goal-Referenz → MUSHRA-Proxy + FeedbackChain laufen
+            # auf Full-Song-Länge → restored_audio wächst auf 224s → FATAL-Trim +
+            # kaputte End-Messung (NSIM≈0, MCD=0 dB, LUFS-Δ≈60 → OQS≈39 statt 80) →
+            # Wohlklang-Garantie-Re-Run-Endlosschleife (Befund 2026-08-23: 281+ min).
+            # Referenz deterministisch pro Chunk auf das Chunk-Fenster schneiden
+            # (Ratio-Skalierung deckt SR-Unterschiede Referenz vs. Chunk-Audio ab).
+            _ppr_full = _chunk_kwargs.get("pre_repair_reference")
+            _ppr_slice_fn = None
+            if isinstance(_ppr_full, np.ndarray) and _ppr_full.size > 0 and _ppr_full.ndim in (1, 2):
+                _ppr_len = (
+                    int(_ppr_full.shape[-1])
+                    if _ppr_full.ndim == 2 and _ppr_full.shape[0] <= 8
+                    else int(_ppr_full.shape[0])
+                )
+                _ppr_ratio = _ppr_len / max(_n_total, 1)
+
+                def _ppr_slice_fn(_start: int, _end: int) -> np.ndarray:
+                    _a = int(round(_start * _ppr_ratio))
+                    _b = int(round(_end * _ppr_ratio))
+                    _b = min(max(_b, _a + 1), _ppr_len)
+                    if _ppr_full.ndim == 2 and _ppr_full.shape[0] <= 8:
+                        return cast(np.ndarray, _ppr_full[:, _a:_b])
+                    return cast(np.ndarray, _ppr_full[_a:_b])
+
+                _chunk_kwargs["pre_repair_reference"] = _ppr_slice_fn(chunks[0][0], chunks[0][1])
+                logger.info(
+                    "§B3 Chunked-Streaming: pre_repair_reference pro Chunk zugeschnitten (Full-Song %d Samples)",
+                    _ppr_len,
+                )
+
             # ── §v10.702 B3-Phase-2: Full-Song Defect-Presence Pre-Scan ──  # §G137 Full-Song-Defekt-Presence-Pflicht
             # Scannt das GESAMTE Audio auf Defekt-Typen, bevor Chunk 0 seine
             # Phasen-Selektion trifft. Verhindert, dass Defekte in späteren
@@ -43315,6 +43506,10 @@ class UnifiedRestorerV3:
 
                 _chunk_kwargs["file_path"] = f"__aurik_chunk__{i}__"
                 chunk = audio[start:end, :] if audio.ndim == 2 else audio[start:end]
+
+                # §v10.704 B28 [FIX 2026-08-23]: Goal-Referenz auf Chunk-Fenster halten.
+                if _ppr_slice_fn is not None:
+                    _chunk_kwargs["pre_repair_reference"] = _ppr_slice_fn(start, end)
 
                 # §v10.457: Progress normalisieren (Chunk i → Anteil am Gesamtfortschritt)
                 _chunk_pc = None
