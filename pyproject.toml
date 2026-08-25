@@ -12,7 +12,7 @@ version = "10.0.19"
 description = "Intelligentes Musik-Restaurierungssystem — Weltklasse, Version 10.0.18 „SOTA-Compliance\""
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.10"
+requires-python = ">=3.10.12"
 authors = [{ name = "Aurik Team" }]
 urls = { "Homepage" = "https://github.com/aurik-audio/Aurik_Standalone", "Repository" = "https://github.com/aurik-audio/Aurik_Standalone", "Issues" = "https://github.com/aurik-audio/Aurik_Standalone/issues", "Changelog" = "https://github.com/aurik-audio/Aurik_Standalone/blob/main/CHANGELOG.md" }
 keywords = [
