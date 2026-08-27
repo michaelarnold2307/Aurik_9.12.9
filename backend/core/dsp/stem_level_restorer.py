@@ -324,7 +324,18 @@ class StemLevelRestorer:
             )
             if route.success:
                 return route.vocal.astype(np.float32), route.instrumental.astype(np.float32), route.model_used
-            logger.debug("§SLR-1 separation router Ersatzpfad chain: %s", route.fallback_chain)
+            logger.warning(
+                "ML→DSP-Fallback aktiviert (§SLR-1: SOTA-Router lehnte ab, chain=%s) — DSP-Bandpass",
+                route.fallback_chain,
+            )
+            try:
+                from backend.core.fallback_auditor import get_fallback_auditor
+
+                get_fallback_auditor().record(
+                    "StemLevelRestorer", "sota_vocal_router", "dsp_bandpass", "router_declined"
+                )
+            except Exception:
+                logger.debug("FallbackAuditor nicht verfügbar (unkritisch)", exc_info=True)
         except Exception as _router_exc:  # pylint: disable=broad-except
             logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
             logger.debug("§SLR-1 separation router Ersatzpfad to DSP: %s", _router_exc)

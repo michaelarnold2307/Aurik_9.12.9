@@ -1342,8 +1342,7 @@ class MusicalQualityAssurance:
             # das simulierte menschliche Ohr hat Vorrang; das Gate wird zur
             # WARNUNG degradiert statt das Verdikt zu kippen (MetricArbiter-Logik).
             verdict = (
-                f"⚠️ PERCEPTUAL PASS — quantitatives Gate degradiert zu WARNUNG: "
-                f"{gate_reason} (MUSHRA={_mushra:.0f} ✅)"
+                f"⚠️ PERCEPTUAL PASS — quantitatives Gate degradiert zu WARNUNG: {gate_reason} (MUSHRA={_mushra:.0f} ✅)"
             )
         elif not gate_passed:
             verdict = f"❌ QUALITY GATES FAILED - {gate_reason}"
@@ -1377,9 +1376,7 @@ class MusicalQualityAssurance:
         if not character_preserved:
             warnings.append(f"Character preservation: {integrity_result.character_preservation:.1%} < 80%")
         if not natural_sound:
-            warnings.append(
-                f"Unnatural sound: naturalness {output_quality.naturalness:.2f} < {_min_naturalness:.2f}"
-            )
+            warnings.append(f"Unnatural sound: naturalness {output_quality.naturalness:.2f} < {_min_naturalness:.2f}")
 
         # Collect recommendations
         recommendations = list(integrity_result.recommendations)

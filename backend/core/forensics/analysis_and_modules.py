@@ -188,7 +188,7 @@ class FeatureExtractor:
         channels = self._as_channels(audio)
         features = {}
 
-        def crepe_features() -> dict[str, Any]:
+        def fcpe_features() -> dict[str, Any]:
             try:
                 from plugins.fcpe_plugin import get_fcpe_plugin as _get_fcpe
 
@@ -201,7 +201,7 @@ class FeatureExtractor:
                     "f0_std": float(np.std(f0_vals)),
                 }
             except Exception as e:
-                logger.warning("Analyse_and_modules.py::crepe_features Ersatzpfad: %s", e)
+                logger.warning("Analyse_and_modules.py::fcpe_features Ersatzpfad: %s", e)
                 return {"f0_median": -1.0, "f0_mean": -1.0, "f0_std": -1.0}
 
         def librosa_features() -> dict[str, Any]:
@@ -278,13 +278,13 @@ class FeatureExtractor:
                 return {}
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            future_crepe = executor.submit(crepe_features)
+            future_fcpe = executor.submit(fcpe_features)
             future_librosa = executor.submit(librosa_features)
             future_panns = executor.submit(panns_features)
-            crepe_result = future_crepe.result()
+            fcpe_result = future_fcpe.result()
             librosa_result = future_librosa.result()
             panns_result = future_panns.result()
-            features.update(crepe_result)
+            features.update(fcpe_result)
             features.update(librosa_result)
             features.update(panns_result)
 

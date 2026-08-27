@@ -1595,16 +1595,33 @@ class MertMushraProxy:
 
     @staticmethod
     def _compute_mcd(ref: np.ndarray, test: np.ndarray, sr: int) -> float:
-        """Mel-Cepstral Distortion in dB (lower = better)."""
+        """Mel-Cepstral Distortion in dB (lower = better).
+
+        §Spec 24 (Root-Fix 2026-08-16): Identische CMVN-Formel wie
+        mushra_evaluator._compute_mcd — vorher wurden rohe librosa-MFCCs
+        verrechnet („MCD=435.2dB“ vs. phys. sinnvollem 0–30 dB; der Evaluator
+        kommentiert das explizit: ohne Normalisierung 500–1000 dB). Der Wert
+        speist exp(-mcd/300) und verfälschte die Klangfarben-Komponente.
+        """
         try:
             import librosa  # pylint: disable=import-outside-toplevel
 
             mfcc_ref = librosa.feature.mfcc(y=ref, sr=sr, n_mfcc=13).T
             mfcc_test = librosa.feature.mfcc(y=test, sr=sr, n_mfcc=13).T
+            # CMVN — Cepstral Mean and Variance Normalization (standard speech/music DSP).
+            # Subtrainiert den absoluten Energie-Offset, normalisiert auf σ=1 —
+            # Distanz misst ausschließlich Klangfarbenunterschiede.
+            for _mc in (mfcc_ref, mfcc_test):
+                _mu = np.mean(_mc, axis=0, keepdims=True)
+                _sigma = np.std(_mc, axis=0, keepdims=True) + 1e-8
+                _mc -= _mu
+                _mc /= _sigma
             min_f = min(mfcc_ref.shape[0], mfcc_test.shape[0])
             diff = mfcc_ref[:min_f, 1:] - mfcc_test[:min_f, 1:]
             frame_dists = np.sqrt(2.0 * np.sum(diff**2, axis=1))
-            return max(0.0, (10.0 / math.log(10)) * float(np.mean(frame_dists)))
+            mcd = (10.0 / math.log(10)) * float(np.mean(frame_dists))
+            # Sane cap (wie mushra_evaluator): CMVN-MCD-Bereich 0–40 dB.
+            return float(np.clip(mcd, 0.0, 40.0))
         except Exception as e:
             logger.warning("mert_mushra_proxy.py::_berechnen_mcd Ersatzpfad: %s", e)
             return 5.0

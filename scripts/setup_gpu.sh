@@ -71,7 +71,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
         echo "  pip install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/cu124"
         echo "  pip install onnxruntime-gpu"
     elif [[ "$GPU_TYPE" == "rocm" ]]; then
-        echo "  pip install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/rocm6.1"
+        echo "  pip install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/rocm7.2"
         echo "  pip install onnxruntime-rocm"
     fi
     exit 0
@@ -99,8 +99,8 @@ if [[ "$GPU_TYPE" == "cuda" ]]; then
     "$PIP" install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/cu124 || install_status=1
     "$PIP" install onnxruntime-gpu || install_status=1
 elif [[ "$GPU_TYPE" == "rocm" ]]; then
-    echo -e "${GREEN}Installing PyTorch ROCm 6.1 + ONNX Runtime ROCm ...${NC}"
-    "$PIP" install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/rocm6.1 || install_status=1
+    echo -e "${GREEN}Installing PyTorch ROCm 7.2.4 + ONNX Runtime ROCm ...${NC}"
+    "$PIP" install torch torchaudio torchvision --index-url https://download.pytorch.org/whl/rocm7.2 || install_status=1
     "$PIP" install onnxruntime-rocm || install_status=1
 fi
 

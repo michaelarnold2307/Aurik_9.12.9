@@ -768,7 +768,7 @@ class HumRemovalPhase(PhaseInterface):
                     # Zurückmischen auf Budget: result = audio + beta*(result - audio)
                     _beta = max(0.0, min(1.0, 1.0 / max(_over, 1e-9)))
                     result = audio + _beta * (result - audio)
-                    log.info(
+                    logger.info(
                         "§v10.998 Hum-Budget: %.0f%% entfernt → auf Budget zurückgemischt (beta=%.2f)",
                         _over * 100,
                         _beta,

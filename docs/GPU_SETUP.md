@@ -8,7 +8,7 @@ werden zwei unterschiedliche APIs eingesetzt:
 
 | Plattform | GPU-API | Framework |
 | --- | --- | --- |
-| **Linux** | AMD ROCm 6.x | PyTorch ROCm |
+| **Linux** | AMD ROCm 7.2.4 | PyTorch ROCm |
 | **Windows 10/11** | AMD DirectML | ONNX Runtime + torch-directml |
 
 > **Hinweis:** GPU ist **optional** — Aurik funktioniert zu 100 % auf CPU.
@@ -31,7 +31,7 @@ werden zwei unterschiedliche APIs eingesetzt:
 # 1. ROCm-Repository hinzufügen
 wget -q https://repo.radeon.com/rocm/rocm.gpg.key -O - | \
   sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/rocm.gpg
-echo "deb [arch=amd64] https://repo.radeon.com/rocm/apt/6.2 noble main" | \
+echo "deb [arch=amd64] https://repo.radeon.com/rocm/apt/7.2.4 noble main" | \
   sudo tee /etc/apt/trusted.gpg.d/rocm.list
 
 # 2. ROCm-Pakete installieren
@@ -51,8 +51,35 @@ source ~/.bashrc
 
 ```bash
 # Innerhalb des Aurik venv / AppImage-Umgebung:
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm7.2
 ```
+
+Produktions-Stack (Rev. 2026-08-16): ROCm 7.2.4 + torch 2.11.0+rocm7.2 +
+torchaudio 2.11.0+rocm7.2 + torchvision 0.26.0+rocm7.2 + onnxruntime-rocm 1.22.2.post3.
+
+### 1.3b MIGraphX-Bridge (optionaler ONNX-GPU-Pfad)
+
+Die Bridge `backend/core/lib/libmigraphx_bridge.so` kompiliert ONNX-Modelle
+über AMDs MIGraphX-Graph-Compiler (Geschwindigkeitsvorteil für gfx1100,
+siehe `.github/specs/v10.40_migraphx_gpu_integration.md`). Sie wird seit
+Rev. 2026-08-16 gegen **MIGraphX 2.15 (ROCm 7.2.4)** gebaut — Quellcode und
+Build-Skript liegen im Repo:
+
+```bash
+sudo apt install migraphx migraphx-dev g++
+bash scripts/build_migraphx_bridge.sh
+```
+
+Verifikation (muss `True` liefern):
+
+```bash
+python -c "import sys; sys.path.insert(0,'.'); \
+from backend.core.migraphx_adapter import is_migraphx_available; \
+print(is_migraphx_available())"
+```
+
+Hinweis: Die Bridge kompiliert mit `offload_copy=true` — ohne diese Option
+liefert die MIGraphX-2.15-C-API keine GPU-Ergebnisse auf den Host zurück.
 
 ### 1.4 Verifikation (ROCm)
 

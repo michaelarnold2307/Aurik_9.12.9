@@ -88,6 +88,16 @@ class FallbackAuditor:
         # Handler-based auto-detect catches this — don't double-log
         pass
 
+    def reset(self) -> None:
+        """Leert alle Events — Song-Scope-Reset (§V8/§G1, copilot-instructions.md).
+
+        Ohne Reset akkumulieren Degradations-Events session-global und der
+        PreExportValidator blockiert ab _BLOCK_AFTER Events fälschlich Exporte
+        späterer Songs (Rev. 2026-08-16).
+        """
+        with self._lock:
+            self._events.clear()
+
     def summary(self) -> dict[str, Any]:
         with self._lock:
             return {

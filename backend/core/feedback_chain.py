@@ -108,14 +108,13 @@ class FeedbackChain:
                     self._versa_score_fn = _versa_plugin.score
             except Exception as exc:
                 logger.warning(
-                    "FeedbackChain: VERSA scorer nicht verfügbar — PQS/RMS-Ersatzpfad (§V6 (copilot-instructions.md)): %s", exc
+                    "FeedbackChain: VERSA scorer nicht verfügbar — PQS/RMS-Ersatzpfad (§V6 (copilot-instructions.md)): %s",
+                    exc,
                 )
                 try:
                     from backend.core.fallback_auditor import get_fallback_auditor
 
-                    get_fallback_auditor().record(
-                        "FeedbackChain", "versa_mos", "pqs_rms_dsp", "versa_load_failed"
-                    )
+                    get_fallback_auditor().record("FeedbackChain", "versa_mos", "pqs_rms_dsp", "versa_load_failed")
                 except Exception:
                     logger.debug("FallbackAuditor nicht verfügbar (unkritisch)", exc_info=True)
         # target_score: explizit gesetzt oder aus excellence_mode abgeleitet
@@ -970,6 +969,30 @@ class FeedbackChain:
                             else _checker.thresholds.get(g, 0.85)
                         )
                     )
+                    # Hörordnung Ebene 3 (hoerordnung.instructions.md §5): strikte
+                    # lexikografische Dominanz. Ein Kandidat, der ein Ziel einer
+                    # höheren Hörstufe (kleinere Zahl) senkt, während nur Ziele
+                    # niedrigerer Stufen gewinnen, wird NICHT akzeptiert — kein
+                    # Brillanz-Transparenz-Boost auf Kosten von Wärme/Natürlichkeit.
+                    _ho_dropped_tier = 99
+                    _ho_gained_tier = 99
+                    for _g_ho, _v_prev in _prev_goals.items():
+                        _v_curr = float(_curr_goals.get(_g_ho, _v_prev))
+                        _d_ho = _v_curr - float(_v_prev)
+                        _t_ho = int(_gpp.hearing_tier(str(_g_ho)))
+                        if _d_ho < -_gpp.REGRESSION_EPSILON:
+                            _ho_dropped_tier = min(_ho_dropped_tier, _t_ho)
+                        elif _d_ho > _gpp.REGRESSION_EPSILON:
+                            _ho_gained_tier = min(_ho_gained_tier, _t_ho)
+                    if _ho_dropped_tier < _ho_gained_tier:
+                        _ho_entry = (
+                            f"FeedbackChain Iteration {i}: Hörordnungs-Verstoß "
+                            f"(Senkung Stufe {_ho_dropped_tier} gegen Gewinn Stufe {_ho_gained_tier}) "
+                            "— Kandidat verworfen (§Hörordnung Ebene 3)"
+                        )
+                        _goal_priority_log.append(_ho_entry)
+                        logger.warning("⚠ %s", _ho_entry)
+                        continue
                 except Exception as _gpp_exc:
                     logger.debug("GoalPriorityProtocol in FeedbackChain nicht verfügbar: %s", _gpp_exc)
             elif _gpp is not None and not _prev_goals and not callable(self.goal_priority_callback):

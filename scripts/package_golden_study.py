@@ -12,6 +12,7 @@ Verdicts-Vorlage im Schema von scripts/non_inferiority_gate.py.
 Usage:
     python scripts/package_golden_study.py [--out audit/listening_study/round_<datum>]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -87,9 +88,7 @@ def build_package(golden: dict[str, Any], out_dir: Path, seed: int = SEED) -> di
         "items": [
             {
                 "item_id": t["item_id"],
-                "scores": [
-                    {"listener": "P01", "anchor": 0.0, "candidate": 0.0}
-                ],
+                "scores": [{"listener": "P01", "anchor": 0.0, "candidate": 0.0}],
             }
             for t in trials
         ],

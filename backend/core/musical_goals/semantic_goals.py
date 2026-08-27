@@ -741,7 +741,10 @@ class SemanticGoalsEngine:
                     "⚠️ SOTA SemanticGoals: madmom nicht gebündelt — heuristische Struktur-Analyse aktiv (librosa Ersatzpfad)"
                 )
                 self._structure_fallback_logged = True
-            return None
+            # Fallback-Marker statt None: Der Engine-Vertrag verlangt immer einen
+            # Struktur-Analysator; available=False routet analyze_structure()
+            # deterministisch auf den librosa-Ersatzpfad (§V6, Rev. 2026-08-16).
+            return type("LibrosaStructureAnalyzer", (), {"available": False, "backend": "librosa"})()
 
     def detect_instruments(
         self, audio: np.ndarray, sr: int = 44100
@@ -832,7 +835,7 @@ class SemanticGoalsEngine:
         Returns:
             List of (start_time, end_time, segment_type)
         """
-        if self.structure_analyzer is None:
+        if self.structure_analyzer is None or not getattr(self.structure_analyzer, "available", False):
             return self._analyze_structure_fallback(audio, sr)
 
         try:

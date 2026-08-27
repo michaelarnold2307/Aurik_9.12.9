@@ -214,8 +214,7 @@ class MicroDynamicsEnvelopeMorphing:
         # sinnlos; Eingabe unverändert zurückgeben (Non-Blocking, §V6 mit Log).
         if res_mono.size < self.FRAME_SIZE_SAMPLES or orig_mono.size < self.FRAME_SIZE_SAMPLES:
             logger.warning(
-                "MDEM: degenerierte Eingabe (res=%d, orig=%d Samples) — Morphing übersprungen, "
-                "Eingabe unverändert",
+                "MDEM: degenerierte Eingabe (res=%d, orig=%d Samples) — Morphing übersprungen, Eingabe unverändert",
                 int(res_mono.size),
                 int(orig_mono.size),
             )
@@ -500,7 +499,9 @@ class MicroDynamicsEnvelopeMorphing:
         out = np.clip(out, -self.TRUE_PEAK_LIMIT, self.TRUE_PEAK_LIMIT)
 
         # Pearson-Korrelation pruefen, ggf. Retry
-        out_mono = (out.mean(axis=1) if (out.ndim == 2 and out.shape[1] <= 2) else (out.mean(axis=0) if out.ndim == 2 else out))
+        out_mono = (
+            out.mean(axis=1) if (out.ndim == 2 and out.shape[1] <= 2) else (out.mean(axis=0) if out.ndim == 2 else out)
+        )
         r = self._pearson(orig_mono[: len(out_mono)], out_mono[: len(orig_mono)])
 
         if r < self.PEARSON_TARGET and max_gain < self.MAX_GAIN_LU:
@@ -549,7 +550,9 @@ class MicroDynamicsEnvelopeMorphing:
                 final = out2.astype(np.float32)
             # §8.2 Observability: log final pearson after retry (universal guarantee ≥ 0.92)
             _final_mono = (
-                final.mean(axis=1) if (final.ndim == 2 and final.shape[1] <= 2) else (final.mean(axis=0) if final.ndim == 2 else final)
+                final.mean(axis=1)
+                if (final.ndim == 2 and final.shape[1] <= 2)
+                else (final.mean(axis=0) if final.ndim == 2 else final)
             )
             r_final = self._pearson(orig_mono[: len(_final_mono)], _final_mono[: len(orig_mono)])
             if r_final < 0.92:

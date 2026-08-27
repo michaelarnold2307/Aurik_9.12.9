@@ -77,8 +77,15 @@ class RuntimeProbe:
 
 
 def _candidate_paths(repo_root: Path) -> list[Path]:
-    """Backend-agnostic venv candidates. GPU first, CPU fallback."""
+    """Backend-agnostic venv candidates. GPU first, CPU fallback.
+
+    Reihenfolge (Rev. 2026-08-16): venv_rocm72 (ROCm 7.2.4, GPU-Gate-verifiziert) →
+    venv_rocm (ROCm 6.2, Legacy) → Repo-venvs → CPU-Fallback.
+    """
+    _aurik_home = Path.home() / ".local" / "share" / "aurik"
     return [
+        _aurik_home / "venv_rocm72" / "bin" / "python",
+        _aurik_home / "venv_rocm" / "bin" / "python",
         repo_root / ".venv_gpu" / "bin" / "python",
         repo_root / ".venv_gpu" / "Scripts" / "python.exe",
         repo_root / ".venv_aurik" / "bin" / "python",

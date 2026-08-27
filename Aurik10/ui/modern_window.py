@@ -11376,6 +11376,13 @@ class GradientMainArea(QWidget):
 
     def paintEvent(self, event):
         """Paint the cached background image or fallback gradient."""
+        # §GUI-Stabilität (Rev. 2026-08-16): Beim ersten Paint VOR dem Layout
+        # kann width()/height() 0 sein — QLinearGradient(0,0,0,0) erzeugt NaN
+        # und in manchen Qt-Builds einen harten Segfault. Zero-Size-Paint
+        # überspringen; das Layout löst danach einen regulären Repaint aus.
+        if self.width() <= 0 or self.height() <= 0:
+            event.accept()
+            return
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
@@ -13113,6 +13120,7 @@ class ModernMainWindow(QMainWindow):
                 _tone = str(_lbl.property("aurikCardTone") or "neutral")
                 self._set_info_card_state(_lbl, _tone, animate=False)
 
+        w = max(1, self.width())
         self._refresh_top_info_row(w)
         self._refresh_defect_summary_height()
 
@@ -15233,6 +15241,7 @@ class ModernMainWindow(QMainWindow):
         wrapper = QWidget()
         wrapper.setStyleSheet("background: transparent;")
         vbox = QVBoxLayout(wrapper)
+        self._status_vbox = vbox  # §v10.14 P1: für lazy eingefügte Widgets (Timeline/Banner)
         vbox.setContentsMargins(0, 2, 0, 2)
         vbox.setSpacing(4)
 
@@ -15406,133 +15415,136 @@ class ModernMainWindow(QMainWindow):
         else:
             self.live_quality_label.setVisible(False)
 
-        # ── Ablaufprotokoll: einmalig erstellen, nicht bei jedem Aufruf neu ─────────
+        # ── Ablaufprotokoll: einmalig erstellen und in die Statuszeile einhängen ──
         if self._process_timeline_label is None:
             self._process_timeline_label = _ElidingLabel("")
-        self._process_timeline_label.setStyleSheet(
-            "color: #7B93B8; font-size: 8.5pt; background: transparent; padding: 0px 2px;"
-        )
-        self._process_timeline_label.setWordWrap(False)
-        self._process_timeline_label.setVisible(False)
-        self._process_timeline_label.setBaseToolTip(
-            "<b>Ablaufprotokoll</b><br>"
-            "Diese Information wird in der zweiten Statuszeile angezeigt: "
-            "Schritt, UV3-Phase, aktive Defektarten und Plananpassungen (+/-)."
-        )
+            self._process_timeline_label.setStyleSheet(
+                "color: #7B93B8; font-size: 8.5pt; background: transparent; padding: 0px 2px;"
+            )
+            self._process_timeline_label.setWordWrap(False)
+            self._process_timeline_label.setVisible(False)
+            self._process_timeline_label.setBaseToolTip(
+                "<b>Ablaufprotokoll</b><br>"
+                "Diese Information wird in der zweiten Statuszeile angezeigt: "
+                "Schritt, UV3-Phase, aktive Defektarten und Plananpassungen (+/-)."
+            )
+            _status_vbox = getattr(self, "_status_vbox", None)
+            if _status_vbox is not None:
+                _status_vbox.addWidget(self._process_timeline_label)
 
-        # ── Ergebnis-Banner: einmalig erstellen, nicht bei jedem Aufruf neu ────
+        # ── Ergebnis-Banner: einmalig erstellen (inkl. Inhalt) und einhängen ──
         if self._result_banner is None:
             self._result_banner = QFrame()
-        self._result_banner.setVisible(False)
-        self._result_banner.setStyleSheet(
-            "QFrame { background: rgba(25, 75, 45, 0.30);"
-            " border: 1px solid rgba(80, 200, 120, 0.35); border-radius: 8px; }"
-        )
-        _rb_layout = QHBoxLayout(self._result_banner)
-        _rb_layout.setContentsMargins(10, 5, 10, 5)
-        _rb_layout.setSpacing(8)
+            self._result_banner.setVisible(False)
+            self._result_banner.setStyleSheet(
+                "QFrame { background: rgba(25, 75, 45, 0.30);"
+                " border: 1px solid rgba(80, 200, 120, 0.35); border-radius: 8px; }"
+            )
+            _rb_layout = QHBoxLayout(self._result_banner)
+            _rb_layout.setContentsMargins(10, 5, 10, 5)
+            _rb_layout.setSpacing(8)
 
-        _check_icon = QLabel("✅")
-        _check_icon.setStyleSheet("background: transparent; font-size: 12pt;")
-        _rb_layout.addWidget(_check_icon)
+            _check_icon = QLabel("✅")
+            _check_icon.setStyleSheet("background: transparent; font-size: 12pt;")
+            _rb_layout.addWidget(_check_icon)
 
-        self._result_path_label = QLabel("—")
-        self._result_path_label.setStyleSheet("color: #A0D8B0; font-size: 9pt; background: transparent;")
-        self._result_path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self._result_path_label.setWordWrap(True)
-        _rb_layout.addWidget(self._result_path_label, 1)
+            self._result_path_label = QLabel("—")
+            self._result_path_label.setStyleSheet("color: #A0D8B0; font-size: 9pt; background: transparent;")
+            self._result_path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            self._result_path_label.setWordWrap(True)
+            _rb_layout.addWidget(self._result_path_label, 1)
 
-        self._btn_preview_restored = QPushButton("▶  Vorschau")
-        self._btn_preview_restored.setFixedHeight(self._sp(26))
-        self._btn_preview_restored.setEnabled(False)
-        self._btn_preview_restored.setStyleSheet(
-            "QPushButton { background: rgba(90,60,160,0.55); border: none; border-radius: 6px;"
-            " color: #D8C8FF; font-size: 9pt; padding: 3px 10px; }"
-            " QPushButton:hover { background: rgba(110,80,200,0.80); }"
-            " QPushButton:disabled { background: rgba(50,40,70,0.25); color: #555; }"
-        )
-        self._btn_preview_restored.setToolTip(t("tooltip.preview_restored"))
-        self._btn_preview_restored.clicked.connect(self._auto_preview_restored)
-        _rb_layout.addWidget(self._btn_preview_restored)
+            self._btn_preview_restored = QPushButton("▶  Vorschau")
+            self._btn_preview_restored.setFixedHeight(self._sp(26))
+            self._btn_preview_restored.setEnabled(False)
+            self._btn_preview_restored.setStyleSheet(
+                "QPushButton { background: rgba(90,60,160,0.55); border: none; border-radius: 6px;"
+                " color: #D8C8FF; font-size: 9pt; padding: 3px 10px; }"
+                " QPushButton:hover { background: rgba(110,80,200,0.80); }"
+                " QPushButton:disabled { background: rgba(50,40,70,0.25); color: #555; }"
+            )
+            self._btn_preview_restored.setToolTip(t("tooltip.preview_restored"))
+            self._btn_preview_restored.clicked.connect(self._auto_preview_restored)
+            _rb_layout.addWidget(self._btn_preview_restored)
 
-        self._btn_ab_compare = QPushButton("↔  A/B-Vergleich")
-        self._btn_ab_compare.setFixedHeight(self._sp(26))
-        self._btn_ab_compare.setStyleSheet(
-            "QPushButton { background: rgba(60,90,200,0.55); border: none; border-radius: 6px;"
-            " color: #C8D8FF; font-size: 9pt; padding: 3px 10px; }"
-            " QPushButton:hover { background: rgba(80,110,230,0.80); }"
-        )
-        self._btn_ab_compare.setToolTip(t("tooltip.ab_compare"))
-        self._btn_ab_compare.clicked.connect(lambda: hasattr(self, "viz_tabs") and self.viz_tabs.setCurrentIndex(2))
-        _rb_layout.addWidget(self._btn_ab_compare)
+            self._btn_ab_compare = QPushButton("↔  A/B-Vergleich")
+            self._btn_ab_compare.setFixedHeight(self._sp(26))
+            self._btn_ab_compare.setStyleSheet(
+                "QPushButton { background: rgba(60,90,200,0.55); border: none; border-radius: 6px;"
+                " color: #C8D8FF; font-size: 9pt; padding: 3px 10px; }"
+                " QPushButton:hover { background: rgba(80,110,230,0.80); }"
+            )
+            self._btn_ab_compare.setToolTip(t("tooltip.ab_compare"))
+            self._btn_ab_compare.clicked.connect(lambda: hasattr(self, "viz_tabs") and self.viz_tabs.setCurrentIndex(2))
+            _rb_layout.addWidget(self._btn_ab_compare)
 
-        self._btn_open_folder = QPushButton("📁  Ordner öffnen")
-        self._btn_open_folder.setFixedHeight(self._sp(26))
-        self._btn_open_folder.setStyleSheet(
-            "QPushButton { background: rgba(50,120,70,0.55); border: none; border-radius: 6px;"
-            " color: #C8EED0; font-size: 9pt; padding: 3px 10px; }"
-            " QPushButton:hover { background: rgba(60,150,85,0.80); }"
-        )
-        self._btn_open_folder.setToolTip(t("tooltip.open_folder"))
-        self._btn_open_folder.clicked.connect(self._open_output_folder)
-        _rb_layout.addWidget(self._btn_open_folder)
+            self._btn_open_folder = QPushButton("📁  Ordner öffnen")
+            self._btn_open_folder.setFixedHeight(self._sp(26))
+            self._btn_open_folder.setStyleSheet(
+                "QPushButton { background: rgba(50,120,70,0.55); border: none; border-radius: 6px;"
+                " color: #C8EED0; font-size: 9pt; padding: 3px 10px; }"
+                " QPushButton:hover { background: rgba(60,150,85,0.80); }"
+            )
+            self._btn_open_folder.setToolTip(t("tooltip.open_folder"))
+            self._btn_open_folder.clicked.connect(self._open_output_folder)
+            _rb_layout.addWidget(self._btn_open_folder)
 
-        self._btn_open_in_player = QPushButton("🎵  Im Player öffnen")
-        self._btn_open_in_player.setFixedHeight(self._sp(26))
-        self._btn_open_in_player.setStyleSheet(
-            "QPushButton { background: rgba(20,90,130,0.55); border: none; border-radius: 6px;"
-            " color: #B8D8F0; font-size: 9pt; padding: 3px 10px; }"
-            " QPushButton:hover { background: rgba(30,120,170,0.80); }"
-        )
-        self._btn_open_in_player.setToolTip(t("tooltip.open_in_player"))
-        self._btn_open_in_player.clicked.connect(self._open_result_in_player)
-        _rb_layout.addWidget(self._btn_open_in_player)
+            self._btn_open_in_player = QPushButton("🎵  Im Player öffnen")
+            self._btn_open_in_player.setFixedHeight(self._sp(26))
+            self._btn_open_in_player.setStyleSheet(
+                "QPushButton { background: rgba(20,90,130,0.55); border: none; border-radius: 6px;"
+                " color: #B8D8F0; font-size: 9pt; padding: 3px 10px; }"
+                " QPushButton:hover { background: rgba(30,120,170,0.80); }"
+            )
+            self._btn_open_in_player.setToolTip(t("tooltip.open_in_player"))
+            self._btn_open_in_player.clicked.connect(self._open_result_in_player)
+            _rb_layout.addWidget(self._btn_open_in_player)
 
-        # ── Retry-Button für fehlgeschlagene Items ───────────────────────
-        self._btn_retry_failed = QPushButton("🔁  Fehlgeschlagene wiederholen")
-        self._btn_retry_failed.setFixedHeight(self._sp(26))
-        self._btn_retry_failed.setVisible(False)
-        self._btn_retry_failed.setStyleSheet(
-            "QPushButton { background: rgba(180,100,40,0.55); border: none; border-radius: 6px;"
-            " color: #FFD8B0; font-size: 9pt; padding: 3px 10px; }"
-            " QPushButton:hover { background: rgba(210,130,60,0.80); }"
-        )
-        self._btn_retry_failed.setToolTip(t("batch.retry_tooltip"))
-        self._btn_retry_failed.clicked.connect(self._retry_failed_items)
-        _rb_layout.addWidget(self._btn_retry_failed)
+            # ── Retry-Button für fehlgeschlagene Items ───────────────────────
+            self._btn_retry_failed = QPushButton("🔁  Fehlgeschlagene wiederholen")
+            self._btn_retry_failed.setFixedHeight(self._sp(26))
+            self._btn_retry_failed.setVisible(False)
+            self._btn_retry_failed.setStyleSheet(
+                "QPushButton { background: rgba(180,100,40,0.55); border: none; border-radius: 6px;"
+                " color: #FFD8B0; font-size: 9pt; padding: 3px 10px; }"
+                " QPushButton:hover { background: rgba(210,130,60,0.80); }"
+            )
+            self._btn_retry_failed.setToolTip(t("batch.retry_tooltip"))
+            self._btn_retry_failed.clicked.connect(self._retry_failed_items)
+            _rb_layout.addWidget(self._btn_retry_failed)
 
-        # ── §C10 Listener-Feedback: Daumen-hoch / Daumen-runter ──────────────
-        _rb_layout.addStretch(1)
+            # ── §C10 Listener-Feedback: Daumen-hoch / Daumen-runter ──────────────
+            _rb_layout.addStretch(1)
 
-        self._btn_thumbs_up = QPushButton("👍")
-        self._btn_thumbs_up.setFixedSize(self._sp(30), self._sp(26))
-        self._btn_thumbs_up.setStyleSheet(
-            "QPushButton { background: rgba(50,150,80,0.45); border: none; border-radius: 6px;"
-            " color: #C8FFCC; font-size: 11pt; }"
-            " QPushButton:hover { background: rgba(60,190,100,0.80); }"
-            " QPushButton:disabled { background: rgba(40,60,40,0.25); color: #555; }"
-        )
-        self._btn_thumbs_up.setToolTip("Klang gut — Feedback speichern (§C10)")
-        self._btn_thumbs_up.clicked.connect(lambda: self._on_goal_feedback(True))
-        _rb_layout.addWidget(self._btn_thumbs_up)
+            self._btn_thumbs_up = QPushButton("👍")
+            self._btn_thumbs_up.setFixedSize(self._sp(30), self._sp(26))
+            self._btn_thumbs_up.setStyleSheet(
+                "QPushButton { background: rgba(50,150,80,0.45); border: none; border-radius: 6px;"
+                " color: #C8FFCC; font-size: 11pt; }"
+                " QPushButton:hover { background: rgba(60,190,100,0.80); }"
+                " QPushButton:disabled { background: rgba(40,60,40,0.25); color: #555; }"
+            )
+            self._btn_thumbs_up.setToolTip("Klang gut — Feedback speichern (§C10)")
+            self._btn_thumbs_up.clicked.connect(lambda: self._on_goal_feedback(True))
+            _rb_layout.addWidget(self._btn_thumbs_up)
 
-        self._btn_thumbs_down = QPushButton("👎")
-        self._btn_thumbs_down.setFixedSize(self._sp(30), self._sp(26))
-        self._btn_thumbs_down.setStyleSheet(
-            "QPushButton { background: rgba(150,60,40,0.45); border: none; border-radius: 6px;"
-            " color: #FFCCCC; font-size: 11pt; }"
-            " QPushButton:hover { background: rgba(200,80,55,0.80); }"
-            " QPushButton:disabled { background: rgba(60,40,40,0.25); color: #555; }"
-        )
-        self._btn_thumbs_down.setToolTip("Klang unbefriedigend — Feedback speichern (§C10)")
-        self._btn_thumbs_down.clicked.connect(lambda: self._on_goal_feedback(False))
-        _rb_layout.addWidget(self._btn_thumbs_down)
+            self._btn_thumbs_down = QPushButton("👎")
+            self._btn_thumbs_down.setFixedSize(self._sp(30), self._sp(26))
+            self._btn_thumbs_down.setStyleSheet(
+                "QPushButton { background: rgba(150,60,40,0.45); border: none; border-radius: 6px;"
+                " color: #FFCCCC; font-size: 11pt; }"
+                " QPushButton:hover { background: rgba(200,80,55,0.80); }"
+                " QPushButton:disabled { background: rgba(60,40,40,0.25); color: #555; }"
+            )
+            self._btn_thumbs_down.setToolTip("Klang unbefriedigend — Feedback speichern (§C10)")
+            self._btn_thumbs_down.clicked.connect(lambda: self._on_goal_feedback(False))
+            _rb_layout.addWidget(self._btn_thumbs_down)
 
-        self._last_result_output: str = ""
-        self._last_feedback_ctx: dict = {}  # §C10: context for record_goal_feedback
-        vbox.addWidget(self._result_banner)
-
-        return wrapper
+            self._last_result_output: str = ""
+            self._last_feedback_ctx: dict = {}  # §C10: context for record_goal_feedback
+            _status_vbox = getattr(self, "_status_vbox", None)
+            if _status_vbox is not None:
+                _status_vbox.addWidget(self._result_banner)
 
     def _apply_theme(self):
         """Wendet dunkles Premium-Theme für zweispaltiges Layout an."""
@@ -17615,7 +17627,16 @@ class ModernMainWindow(QMainWindow):
                     """)
 
             def _try_signal_preanalysis_done(flag: str) -> None:
-                """Signalisiert one pre-analysis step as done. Must run on GUI thread."""
+                """Signalisiert one pre-analysis step as done. GUI-Arbeit läuft im GUI-Thread.
+
+                §GUI-Stabilität (Rev. 2026-08-16): Diese Funktion wird auch vom
+                aurik-preanalysis-watchdog-WORKER-Thread aufgerufen. Direkte
+                Widget-Zugriffe aus einem Nicht-GUI-Thread sind der dokumentierte
+                Segfault-Pfad (Befund: faulthandler-Dump — Worker-Thread in
+                _try_signal_preanalysis_done → _finalize_preanalysis → setValue →
+                Logging → _qt_msg_handler → SIGSEGV). Deshalb läuft der gesamte
+                GUI-Teil per QTimer.singleShot(0, ...) im Event-Loop des Hauptthreads.
+                """
                 # Primary guard: token mismatch → stale closure from previous load of same file.
                 if getattr(self, "_file_load_token", 0) != _snap_token:
                     return
@@ -17623,27 +17644,31 @@ class ModernMainWindow(QMainWindow):
                 _cfk_norm = os.path.normpath(os.path.realpath(str(_cfk)))
                 if _cur_file_norm != _cfk_norm:
                     return  # stale signal from previous file
-                if getattr(self, "_preanalysis_finalized_for", None) == _cfk:
-                    return  # already finalized — suppress duplicate calls
                 self._preanalysis_flags.add(flag)
-                _both_done = {"defect_scan", "era_genre"} <= self._preanalysis_flags
-                if _both_done or getattr(self, "_preanalysis_timeout_fired", False):
-                    _finalize_preanalysis()
-                elif "defect_scan" in self._preanalysis_flags:
-                    # Defect scan done but era/genre still running → marquee (indeterminate)
-                    # DO NOT set a fixed value here — setValue(9950) caused the "permanent
-                    # 99,0 %" display bug: bar jumped to 99.50 % and stayed there the entire
-                    # time era/genre detection ran (could be many seconds).
-                    if hasattr(self, "progress_bar"):
-                        self.progress_bar.setRange(0, 0)  # Qt marquee / busy-indicator mode
-                        self.progress_bar.setFormat(t("status.era_genre_detecting"))
-                        self.progress_bar.setVisible(True)
-                    if hasattr(self, "status_text"):
-                        self.status_text.setText(t("status.era_genre_detecting"))
-                        self._apply_status_text_style("warning")
-                elif "era_genre" in self._preanalysis_flags:
-                    # Era/genre done but defect scan still running → percentage continues via _on_load_progress_update
-                    pass
+
+                def _run_on_gui() -> None:
+                    if getattr(self, "_preanalysis_finalized_for", None) == _cfk:
+                        return  # already finalized — suppress duplicate calls
+                    _both_done = {"defect_scan", "era_genre"} <= self._preanalysis_flags
+                    if _both_done or getattr(self, "_preanalysis_timeout_fired", False):
+                        _finalize_preanalysis()
+                    elif "defect_scan" in self._preanalysis_flags:
+                        # Defect scan done but era/genre still running → marquee (indeterminate)
+                        # DO NOT set a fixed value here — setValue(9950) caused the "permanent
+                        # 99,0 %" display bug: bar jumped to 99.50 % and stayed there the entire
+                        # time era/genre detection ran (could be many seconds).
+                        if hasattr(self, "progress_bar"):
+                            self.progress_bar.setRange(0, 0)  # Qt marquee / busy-indicator mode
+                            self.progress_bar.setFormat(t("status.era_genre_detecting"))
+                            self.progress_bar.setVisible(True)
+                        if hasattr(self, "status_text"):
+                            self.status_text.setText(t("status.era_genre_detecting"))
+                            self._apply_status_text_style("warning")
+                    elif "era_genre" in self._preanalysis_flags:
+                        # Era/genre done but defect scan still running → percentage continues via _on_load_progress_update
+                        pass
+
+                QTimer.singleShot(0, _run_on_gui)
 
             # Restaurierbarkeits-Banner zurücksetzen (neues File)
             if hasattr(self, "restorability_banner"):
@@ -20835,12 +20860,10 @@ class ModernMainWindow(QMainWindow):
             if _medium_label:
                 return t("status.processing_item_medium", file=_file, medium=_medium_label)
         elif base_key == "status.saved_file":
-            # §v10.14 P0: Revert-Erkennung — kein "Meisterwerk" wenn Guardian verworfen hat
-            if _reverted:
-                _reason = str(
-                    getattr(_item, "revert_reason", "") or _rmeta.get("revert_reason", "Qualität nicht garantiert")
-                )
-                return t("status.saved_file_reverted", file=_file, reason=_reason)
+            # §v10.14 P0 Revert-Erkennung: erfolgt im Aufrufer
+            # _resolve_batch_completion_status (do_no_harm_reverted, höchste
+            # Priorität). Diese Funktion hat keinen Datenkanal für Item/Metadata —
+            # die alte _reverted-Abfrage crashte mit NameError (2026-08-16).
             if _medium_label and _score is not None and _defect_count is not None:
                 if _score >= 70:
                     return t(

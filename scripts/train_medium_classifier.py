@@ -17,6 +17,7 @@ Erzeugt:
 Usage:
     python scripts/train_medium_classifier.py
 """
+
 from __future__ import annotations
 
 import json
@@ -87,8 +88,14 @@ def extract_features(audio: np.ndarray, sr: int = 48000) -> np.ndarray:
     feats.append(float(flat.mean()))
 
     bands = [
-        (20, 200), (200, 500), (500, 1000), (1000, 2000),
-        (2000, 4000), (4000, 8000), (8000, 12000), (12000, 20000),
+        (20, 200),
+        (200, 500),
+        (500, 1000),
+        (1000, 2000),
+        (2000, 4000),
+        (4000, 8000),
+        (8000, 12000),
+        (12000, 20000),
     ]
     band_mask = np.array([(freqs >= lo) & (freqs < hi) for lo, hi in bands])  # (8, n_bins)
     band_e = spec @ band_mask.T + 1e-12  # (frames, 8)
@@ -97,11 +104,13 @@ def extract_features(audio: np.ndarray, sr: int = 48000) -> np.ndarray:
     hf = band_e[:, -2:].sum(axis=1) / (band_e.sum(axis=1) + 1e-12)
     feats.append(float(hf.mean()))
     # Defekt-Signaturen (Ketten-/Material-Cues)
-    feats.append(float(np.mean(np.abs(fr)**4) / (np.mean(np.abs(fr)**2)**2 + 1e-12)))  # Kurtosis-Prox
+    feats.append(float(np.mean(np.abs(fr) ** 4) / (np.mean(np.abs(fr) ** 2) ** 2 + 1e-12)))  # Kurtosis-Prox
     env = np.abs(fr)  # Hüllkurve je Frame
     mod = np.abs(np.fft.rfft(env - env.mean(axis=0), axis=0))  # Modulation über die Zeit
     mod_freqs = np.fft.rfftfreq(n_frames, hop / sr)
-    wow_band = mod[(mod_freqs >= 0.1) & (mod_freqs <= 2.0)].mean() if np.any((mod_freqs >= 0.1) & (mod_freqs <= 2.0)) else 0.0
+    wow_band = (
+        mod[(mod_freqs >= 0.1) & (mod_freqs <= 2.0)].mean() if np.any((mod_freqs >= 0.1) & (mod_freqs <= 2.0)) else 0.0
+    )
     feats.append(float(wow_band))
     slope = np.polyfit(np.log(freqs[1:] + 1e-9), np.log(spec.mean(axis=0)[1:] + 1e-12), 1)[0]
     feats.append(float(slope))
@@ -115,7 +124,7 @@ def extract_features(audio: np.ndarray, sr: int = 48000) -> np.ndarray:
     _m = np.median(np.abs(audio)) + 1e-12
     _peaks = np.where(np.abs(audio) > 8.0 * _m)[0]
     _count = 0
-    _last = -10**9
+    _last = -(10**9)
     for _p in _peaks:
         if _p - _last > int(0.005 * sr):
             _count += 1
@@ -209,8 +218,12 @@ def main() -> int:
     }
     REPORT.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
-    print(f"Material-CV-Accuracy: {mat_cv['accuracy']*100:.1f}% (Baseline MediumDetector: {baseline['material_accuracy']*100:.1f}%)")
-    print(f"Depth-CV-Accuracy:    {dep_cv['accuracy']*100:.1f}% (Baseline MediumDetector: {baseline['depth_accuracy']*100:.1f}%)")
+    print(
+        f"Material-CV-Accuracy: {mat_cv['accuracy'] * 100:.1f}% (Baseline MediumDetector: {baseline['material_accuracy'] * 100:.1f}%)"
+    )
+    print(
+        f"Depth-CV-Accuracy:    {dep_cv['accuracy'] * 100:.1f}% (Baseline MediumDetector: {baseline['depth_accuracy'] * 100:.1f}%)"
+    )
     print(f"Artefakt: {ARTIFACT}")
     return 0
 

@@ -213,6 +213,9 @@ class EraResult:
         self.confidence = float(np.clip(self.confidence, 0.0, 1.0))
         if self.decade not in VALID_DECADES:
             self.decade = min(VALID_DECADES, key=lambda d: abs(d - self.decade))
+            # §Invariante: era_label muss zum (geschnappten) decade passen —
+            # sonst meldet der Classifier „Jahrzehnt=1980“ mit Label „1977er“.
+            self.era_label = f"{self.decade}er"
 
     def as_dict(self) -> dict:
         """Serialisierung ohne ndarray."""
@@ -1887,6 +1890,18 @@ class EraClassifier:
             # _clap_plugin ist als object|None typisiert (lazy importiertes Plugin);
             # embed_audio() existiert erst zur Laufzeit — cast(Any) statt type-ignore,
             # damit mypy UND Pyright konsistent durchlaufen.
+            # BUG-FIX 2026-08-22: Der frühere `_model_loaded`-Vorcheck verhinderte
+            # Tier-1 DETERMINISTISCH beim ersten Aufruf — der Plugin-Vertrag ist
+            # Lazy-Load IN embed_audio() (→ _ensure_loaded(), thread-sicher via
+            # _load_lock): Das Modell ist vor dem ersten embed-Aufruf nie geladen,
+            # der Check ließ embed_audio() also nie laufen → WARNUNG erschien
+            # garantiert, Tier-2 lief, obwohl CLAP verfügbar war (Befund: WARNUNG
+            # 14:16:03, CLAP erst 14:16:24 vom Genre-Pfad fertig geladen).
+            # Jetzt: embed_audio() lädt selbst (synchron, einmalig pro Prozess);
+            # nur ein totaler Ladefehler (RuntimeError) fällt wie zuvor in den
+            # §G23 (GEBOTE.md)-konformen DSP-Ersatzpfad mit WARNUNG.
+            if getattr(self._clap_plugin, "_model_loaded", False) is not True:
+                logger.info("EraClassifier Tier-1: CLAP wird erstmalig geladen (synchron, einmalig)…")
             embedding = cast(Any, self._clap_plugin).embed_audio(_audio_clap, _sr_clap)
             decade, conf = self._clap_nearest_neighbor(embedding)
             if conf < 0.35:
@@ -1901,8 +1916,9 @@ class EraClassifier:
                 hf_rolloff_hz=rolloff_hz,
             )
         except Exception as exc:
-            logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
-            logger.warning("§G23 EraClassifier Tier-1 fehlgeschlagen — DSP-Ersatzpfad: %s", exc, exc_info=True)
+            # §V6 (copilot-instructions.md): ML→DSP-Fallback — EINE Warnung mit
+            # Begründung, kein Traceback-Spam.
+            logger.warning("§G23 EraClassifier Tier-1 fehlgeschlagen — DSP-Ersatzpfad: %s", exc)
             return None
 
     def _tier2(

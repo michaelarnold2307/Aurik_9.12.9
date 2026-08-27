@@ -52,6 +52,50 @@ class GoalPriorityProtocol:
         0.012  # §2.29: GOOD threshold (0.001 was too strict, caused FC abort on numerical noise)
     )
 
+    # Hörordnung Ebene 3 (hoerordnung.instructions.md §5): Lexikografische
+    # Wohlklang-Ordnung. Strikte Dominanz: Ein Eingriff, der ein Goal einer
+    # NIEDRIGEREN Stufe (kleinere Zahl = höherrangig) senkt, ist verboten,
+    # auch wenn er ein Goal einer höheren Stufe verbessert.
+    #   Stufe 1 Natürlichkeit > Stufe 2 Wärme > Stufe 3 Klarheit > Stufe 4 Brillanz
+    # Ergänzt die Spec-PRIORITY_MAP (§2.34) — diese bleibt für deren Regeln
+    # normativ; hearing_tier() ist die zusätzliche Hörordnungs-Dominanzstufe.
+    HEARING_TIER_MAP: dict[str, int] = {
+        "natuerlichkeit": 1,
+        "authentizitaet": 1,
+        "timbre_authentizitaet": 1,
+        "micro_dynamics": 1,
+        "emotionalitaet": 1,
+        "formant_fidelity": 1,
+        "vocal_quality": 1,
+        "waerme": 2,
+        "bass_kraft": 2,
+        "tonal_center": 3,
+        "artikulation": 3,
+        "transparenz": 3,
+        "separation_fidelity": 3,
+        "brillanz": 4,
+        "spatial_depth": 4,
+        "transient_energie": 4,
+        "groove": 4,
+        "raumtiefe": 4,
+    }
+
+    def hearing_tier(self, goal: str) -> int:
+        """Hörordnungs-Stufe eines Goals (1 = Natürlichkeit … 4 = Brillanz).
+
+        Unbekannte Goals → Stufe 3 (neutral, weder dominierend noch dominiert).
+        """
+        _g = str(goal or "").lower().replace(" ", "_").replace("-", "_")
+        return int(self.HEARING_TIER_MAP.get(_g, 3))
+
+    def would_violate_hearing_order(self, improving_goal: str, at_cost_of: str) -> bool:
+        """True, wenn ein Gewinn bei `improving_goal` die Hörordnung verletzt,
+        weil er auf Kosten eines höherrangigen Goals (`at_cost_of`) ginge.
+
+        Hörordnung Ebene 3: strikte Dominanz — keine weiche Gewichtung.
+        """
+        return self.hearing_tier(improving_goal) > self.hearing_tier(at_cost_of)
+
     def resolve_conflict(
         self,
         goal_a: str,

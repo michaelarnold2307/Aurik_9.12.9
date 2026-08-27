@@ -428,10 +428,12 @@ class TestQuietZoneReintroductionShield:
 
     def test_40zzn_vocal_guard_metrics_feed_runtime_context_and_nti_is_stricter_for_vocals(self):
         """Neue Vocal-Schutzmetriken müssen in Runtime-Context/WCS sichtbar sein."""
-        src = inspect.getsource(_uv3_mod.UnifiedRestorerV3._profiled_phase_call)
-        # Prüfe auch das gesamte Modul — diese Metriken können in andere Methoden ausgelagert sein
-        mod_src = inspect.getsource(_uv3_mod)
-        combined = src + mod_src
+        # Spec 07 TEST-DESIGN: direkte Datei-Lesung statt inspect.getsource —
+        # linecache ist prozessglobal und order-abhängig (Suite-Flakes).
+        from pathlib import Path
+
+        src = Path(str(_uv3_mod.__file__)).read_text(encoding="utf-8")
+        combined = src
         assert "def _update_vocal_quality_metrics" in combined
         assert '"vocal_quality_check"' in combined
         assert "_FORMANT_DB_LIMITS = (1.0, 1.0, 1.5, 1.5)" in combined

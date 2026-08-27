@@ -89,7 +89,27 @@ RULES: dict[str, dict] = {
     # ── V02: sf.read() / librosa.load() statt load_audio_file() ────────
     "V02": {
         "p": r"\b(sf\.read\s*\(|librosa\.load\s*\()",
-        "d": "sf.read/librosa.load statt load_audio_file()",
+        "d": "sf.read/librosa.load statt load_audio_file() – export‑Sicherheit",
+        "skip": {
+            "test_",
+            "exporter.py",
+            "audio_exporter.py",
+            "file_import",
+            "generate_dummy",
+            "conftest",
+            "audit/",
+            "benchmarks/",
+            "scripts/",
+            "Aurik10/",
+            "golden_samples",
+            "tests/",
+        },
+        "sev": "ERROR",
+    },
+    # ── VXX: sf.read() / librosa.load() statt load_audio_file() ────────
+    "VXX": {
+        "p": r"\b(sf\.read\s*\(|librosa\.load\s*\()",
+        "d": "sf.read/librosa.load statt load_audio_file() – export‑Sicherheit",
         "skip": {
             "test_",
             "exporter.py",
@@ -386,7 +406,16 @@ RULES: dict[str, dict] = {
     },
 }
 
-SKIP_DIRS = {".venv", ".venv_aurik", "__pycache__", "node_modules", ".git", "models/", "temp_repro/", "plugins/_vendor_"}  # _vendor_* = unverändert kopierter Drittanbieter-Code (MIT, LICENSE beiliegend) — nie umstylen
+SKIP_DIRS = {
+    ".venv",
+    ".venv_aurik",
+    "__pycache__",
+    "node_modules",
+    ".git",
+    "models/",
+    "temp_repro/",
+    "plugins/_vendor_",
+}  # _vendor_* = unverändert kopierter Drittanbieter-Code (MIT, LICENSE beiliegend) — nie umstylen
 
 # ═══════════════════════════════════════════════════════════════════════════
 # File-scope skip: certain file patterns are globally excluded per rule
@@ -515,7 +544,9 @@ def _scan_v32_v33_ast(fp: Path, source: str, rel: Path) -> list[Violation]:
                 key_text = _literal_str(key_node)
                 if key_text:
                     if key_text in seen:
-                        issues.append(Violation(rule="V13", severity="ERROR", description=RULES["V13"]["d"], file=str(rel)))
+                        issues.append(
+                            Violation(rule="V13", severity="ERROR", description=RULES["V13"]["d"], file=str(rel))
+                        )
                     else:
                         seen.add(key_text)
 

@@ -22,6 +22,7 @@ Usage:
 
 Exit-Codes (decide): 0 = ADOPT, 1 = REJECT, 2 = BLOCKED
 """
+
 from __future__ import annotations
 
 import argparse

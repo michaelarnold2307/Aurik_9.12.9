@@ -385,6 +385,16 @@ class AurikDenker:
         t_start = time.perf_counter()
         assert sr == 48000, f"AurikDenker.restauriere() erwartet sr=48000 Hz, erhalten: {sr} Hz"
 
+        # ── §V8/§G1 (copilot-instructions.md): Song-Isolation — FallbackAuditor pro Song zurücksetzen.
+        # Sonst akkumulieren Degradations-Events session-global und der PreExportValidator
+        # blockiert ab 8 Events fälschlich Exporte späterer Songs (Rev. 2026-08-16).
+        try:
+            from backend.core.fallback_auditor import get_fallback_auditor
+
+            get_fallback_auditor().reset()
+        except Exception as _fa_reset_exc:
+            logger.debug("FallbackAuditor.reset nicht möglich (unkritisch): %s", _fa_reset_exc)
+
         # ── §3.5 Preview-Mode: 30s Vorschau vor voller Restaurierung ─────
         _PREVIEW_DURATION_S = 30.0
         from backend.api.bridge import normalize_user_mode as _bridge_norm
@@ -1362,6 +1372,15 @@ class AurikDenker:
                 cached_medium_result=cached_medium_result,
             )
             chain_info = kette.as_dict()
+            # §v10.119 Normalisierung: Beide Key-Namen konsistent befüllen.
+            # KettenErgebnis.as_dict liefert "chain", TontraegerInfo.as_dict
+            # liefert "transfer_chain" — fehlt der erwartete Key, fällt der
+            # §0h-VETO auf depth=1 zurück (zu harte Export-Schwelle).
+            if kette is not None:
+                _kette_chain_list = list(getattr(kette, "chain", None) or [])
+                if _kette_chain_list:
+                    chain_info.setdefault("chain", _kette_chain_list)
+                    chain_info.setdefault("transfer_chain", _kette_chain_list)
             # §6.8: Era-Precursor (reel_tape) der physikalischen Chain voranstellen
             _era_mp = (
                 str(getattr(cached_era_result, "material_prior", "") or "").lower()
@@ -1973,6 +1992,61 @@ class AurikDenker:
                             "signal_signature": dict(_signal_signature),
                             "source": "denker_policy_synthesis",
                         }
+
+                        # §ORCHESTRATOR P1 (Spec 23_zero_touch_orchestration_contract.md):
+                        # Gatekeeper-Preflight als Advisory-Stufe. Initialisiert den
+                        # P2-Watchdog-Singleton, damit die in UV3 verdrahteten
+                        # after_phase()-Aufrufe aktiv werden (vorher stiller No-Op).
+                        # Der Phasenplan wird NICHT verändert — PMGG, HPE-Gate und
+                        # CompletionEngine bleiben unverändert aktiv (keine Deaktivierung).
+                        try:
+                            from backend.core.aurik_orchestrator import get_orchestrator as _get_orch_pre
+
+                            _orch_pre = _get_orch_pre()
+                            _pf_chain_info = chain_info if isinstance(chain_info, dict) else {}
+                            _pf_chain = _pf_chain_info.get("transfer_chain") or _pf_chain_info.get("chain") or []
+                            _pf_rs = float(
+                                getattr(cached_restorability_result, "restorability_score", 0.0)
+                                or getattr(defekt, "restorability_score", 0.0)
+                                or 50.0
+                            )
+                            _pf_pruned, _pf_decision = _orch_pre.preflight(
+                                original_audio=audio,
+                                sample_rate=sr,
+                                restorability_score=_pf_rs,
+                                transfer_chain_depth=max(
+                                    1, len(_pf_chain) if isinstance(_pf_chain, (list, tuple)) else 1
+                                ),
+                                bandwidth_loss=float(_pf_chain_info.get("bandwidth_loss", 0.0) or 0.0),
+                                snr_db=float(_pf_chain_info.get("snr_db", 40.0) or 40.0),
+                                terminal_codec=_pf_chain_info.get("terminal_codec"),
+                                material_type=str(material or "unknown"),
+                                is_restoration_mode=True,
+                                selected_phases=[str(p) for p in (_pid_phase_plan or [])],
+                            )
+                            stage_notes["orchestrator_preflight"] = {
+                                "mode": _pf_decision.mode,
+                                "max_phases": int(_pf_decision.max_phases),
+                                "reason": _pf_decision.reason,
+                                "phases_selected": len(_pid_phase_plan or []),
+                                "phases_suggested_prune": len(_pf_pruned),
+                            }
+                            if _pf_decision.mode == "passthrough":
+                                warnings.append(
+                                    "Orchestrator-Empfehlung: passthrough ("
+                                    + _pf_decision.reason
+                                    + "). Pipeline läuft unverändert weiter (Spec 23, Stufe 1)."
+                                )
+                            elif _pf_decision.mode in ("conservative", "repair_only") and effective_mode in (
+                                "studio2026",
+                                "maximum",
+                            ):
+                                warnings.append(
+                                    f"Orchestrator-Empfehlung '{_pf_decision.mode}' bei aggressivem Modus "
+                                    f"'{effective_mode}' — interne Schutzmaßnahmen (SongCal, PMGG, HPE-Gate) bleiben aktiv."
+                                )
+                        except Exception as _opf_exc:
+                            logger.debug("§ORCHESTRATOR preflight nicht blockierend: %s", _opf_exc)
                         # 4c: RestaurierDenker (UV3-Vollpipeline) auf vorgereinigtem Material
                         # Scaled inner progress: UV3 0–100 → AurikDenker 17–94
                         # UV3-intern: Analyse pct 1–19, Pipeline pct 20–85, Post pct 86–96.
@@ -2859,7 +2933,19 @@ class AurikDenker:
                     _tc = chain_info.get("transfer_chain") or chain_info.get("chain") or []
                     if isinstance(_tc, list) and _tc:
                         _guard_chain_depth = len(_tc)
-                _guard_report = _guard.post_flight(aktuelles_audio, sr, chain_depth=_guard_chain_depth)
+                # §v10.119 Fallback: as_dict-Key-Drift ausschließen — das kette-Objekt
+                # selbst trägt die physikalische Kette (Befund 2026-08-16: depth=1
+                # trotz 3-stufiger Kette → §0h-VETO mit Schwelle 0.95 statt 0.80).
+                if _guard_chain_depth <= 1 and kette is not None:
+                    _kette_chain = getattr(kette, "chain", None) or []
+                    if len(_kette_chain) > 1:
+                        _guard_chain_depth = len(_kette_chain)
+                _guard_report = _guard.post_flight(
+                    aktuelles_audio,
+                    sr,
+                    chain_depth=_guard_chain_depth,
+                    restorability=_restorability_score,
+                )
                 if _guard_blend_report.get("whisper_blended"):
                     warnings.append("Whisper-Details: originale Leise-Passagen zurückgemischt")
                 if _guard_blend_report.get("dynamics_restored"):
@@ -2909,6 +2995,9 @@ class AurikDenker:
                 _final.quality_score,
                 _final.confidence,
             )
+            # §ORCHESTRATOR P3 (Spec 23_zero_touch_orchestration_contract.md):
+            # Session-Memory sofort persistieren (idempotent: leere Liste → No-Op).
+            _orch_final.close_session()
         except Exception as _orf_exc:
             logger.debug("§ORCHESTRATOR resolve nicht blockierend: %s", _orf_exc)
 

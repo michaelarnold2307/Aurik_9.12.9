@@ -109,6 +109,8 @@ class DFNExpandedDenoiser:
 
     def _denoise_mono(self, audio: np.ndarray, sr: int) -> np.ndarray:
         if sr != SR:
+            import librosa
+
             audio = librosa.resample(audio.astype(np.float64), orig_sr=sr, target_sr=SR)
 
         orig_len = len(audio)

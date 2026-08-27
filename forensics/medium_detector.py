@@ -197,6 +197,16 @@ class MediumDetectionResult:
     riaa_curve_confidence: float = 0.0
     """Konfidenz der RIAA/EQ-Kurven-Erkennung ∈ [0, 1]. ≥ 0.70 = aktiv."""
 
+    # §v10.20 Material-Konsens (2026-08-22): Der Konsens-Entscheid wird als
+    # EIGENE Felder persistiert — der Medium-Primär bleibt unangetastet.
+    # Kalibrierung folgt primary_material; Ketten-/Codec-Behandlung liest
+    # final_chain/consensus_material.
+    consensus_material: str = "unknown"
+    """Konsens-Gewinner des Material-Konsens-Moduls (kann terminaler Träger sein)."""
+
+    final_chain: list[str] = field(default_factory=list)
+    """Konsens-korrigierte Tonträgerkette (chronologisch, dedupliziert)."""
+
     @property
     def chain_label(self) -> str:
         """Gibt die Transferkette als lesbaren String zurück (z. B. 'vinyl → mp3_low')."""
@@ -2198,6 +2208,25 @@ class MediumDetector:
             MediumDetectionResult mit transfer_chain, bayesian_scores,
             classification_result für Downstream-Passthrough.
         """
+        # §Spec 24 Zero-Length-Guard: Leerer/(fast) leerer Input erzeugt sonst
+        # Unsinn-Posteriors (Befund 2026-08-16: „vinyl=1.000“ aus 0.0 s Stille,
+        # Konfidenz 1.00). Kein Fingerprint, kein Bayesian — ehrliches „unknown“.
+        _n_guard = int(np.asarray(audio).size)
+        if _n_guard < int(max(float(sr), 1.0) * 0.05):
+            logger.warning(
+                "MediumDetector: Audio zu kurz (%d Samples) — Trägererkennung übersprungen (Zero-Length-Guard, Spec 24)",
+                _n_guard,
+            )
+            return MediumDetectionResult(
+                transfer_chain=[],
+                is_multi_generation=False,
+                primary_material="unknown",
+                confidence=0.0,
+                spectral_fingerprint=SpectralFingerprint(),
+                bayesian_scores={"unknown": 1.0},
+                classification_result=None,
+            )
+
         if sr != 48000:
             logger.debug(
                 "MediumDetector: native Analyse-SR=%d Hz (kein 48-kHz-Zwang im Voranalysepfad)",

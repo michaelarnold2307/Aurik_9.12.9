@@ -83,6 +83,16 @@ for phase_id in MATERIAL_PRIORITY_PHASES[material]:
 
 **Ausnahme**: Phasen, die explizit durch `GoalApplicabilityFilter` für das Material deaktiviert wurden (z. B. `phase_48_stereo_imaging` bei Mono-Material).
 
+**Fremd-Kettenglieder (§v10.705 B6 / §v10.706 B10 — ergänzt 2026-08-22)**:
+Steckt ein Material nur als Zwischenstufe in der Tonträgerkette (nicht primär),
+werden seine §6.2-Pflichtphasen ebenfalls aktiviert — mit einer Ausnahme:
+ML-schwere Synthese-Phasen (`phase_55_diffusion_inpainting`) werden als
+Fremd-Injektion nur aktiviert, wenn die Defekt-Evidenz des Kettenglieds sie
+trägt (inpaint_evidence ≥ 0.35; gleiche Quelle und Schwelle wie der
+Risk-Guard). Begründung: Eine „Pflicht“-Phase, die mangels Evidenz
+unmittelbar wieder entfernt würde, ist Plan-Churn ohne Wohlklang-Nutzen.
+Subtraktive Band-Reparaturphasen (Hiss/Dropout/…) bleiben unbedingt.
+
 ---
 
 ## §6.2b [RELEASE_MUST] Material-Dynamic-Range-Ceiling (v10.0.0)

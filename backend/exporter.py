@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import tempfile
+from dataclasses import dataclass
 from typing import Any, cast
 
 import numpy as np

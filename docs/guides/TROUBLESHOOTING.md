@@ -291,11 +291,11 @@ rocm-smi
 **Lösung:**
 
 ```bash
-# ROCm 6.x Installation (Ubuntu 22.04)
+# ROCm 7.2.4 Installation (Ubuntu 22.04/24.04)
 # https://rocm.docs.amd.com/en/latest/deploy/linux/install.html
 
-wget https://repo.radeon.com/amdgpu-install/latest/ubuntu/jammy/amdgpu-install_6.x_ubuntu22.04-1_all.deb
-sudo apt install ./amdgpu-install_6.x_ubuntu22.04-1_all.deb
+wget https://repo.radeon.com/amdgpu-install/latest/ubuntu/jammy/amdgpu-install_7.2.4_ubuntu22.04-1_all.deb
+sudo apt install ./amdgpu-install_7.2.4_ubuntu22.04-1_all.deb
 sudo amdgpu-install -y --usecase=rocm
 
 # Add to PATH

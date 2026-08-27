@@ -1,4 +1,5 @@
 """Tests für scripts/package_golden_study.py — MUSHRA-Paket für das goldene Set."""
+
 from __future__ import annotations
 
 import json
@@ -12,7 +13,7 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "scripts"))
 
-import package_golden_study as pgs  # noqa: E402
+import package_golden_study as pgs
 
 
 def _make_wav(path: Path, seconds: float = 1.0, sr: int = 48000) -> None:

@@ -56,7 +56,7 @@ pyFFTW>=0.15.0            # Benötigt libfftw3 (apt: libfftw3-dev); Fallback: nu
 onnxruntime>=1.24.1; python_version >= "3.11"
 onnxruntime==1.23.2; python_version < "3.11"
 #
-# AMD GPU Linux (ROCm 6.x):   pip install onnxruntime-rocm  (statt onnxruntime)
+# AMD GPU Linux (ROCm 7.2.4): pip install onnxruntime-rocm  (statt onnxruntime)
 # AMD GPU Windows (DirectML):  pip install onnxruntime-directml  (statt onnxruntime)
 #
 # Hinweis: ml_device_manager.py erkennt automatisch welches Backend verfügbar ist.
@@ -187,18 +187,21 @@ annotated-types>=0.6.0
 # tokenizers>=0.19.0
 # sentencepiece>=0.1.99
 # laion_clap wird als lokale Quelle unter models/clap/src/ geladen (kein PyPI-Paket)
-# Abhängigkeiten von laion_clap (alle auf PyPI verfügbar):
+# Abhängigkeiten von laion_clap (alle auf PyPI verfügbar) — aktiviert Rev. 2026-08-17,
+# nachdem der Import empirisch verifiziert wurde (torchlibrosa 0.1.0 zieht mit
+# vorhandenem librosa 0.11.0 KEIN librosa 0.10 mehr nach; der alte
+# CQT-Segfault-Vorbehalt ist damit gegenstandslos):
 torchvision==0.22.0+cpu  # --extra-index-url https://download.pytorch.org/whl/cpu (muss torch-Version matchen: 2.7.0)
 # torchaudio==2.7.0+cpu    # --extra-index-url https://download.pytorch.org/whl/cpu
-# torchlibrosa>=0.1.0
+torchlibrosa>=0.1.0
 # h5py>=3.8.0
-# ftfy>=6.1.0
-# regex>=2023.0.0
-# braceexpand>=0.1.7
-# webdataset>=0.2.86        # Training-Framework, kein Desktop-App-Nutzen
+ftfy>=6.1.0
+regex>=2023.0.0
+braceexpand>=0.1.7
+webdataset>=0.2.86        # laion_clap-IMPORT verlangt es (ModuleNotFoundError, Rev. 2026-08-17)
 # ⚠ wandb: VERBOTEN (§13.4 100%-Offline-Pflicht) — macht aktive Internet-Calls beim Import
 # wandb>=0.15.0
-# wget>=3.2
+wget>=3.2
 # progressbar>=2.5
 
 # --- Matchering 2.0 (§Studio-2026 Reference Mastering, matchering_plugin.py) ---

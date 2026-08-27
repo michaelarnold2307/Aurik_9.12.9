@@ -178,6 +178,57 @@ def _get_banquet_onnx_session():
     return _BANQUET_ONNX_STATE["session"] if _BANQUET_ONNX_STATE["session"] is not False else None
 
 
+# §v10.900 B11: HF-Rauschfloor-Check — macht Banquets Schaden sichtbar.
+_B11_HF_FLOOR_MIN_HZ = 8000.0
+_B11_HF_FLOOR_MAX_HZ = 20000.0
+_B11_HF_FLOOR_PERCENTILE = 20
+_B11_HF_FLOOR_WARN_DB = 1.0
+_B11_HF_FLOOR_ROLLBACK_DB = 3.0
+# Unterhalb dieses Absolut-Floors ist kein Rauschfloor messbar (HF-Band praktisch
+# digital still): ein Floor-Anstieg ist dann undefiniert und darf NICHT als
+# Banquet-Schaden gewertet werden — sonst rollt der Guard jedes HF-haltige Signal
+# auf Dry zurück (Rev. 2026-08-16, Fail in test_phase09_crackle_in_vocal_passages).
+_B11_HF_FLOOR_MEASURABLE_DB = -100.0
+
+
+def _hf_noise_floor_db(audio: np.ndarray, sr: int) -> float:
+    """20. Perzentil der Spektral-Magnitude im Band 8–20 kHz (§v10.900 B11)."""
+    _mono = np.asarray(audio, dtype=np.float32)
+    if _mono.ndim == 2:
+        _mono = np.mean(_mono, axis=1)
+    _n = len(_mono)
+    if _n < 1024:
+        return 0.0
+    _spec = np.abs(np.fft.rfft(_mono * np.hanning(_n)))
+    _freqs = np.fft.rfftfreq(_n, 1.0 / max(sr, 1))
+    _band = _spec[(_freqs >= _B11_HF_FLOOR_MIN_HZ) & (_freqs <= _B11_HF_FLOOR_MAX_HZ)]
+    if _band.size == 0:
+        return 0.0
+    return float(20.0 * np.log10(np.percentile(_band, _B11_HF_FLOOR_PERCENTILE) + 1e-12))
+
+
+def _apply_b11_hf_guard(dry: np.ndarray, wet: np.ndarray, sr: int) -> tuple[np.ndarray, float, bool]:
+    """Vergleicht HF-Rauschfloor vor/nach; Rollback bei starkem Anstieg (§V6)."""
+    _pre = _hf_noise_floor_db(dry, sr)
+    _post = _hf_noise_floor_db(wet, sr)
+    _delta = float(_post - _pre)
+    if _pre < _B11_HF_FLOOR_MEASURABLE_DB:
+        # Kein messbarer HF-Rauschfloor im Dry-Signal (digital still) —
+        # jeder gewünschte HF-Anteil des Outputs sähe wie ein "Anstieg" aus.
+        # Guard ist hier nicht definiert (§v10.900: schützt vor RAUSCHfloor-Anstieg).
+        return np.asarray(wet, dtype=np.float32), _delta, False
+    if _delta > _B11_HF_FLOOR_ROLLBACK_DB:
+        logger.warning(
+            "B11 HF-Rauschfloor-Anstieg %+.1f dB (> %+.1f dB) — Rollback auf Dry (§v10.900)",
+            _delta,
+            _B11_HF_FLOOR_ROLLBACK_DB,
+        )
+        return np.asarray(dry, dtype=np.float32), _delta, True
+    if _delta > _B11_HF_FLOOR_WARN_DB:
+        logger.warning("B11 HF-Rauschfloor-Anstieg %+.1f dB — Banquet-Output flagiert (§v10.900)", _delta)
+    return np.asarray(wet, dtype=np.float32), _delta, False
+
+
 class CrackleRemovalPhase(PhaseInterface):
     """
     Professional Crackle Removal Phase v2.0
@@ -1050,6 +1101,8 @@ class CrackleRemovalPhase(PhaseInterface):
                 restored = np.nan_to_num(restored, nan=0.0, posinf=0.0, neginf=0.0)
 
                 restored = np.clip(restored, -1.0, 1.0)
+                # §v10.900 B11: HF-Rauschfloor-Check — Banquets Schaden sichtbar machen
+                restored, _hf_delta_09, _b11_rollback = _apply_b11_hf_guard(audio, restored, sample_rate)
 
                 return create_phase_result(
                     audio=restored,
@@ -1058,13 +1111,16 @@ class CrackleRemovalPhase(PhaseInterface):
                         "crackle_reduction_db": crackle_reduction_db,
                         "material_type": material_type,
                     },
-                    warnings=[],
+                    warnings=[f"B11 HF-Rauschfloor-Anstieg {_hf_delta_09:+.1f} dB — Rollback auf Dry"]
+                    if _b11_rollback
+                    else [],
                     metadata={
                         "algorithm": "banquet_deep_learning_onnx",
                         "scientific_ref": "BANQUET (2023), Godsill & Rayner (1998)",
                         "benchmark": "iZotope RX De-crackle, Click Repair",
                         "algorithm_version": "2.1_onnx_direct",
                         "execution_time_seconds": execution_time,
+                        "b11_hf_floor_delta_db": round(_hf_delta_09, 2),
                     },
                 )
             except Exception as exc:
@@ -1096,6 +1152,8 @@ class CrackleRemovalPhase(PhaseInterface):
                         restored = np.nan_to_num(restored, nan=0.0, posinf=0.0, neginf=0.0)
 
                         restored = np.clip(restored, -1.0, 1.0)
+                        # §v10.900 B11: HF-Rauschfloor-Check — Banquets Schaden sichtbar machen
+                        restored, _hf_delta_09, _b11_rollback = _apply_b11_hf_guard(audio, restored, sample_rate)
 
                         return create_phase_result(
                             audio=restored,
@@ -1104,13 +1162,16 @@ class CrackleRemovalPhase(PhaseInterface):
                                 "crackle_reduction_db": crackle_reduction_db,
                                 "material_type": material_type,
                             },
-                            warnings=[],
+                            warnings=[f"B11 HF-Rauschfloor-Anstieg {_hf_delta_09:+.1f} dB — Rollback auf Dry"]
+                            if _b11_rollback
+                            else [],
                             metadata={
                                 "algorithm": "banquet_deep_learning_onnx",
                                 "scientific_ref": "BANQUET (2023), Godsill & Rayner (1998)",
                                 "benchmark": "iZotope RX De-crackle, Click Repair",
                                 "algorithm_version": "2.0_ml_hybrid",
                                 "execution_time_seconds": execution_time,
+                                "b11_hf_floor_delta_db": round(_hf_delta_09, 2),
                             },
                         )
                     except Exception as exc2:

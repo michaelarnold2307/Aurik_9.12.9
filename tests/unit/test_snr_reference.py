@@ -14,8 +14,8 @@ from backend.core.snr_reference import (
     BIR_SNR_PROXY_KEY,
     OUTPUT_SNR_KEY,
     SILENCE_SNR_DB,
-    SOURCE_SNR_KEY,
     SNR_DEFINITION_VERSION,
+    SOURCE_SNR_KEY,
     estimate_snr_db,
     format_snr_label,
 )

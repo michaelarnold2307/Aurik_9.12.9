@@ -11,6 +11,13 @@ Python (MIGraphXSession) → ctypes → libmigraphx_bridge.so → MIGraphX C API
                                                                    ↓
                                                           GPU (gfx1100)
 
+Bridge-Build (Rev. 2026-08-16 — ROCm 7.2.4 / MIGraphX 2.15):
+    bash scripts/build_migraphx_bridge.sh
+Quelle: backend/core/lib/migraphx_bridge.cpp (im Repo, nicht mehr /tmp).
+Wichtig für 2.15: Die Bridge kompiliert mit offload_copy=true — nur so liefert
+die C-API (ohne t.copy_to/t.copy_from) GPU-Ergebnisse auf den Host zurück.
+Verifiziert: Silero VAD GPU vs. ORT-CPU max|Δ| = 1e-6 (Rev. 2026-08-16).
+
 Usage
 -----
 ::
@@ -44,10 +51,40 @@ _BRIDGE_DIR = Path(__file__).resolve().parent / "lib"
 _BRIDGE_SO = _BRIDGE_DIR / "libmigraphx_bridge.so"
 
 # Required ROCm runtime libraries (must be on LD_LIBRARY_PATH or RPATH)
-_ROCM_LIB_DIRS = [
-    "/opt/rocm-6.2.0/lib",
-    "/opt/rocm-6.2.0/lib/migraphx/lib",
-]
+
+
+def _discover_rocm_lib_dirs() -> list[str]:
+    """ROCm-Laufzeitverzeichnisse version-agnostisch entdecken (Rev. 2026-08-16).
+
+    Produktions-Stack: ROCm 7.2.4 unter /opt/rocm-7.2.4 (Symlink /opt/rocm).
+    Legacy 6.2.0 wird weiter erkannt, aber die neueste Installation hat Vorrang.
+    """
+    candidates: set[Path] = set()
+    for d in Path("/opt").glob("rocm-*"):
+        if d.is_dir() and (d / "lib").is_dir():
+            candidates.add(d)
+    _rocm_link = Path("/opt/rocm")
+    if _rocm_link.is_dir():
+        candidates.add(_rocm_link)  # Symlink der aktiven Installation (zuletzt, Duplikat)
+
+    def _ver_key(p: Path) -> tuple:
+        try:
+            return tuple(int(x) for x in p.name.removeprefix("rocm-").split(".") if x.isdigit())
+        except Exception:
+            return ()
+
+    dirs: list[str] = []
+    for cand in sorted(candidates, key=_ver_key, reverse=True):
+        _lib = cand / "lib"
+        if _lib.is_dir():
+            dirs.append(str(_lib))
+        _mgx = cand / "lib" / "migraphx" / "lib"
+        if _mgx.is_dir():
+            dirs.append(str(_mgx))
+    return dirs
+
+
+_ROCM_LIB_DIRS = _discover_rocm_lib_dirs()
 
 # ---------------------------------------------------------------------------
 # Bridge loading
@@ -137,6 +174,24 @@ def is_migraphx_available() -> bool:
         return True
     except (RuntimeError, OSError):
         return False
+
+
+# §v10.40 Compile-Zeit-Regel (Rev. 2026-08-16): Modelle > 200 MB → MIGraphX-Compile
+# > 30 min → ORT/CPU statt MIGraphX. Wird von session_manager und onnx/runtime geprüft.
+MIGRAPHX_MAX_MODEL_MB = 200.0
+
+
+def migraphx_model_size_mb(model_path: str | Path) -> float:
+    """Dateigröße eines ONNX-Modells in MB (0.0 bei nicht lesbarer Datei)."""
+    try:
+        return Path(model_path).stat().st_size / (1024 * 1024)
+    except OSError:
+        return 0.0
+
+
+def is_migraphx_size_eligible(model_path: str | Path) -> bool:
+    """True, wenn das Modell klein genug für MIGraphX ist (§v10.40 Größenlimit)."""
+    return migraphx_model_size_mb(model_path) <= MIGRAPHX_MAX_MODEL_MB
 
 
 # ---------------------------------------------------------------------------

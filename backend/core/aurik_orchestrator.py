@@ -411,6 +411,13 @@ class SessionLearner:
         warnings: list[str],
     ) -> None:
         """Speichert das Ergebnis dieses Songs."""
+        # §Sitzung-MEMORY Hygiene (2026-08-22): Nur objektiv verbesserte Läufe
+        # persistieren — sonst lernt das Gedächtnis aus Fehlentscheidungen und
+        # reaktiviert sie beim nächsten ähnlichen Song (Befund: rs=50-Repair-Mode
+        # wurde als Erfahrung gespeichert und per Recall wieder angewandt).
+        if str(verdict or "").lower() != "improved":
+            logger.debug("§Sitzung-MEMORY: Lauf nicht persistiert (verdict=%s)", verdict)
+            return
         entry = {
             "material": material_type,
             "restorability": restorability,
@@ -606,9 +613,12 @@ def surgery_first_prune(
         if budget > 0:
             pruned += risky[:budget]
 
-        # Alles was nicht reingepasst hat → removed
+        # Alles was nicht reingepasst hat → removed. Zuweisung statt += : Die
+        # Familien-Verlierer stecken bereits in removed; += zählte sie doppelt
+        # (Befund 2026-08-22: „§SURGERY-FIRST: 47→20 Phasen (48 entfernt)“ bei
+        # nur 47 übergebenen Phasen).
         all_kept = set(pruned)
-        removed += [p for p in selected_phases if p not in all_kept]
+        removed = [p for p in selected_phases if p not in all_kept]
 
     if removed:
         logger.info(
@@ -637,6 +647,9 @@ class AurikOrchestrator:
         self._pre_snapshot: dict[str, float] = {}
         self._phase_results: list[PhaseWatchResult] = []
         self._session: dict[str, Any] = {}
+        # Spec 23_zero_touch_orchestration_contract.md: Einmal-Warnung, wenn
+        # after_phase() ohne vorheriges preflight() läuft (Watchdog passiv).
+        self._warned_watchdog_uninit: bool = False
 
     # ── Pre-Pipeline ─────────────────────────────────────────────────
 
@@ -707,6 +720,15 @@ class AurikOrchestrator:
     ) -> PhaseWatchResult:
         """P2: Watchdog-Check nach jeder Phase."""
         if self.watchdog is None:
+            # Spec 23_zero_touch_orchestration_contract.md: Ohne preflight() ist
+            # der Watchdog absichtlich passiv (No-Op) — einmalig loggen, damit
+            # ein unverdrahteter Pfad sichtbar wird statt still zu versagen.
+            if not self._warned_watchdog_uninit:
+                self._warned_watchdog_uninit = True
+                logger.debug(
+                    "§WATCHDOG passiv: preflight() fehlt — after_phase(%s) No-Op (Spec 23)",
+                    phase_id,
+                )
             return PhaseWatchResult()
 
         result = self.watchdog.watch(phase_id, audio_before, audio_after)
@@ -741,6 +763,7 @@ class AurikOrchestrator:
         restorability_score: float = 50.0,
         was_reverted: bool = False,
         phases_run: int = 0,
+        warnings: list[str] | None = None,
     ) -> ResolvedAssessment:
         """P4: Single Source of Truth — EINE Bewertung."""
         elapsed = time.time() - self._session.get("start_time", time.time())
@@ -755,7 +778,7 @@ class AurikOrchestrator:
             was_reverted=was_reverted,
             phases_run=phases_run,
             time_s=elapsed,
-            warnings=[],
+            warnings=list(warnings or []),
         )
 
         # P3: Erfahrung speichern

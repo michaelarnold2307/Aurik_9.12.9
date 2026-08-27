@@ -1,4 +1,5 @@
 """Tests für scripts/ear_critical_parity_check.py — fail-closed-Registry-Prüfung."""
+
 from __future__ import annotations
 
 import sys
@@ -9,7 +10,7 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "scripts"))
 
-import ear_critical_parity_check as epc  # noqa: E402
+import ear_critical_parity_check as epc
 
 _HEADER = (
     "| Regel-ID | Quelle | Ohr-Grund | Prüf-Token | Implementierung | Test | Status | Defer-Begründung |\n"
@@ -20,17 +21,14 @@ _HEADER = (
 def test_real_registry_passes() -> None:
     code, problems = epc.check()
     assert code == 0, problems
-    enforced = sum(
-        1 for cells in epc._rows() if len(cells) > 6 and cells[6] == "enforced"
-    )
+    enforced = sum(1 for cells in epc._rows() if len(cells) > 6 and cells[6] == "enforced")
     assert enforced >= epc.MIN_ENFORCED_ROWS
 
 
 def test_enforced_row_with_missing_impl_fails(tmp_path: Path, monkeypatch) -> None:
     registry = tmp_path / "reg.md"
     registry.write_text(
-        _HEADER
-        + "| §X1 | quelle | grund | token_xy | fehlt/datei.py | tests/fehlt.py | enforced | — |\n",
+        _HEADER + "| §X1 | quelle | grund | token_xy | fehlt/datei.py | tests/fehlt.py | enforced | — |\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(epc, "REGISTRY", registry)

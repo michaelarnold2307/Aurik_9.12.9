@@ -9,7 +9,8 @@ Erlaubt separat skalierte NR-Gain-Floors auf beiden Schichten:
     Nicht-Harmonische  → Standard G_floor (0.10–0.15)
 
 ALGORITHMUS:
-    1. F0-Extraktion: CREPE-Plugin (wenn verfügbar) oder ZCPA-DSP-Fallback
+    1. F0-Extraktion: FCPE-Plugin (Spec 04: primär) oder ZCPA-DSP-Fallback
+       (CREPE ist als eigenständiger Produktions-Tier VERBOTEN — Spec 04, Z. 1129)
     2. Harmonische Bin-Maske im STFT: für jeden Frame alle Partials
        (F0, 2F0, 3F0 ... 16F0) mit Gaußscher Breite σ = ±50 Hz
     3. Maske → soft mask (Hann-gewichtet) zur sanften Trennung
@@ -99,27 +100,23 @@ def _estimate_f0_zcpa(mono: np.ndarray, sr: int, hop: int) -> np.ndarray:
     return f0_frames  # type: ignore[no-any-return]
 
 
-def _estimate_f0_crepe(mono: np.ndarray, sr: int, hop: int) -> np.ndarray | None:
-    """CREPE-F0-Schätzung via Plugin (optional, non-blocking)."""
+def _estimate_f0_fcpe(mono: np.ndarray, sr: int) -> np.ndarray | None:
+    """FCPE-F0-Schätzung via Plugin (§4.4 Primär; CREPE nur als FCPE-interner Delegate)."""
     try:
-        from plugins.crepe_plugin import get_crepe_plugin  # pylint: disable=import-outside-toplevel
+        from plugins.fcpe_plugin import get_fcpe_plugin  # pylint: disable=import-outside-toplevel
 
-        plugin = get_crepe_plugin()
-        if not plugin.is_available():  # type: ignore[attr-defined]
-            return None
-
-        result = plugin.estimate_f0(mono, sr=sr, hop_length=hop, model_capacity="tiny")  # type: ignore[attr-defined]
+        result = get_fcpe_plugin().analyze(mono, sr)
         if result is None:
             return None
 
-        f0_raw: np.ndarray = np.asarray(result.get("f0", []), dtype=np.float32)
-        confidence: np.ndarray = np.asarray(result.get("confidence", np.ones_like(f0_raw)), dtype=np.float32)
+        f0_raw: np.ndarray = np.asarray(result.f0_hz, dtype=np.float32)
+        confidence: np.ndarray = np.asarray(result.voiced_prob, dtype=np.float32)
         # Unvoiced-Gate: Konfidenz < 0.5 → 0 Hz
         f0_raw[confidence < 0.50] = 0.0
         return f0_raw
 
     except Exception as exc:
-        logger.debug("VocalHarmonicMask: CREPE nicht verfuegbar, using ZCPA — %s", exc)
+        logger.debug("VocalHarmonicMask: FCPE nicht verfuegbar, using ZCPA — %s", exc)
         return None
 
 
@@ -150,7 +147,7 @@ class VocalHarmonicMask:
         hop: int = _HOP,
         max_partials: int = _MAX_PARTIALS,
         partial_width_hz: float = _PARTIAL_WIDTH_HZ,
-        use_crepe: bool = True,
+        use_fcpe: bool = True,
     ) -> None:
         self._sr = sr
         self._n_fft = n_fft
@@ -167,8 +164,8 @@ class VocalHarmonicMask:
 
         # F0-Schätzung
         f0_raw: np.ndarray | None = None
-        if use_crepe:
-            f0_raw = _estimate_f0_crepe(mono, sr, hop)
+        if use_fcpe:
+            f0_raw = _estimate_f0_fcpe(mono, sr)
         self._f0: np.ndarray = f0_raw if f0_raw is not None else _estimate_f0_zcpa(mono, sr, hop)
 
         # Frequenzachse
@@ -292,7 +289,7 @@ def build_vocal_harmonic_mask(
     audio: np.ndarray,
     sr: int,
     *,
-    use_crepe: bool = True,
+    use_fcpe: bool = True,
 ) -> VocalHarmonicMask | None:
     """
     Erstellt VocalHarmonicMask. Non-blocking: Exception → None.
@@ -304,7 +301,7 @@ def build_vocal_harmonic_mask(
             g_floor_map = vmask.apply_g_floor_adjustment(g_floor_map)
     """
     try:
-        return VocalHarmonicMask(audio, sr, use_crepe=use_crepe)
+        return VocalHarmonicMask(audio, sr, use_fcpe=use_fcpe)
     except Exception as exc:
         logger.warning("§G23 build_vocal_harmonic_mask: DSP-Ersatzpfad — %s", exc, exc_info=True)
         return None

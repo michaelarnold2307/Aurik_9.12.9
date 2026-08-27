@@ -1,247 +1,113 @@
-"""
-tests/unit/test_stem_remix_balancer.py — StemRemixBalancer Test-Suite (≥ 20 Tests)
-Alle Tests synthetisch, kein ML-Modell-Download erforderlich.
+"""StemRemixBalancer — Golden-Tests (§1.4/§2.8, Spec 02).
+
+Invarianten:
+    1. Summe: balance_remix(v, i, v+i, sr, 1.0) ≈ v+i (moderate Pegel)
+    2. LUFS-Ziel = Quell-LUFS: Ausgabe-LUFS ≈ Referenz-LUFS (±1.5 LU)
+    3. Gain-Cap: ±6 dB (kein Rausch-Boost bei leisen Mixen)
+    4. Soft-Knee: kein Hard-Clip-Plateau; Peak ≤ 1.0
+    5. NaN/Kollaps/Stille → Referenz unverändert
 """
 
-import math
+from __future__ import annotations
 
 import numpy as np
 import pytest
 
-SR = 48_000
-np.random.seed(42)
+from backend.core.stem_remix_balancer import StemRemixBalancer, get_stem_remix_balancer
 
 
-def _audio(dur: float = 3.0, amp: float = 0.3, sr: int = SR):
-    t = np.linspace(0, dur, int(dur * sr), endpoint=False)
-    return (amp * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+def _sine(freq: float, sr: int, n: int) -> np.ndarray:
+    t = np.arange(n) / sr
+    return (0.2 * np.sin(2 * np.pi * freq * t)).astype(np.float32)
 
 
-def _stereo(dur: float = 3.0, amp: float = 0.3):
-    m = _audio(dur, amp)
-    return np.stack([m, m * 0.9], axis=0)
+def _lufs(arr: np.ndarray, sr: int) -> float:
+    from backend.core.export_quality_gate import ExportQualityGate
+
+    return float(ExportQualityGate._measure_lufs(arr, sr))
 
 
-# ---------------------------------------------------------------------------
+SR = 48000
 
 
-@pytest.mark.unit
-def test_00_import():
-    from backend.core.stem_remix_balancer import StemRemixBalancer
-
-    assert StemRemixBalancer is not None
+def test_singleton() -> None:
+    assert get_stem_remix_balancer() is get_stem_remix_balancer()
 
 
-def test_01_balance_remix_shape_mono():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
+def test_sum_invariant_at_weight_one() -> None:
+    bal = StemRemixBalancer()
+    voc = _sine(440.0, SR, SR * 2)
+    ins = _sine(220.0, SR, SR * 2)
+    ref = voc + ins
+    out = bal.balance_remix(voc, ins, ref, SR, vocal_weight=1.0)
+    # Referenz-LUFS == Mix-LUFS → gain ≈ 0 → Summe bleibt erhalten (Toleranz 0.5 dB RMS)
+    rms_ref = np.sqrt(np.mean(ref.astype(np.float64) ** 2))
+    rms_out = np.sqrt(np.mean(out.astype(np.float64) ** 2))
+    assert abs(20 * np.log10(rms_out / rms_ref)) < 0.5
 
-    v = _audio(3.0, 0.3)
-    i = _audio(3.0, 0.2)
-    o = _audio(3.0, 0.25)
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
-    assert out.shape == v.shape
+
+def test_lufs_target_is_source() -> None:
+    bal = StemRemixBalancer()
+    voc = _sine(440.0, SR, SR * 2)
+    ins = _sine(220.0, SR, SR * 2)
+    ref = (0.6 * (voc + ins)).astype(np.float32)  # Referenz deutlich leiser als naive Summe
+    out = bal.balance_remix(voc, ins, ref, SR, vocal_weight=1.0)
+    assert abs(_lufs(out, SR) - _lufs(ref, SR)) < 1.5
 
 
-def test_02_output_no_nan():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
+def test_gain_cap_no_noise_boost() -> None:
+    bal = StemRemixBalancer()
+    voc = _sine(440.0, SR, SR * 2)
+    ins = np.zeros_like(voc)
+    ref = (0.05 * voc).astype(np.float32)  # sehr leise Referenz → +26 dB nötig
+    out = bal.balance_remix(voc, ins, ref, SR, vocal_weight=1.0)
+    gain_db = _lufs(out, SR) - _lufs(voc + ins, SR)
+    assert gain_db <= 6.0 + 1e-6, f"Gain-Cap verletzt: {gain_db:.2f} dB"
 
-    v = _audio(3.0, 0.3)
-    i = _audio(3.0, 0.2)
-    o = _audio(3.0, 0.25)
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
+
+def test_soft_knee_no_hard_clip_plateau() -> None:
+    bal = StemRemixBalancer()
+    rng = np.random.default_rng(3)
+    voc = rng.standard_normal(SR).astype(np.float32) * 1.2
+    ins = rng.standard_normal(SR).astype(np.float32) * 1.2
+    ref = (voc + ins).astype(np.float32)  # LUFS identisch → kein Gain; Peak heiß
+    out = bal.balance_remix(voc, ins, ref, SR, vocal_weight=1.0)
+    assert float(np.max(np.abs(out))) <= 1.0
+    # Kein hartes Plateau: weniger als 0.5 % der Samples exakt bei ±1.0
+    _at_ceiling = np.mean(np.abs(out) >= 0.999)
+    assert _at_ceiling < 0.005, f"Hard-Clip-Plateau: {_at_ceiling:.4f}"
     assert np.isfinite(out).all()
 
 
-def test_03_output_not_clipped():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
+def test_nan_mix_falls_back_to_reference() -> None:
+    bal = StemRemixBalancer()
+    voc = _sine(440.0, SR, SR)
+    ins = np.full_like(voc, np.nan)
+    ref = voc + _sine(220.0, SR, SR)
+    out = bal.balance_remix(voc, ins, ref, SR, 1.0)
+    assert np.array_equal(out, ref)
 
-    v = _audio(3.0, 0.3)
-    i = _audio(3.0, 0.2)
-    o = _audio(3.0, 0.25)
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
-    assert np.max(np.abs(out)) <= 1.0
 
-
-def test_04_silence_stems():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = np.zeros(SR * 2, dtype=np.float32)
-    i = np.zeros(SR * 2, dtype=np.float32)
-    o = np.zeros(SR * 2, dtype=np.float32)
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
+def test_silent_reference_returns_peak_safe_mix() -> None:
+    """Stille Referenz: kein LUFS-Zug möglich — Mix mit Peak-Schutz zurück."""
+    bal = StemRemixBalancer()
+    voc = _sine(440.0, SR, SR)
+    ins = _sine(220.0, SR, SR)
+    ref = np.zeros_like(voc)
+    out = bal.balance_remix(voc, ins, ref, SR, 1.0)
     assert np.isfinite(out).all()
-    assert out.shape == v.shape
+    assert float(np.max(np.abs(out))) <= 1.0
+    # Mix-Energie bleibt erhalten (kein Absenken auf Stille)
+    rms_mix = np.sqrt(np.mean((voc + ins).astype(np.float64) ** 2))
+    rms_out = np.sqrt(np.mean(out.astype(np.float64) ** 2))
+    assert rms_out > 0.5 * rms_mix
 
 
-def test_05_stereo_stems():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = _stereo(3.0, 0.3)
-    i = _stereo(3.0, 0.2)
-    o = _stereo(3.0, 0.25)
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
-    assert out.shape == v.shape
+def test_mono_stereo_layout_coercion() -> None:
+    bal = StemRemixBalancer()
+    voc_m = _sine(440.0, SR, SR)
+    ins_m = _sine(220.0, SR, SR)
+    ref_s = np.stack([voc_m + ins_m, voc_m + ins_m], axis=1).astype(np.float32)
+    out = bal.balance_remix(voc_m, ins_m, ref_s, SR, 1.0)
+    assert out.ndim == 2 and out.shape[1] == 2
     assert np.isfinite(out).all()
-
-
-def test_06_singleton_identity():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    a = get_stem_remix_balancer()
-    b = get_stem_remix_balancer()
-    assert a is b
-
-
-def test_07_thread_safe_singleton():
-    import concurrent.futures
-
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-        futs = [ex.submit(get_stem_remix_balancer) for _ in range(16)]
-        instances = [f.result() for f in futs]
-    assert all(inst is instances[0] for inst in instances)
-
-
-def test_08_vocal_weight_zero():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = _audio(2.0, 0.4)
-    i = _audio(2.0, 0.4)
-    o = _audio(2.0, 0.4)
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR, vocal_weight=0.0)
-    assert np.isfinite(out).all()
-
-
-def test_09_vocal_weight_one():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = _audio(2.0, 0.4)
-    i = _audio(2.0, 0.2)
-    o = _audio(2.0, 0.3)
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR, vocal_weight=1.0)
-    assert np.isfinite(out).all()
-
-
-def test_10_output_dtype_float32():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = _audio(2.0, 0.3)
-    i = _audio(2.0, 0.2)
-    o = _audio(2.0, 0.25)
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
-    assert out.dtype == np.float32
-
-
-def test_11_very_loud_stems_clipped():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = np.ones(SR * 2, dtype=np.float32)
-    i = np.ones(SR * 2, dtype=np.float32)
-    o = np.ones(SR * 2, dtype=np.float32)
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
-    assert np.max(np.abs(out)) <= 1.0
-
-
-def test_12_impulse_signal_no_nan():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = np.zeros(SR * 2, dtype=np.float32)
-    v[SR // 2] = 0.5
-    i = np.zeros(SR * 2, dtype=np.float32)
-    i[SR] = 0.3
-    o = (v + i) * 0.5
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
-    assert np.isfinite(out).all()
-
-
-def test_13_different_lengths_same_as_shortest():
-    """Kurze Stämme — balancer arbeitet auf min-Länge."""
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = _audio(3.0, 0.3)
-    i = _audio(3.0, 0.2)
-    o = _audio(3.0, 0.25)
-    # Truncate vocals
-    v_short = v[: len(v) - SR // 4]
-    # Kompatibilitäts-Länge
-    min_len = min(len(v_short), len(i), len(o))
-    out = get_stem_remix_balancer().balance_remix(v_short, i[:min_len], o[:min_len], SR)
-    assert np.isfinite(out).all()
-
-
-def test_14_assert_sample_rate():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = _audio(2.0, 0.3)
-    i = _audio(2.0, 0.2)
-    o = _audio(2.0, 0.25)
-    with pytest.raises((AssertionError, ValueError)):
-        get_stem_remix_balancer().balance_remix(v, i, o, 44100)
-
-
-def test_15_output_not_silent():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = _audio(3.0, 0.3)
-    i = _audio(3.0, 0.2)
-    o = _audio(3.0, 0.25)
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
-    assert np.max(np.abs(out)) > 0.0
-
-
-def test_16_lufs_close_to_original():
-    """LUFS-Differenz zwischen Ausgang und Original sollte klein sein."""
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = _audio(4.0, 0.3)
-    i = _audio(4.0, 0.2)
-    o = v * 0.6 + i * 0.4
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
-    rms_orig = np.sqrt(np.mean(o**2))
-    rms_out = np.sqrt(np.mean(out**2))
-    if rms_orig > 0 and rms_out > 0:
-        ratio_db = abs(20 * math.log10(rms_out / rms_orig))
-        assert ratio_db < 6.0, f"LUFS-Drift zu groß: {ratio_db:.1f} dB"
-
-
-def test_17_numpy_float64_input():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = _audio(2.0, 0.3).astype(np.float64)
-    i = _audio(2.0, 0.2).astype(np.float64)
-    o = (v + i * 0.5).astype(np.float64)
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
-    assert np.isfinite(out).all()
-
-
-def test_18_zero_original_no_crash():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = _audio(2.0, 0.3)
-    i = _audio(2.0, 0.2)
-    o = np.zeros(len(v), dtype=np.float32)
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
-    assert np.isfinite(out).all()
-
-
-def test_19_consistent_output():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = _audio(3.0, 0.25)
-    i = _audio(3.0, 0.20)
-    o = _audio(3.0, 0.22)
-    b = get_stem_remix_balancer()
-    out1 = b.balance_remix(v.copy(), i.copy(), o.copy(), SR)
-    out2 = b.balance_remix(v.copy(), i.copy(), o.copy(), SR)
-    np.testing.assert_array_almost_equal(out1, out2, decimal=5)
-
-
-def test_20_returns_ndarray():
-    from backend.core.stem_remix_balancer import get_stem_remix_balancer
-
-    v = _audio(2.0, 0.3)
-    i = _audio(2.0, 0.2)
-    o = v * 0.5 + i * 0.5
-    out = get_stem_remix_balancer().balance_remix(v, i, o, SR)
-    assert isinstance(out, np.ndarray)

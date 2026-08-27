@@ -657,7 +657,11 @@ class RestaurierDenker:
                         try:
                             from backend.core.sweet_spot_optimizer import find_sweet_spot
 
-                            _sweet = find_sweet_spot(_restored_f32, sr)
+                            _sweet = find_sweet_spot(
+                                _restored_f32,
+                                sr,
+                                reference=np.asarray(audio, dtype=np.float32),
+                            )
                             logger.info(
                                 "RestaurierDenker SweetSpot: %.2f (%d/7 green) %s",
                                 _sweet.score,
@@ -1113,7 +1117,7 @@ class RestaurierDenker:
             try:
                 from backend.core.sweet_spot_optimizer import GREEN_ZONE, find_sweet_spot
 
-                sweet = find_sweet_spot(current.astype(np.float32), sr)
+                sweet = find_sweet_spot(current.astype(np.float32), sr, reference=original.astype(np.float32))
                 if sweet.all_green:
                     logger.info("SweetSpot Iter %d: ERREICHT!", iteration + 1)
                     result.audio = current.astype(np.float32)

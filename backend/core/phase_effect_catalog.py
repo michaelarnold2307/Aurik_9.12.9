@@ -88,7 +88,7 @@ PHASE_EFFECT_CATALOG: dict[str, PhaseEffectProfile] = {
         max_strength_by_material={"vinyl": 0.85, "tape": 0.90, "shellac": 0.95, "cd_digital": 0.40},
         time_profile="heavy",  # BS-RoFormer + MIIPHER + Resemble = 9+ Minuten!
         min_severity=0.3,
-        note="Schwerste ML-Phase; SNR<10 + vocal → MIIPHER-Sigma konservativ (0.25-0.40)",
+        note="Schwerste ML-Phase; Codec-Degradation (mp3_low/streaming/aac/minidisc) → MIIPHER-Sigma konservativ (0.25-0.40)",
     ),
     # ── Frequenz-Entzerrung ──────────────────────────────────────
     "phase_04_eq_correction": PhaseEffectProfile(

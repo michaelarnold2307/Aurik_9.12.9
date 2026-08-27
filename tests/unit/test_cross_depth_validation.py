@@ -97,6 +97,44 @@ def test_constitution_artifact_freedom_threshold(depth, threshold):
     assert veto, f"depth={depth}: af={threshold - 0.01:.2f} sollte VETO auslösen"
 
 
+def test_constitution_artifact_freedom_restorability_modulation():
+    """§v10.119: restorability < 50 senkt die Schwelle material-adaptiv (Spec 24)."""
+    const = get_constitution()
+    # depth=1: Basis 0.95. rs=40 → 0.90. af=0.92 → OK.
+    r_ok = const.check_paragraph_zero(
+        None,
+        48000,
+        artifact_freedom=0.92,
+        hpi=0.6,
+        chain_depth=1,
+        restorability=40.0,  # type: ignore[arg-type]
+    )
+    veto_ok = [v for v in r_ok if "VETO" in v and "artifact_freedom" in v]
+    assert not veto_ok, f"rs=40: af=0.92 sollte OK sein, bekam VETO: {veto_ok}"
+    # rs=80 (gutes Material): 0.92 < 0.95 → VETO bleibt
+    r_veto = const.check_paragraph_zero(
+        None,
+        48000,
+        artifact_freedom=0.92,
+        hpi=0.6,
+        chain_depth=1,
+        restorability=80.0,  # type: ignore[arg-type]
+    )
+    veto = [v for v in r_veto if "VETO" in v and "artifact_freedom" in v]
+    assert veto, "rs=80: af=0.92 sollte VETO auslösen"
+    # rs=30 (poor): 0.95−0.10=0.85. af=0.88 → OK.
+    r_poor = const.check_paragraph_zero(
+        None,
+        48000,
+        artifact_freedom=0.88,
+        hpi=0.6,
+        chain_depth=1,
+        restorability=30.0,  # type: ignore[arg-type]
+    )
+    veto_poor = [v for v in r_poor if "VETO" in v and "artifact_freedom" in v]
+    assert not veto_poor, f"rs=30: af=0.88 sollte OK sein, bekam VETO: {veto_poor}"
+
+
 # ── PMGG Regression Threshold ───────────────────────────────────────────────
 
 

@@ -1,5 +1,8 @@
 # Aurik: Ignoriere große/vermeidbare Ordner und temporäre Dateien
 
+# ── Generierte Repo-Karte (scripts/repo_graph.py --write-json) ───────────────
+.github/repo_graph.json
+
 # ── Virtuelle Umgebungen ─────────────────────────────────────────────────────
 .venv_aurik/
 .venv_sota/

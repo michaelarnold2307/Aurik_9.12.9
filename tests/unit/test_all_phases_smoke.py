@@ -56,6 +56,9 @@ _HEAVY_ML_PHASES: frozenset = frozenset(
         "phase_53_semantic_audio",
         "phase_49_advanced_dereverb",
         "phase_03_denoise",  # Resemble Enhance: nicht-deterministisch zwischen Aufrufen (§2.51)
+        # §2.51: lädt BS-RoFormer/Demucs/PANNs/Whisper — echter ML-Pfad ist
+        # nicht-deterministisch zwischen Aufrufen; Unit-Tests nutzen DSP-Fallback.
+        "phase_42_vocal_enhancement",
     }
 )
 

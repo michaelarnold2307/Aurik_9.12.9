@@ -213,22 +213,36 @@ class InferenceSessionManager:
         sess_options.enable_mem_pattern = True
         sess_options.enable_cpu_mem_arena = True
 
-        # Try MIGraphX GPU backend if available (gfx1100 / RDNA3 support)
+        # MIGraphX GPU backend (gfx1100/RDNA3). §v10.40 Compile-Zeit-Regel:
+        # Modelle > 200 MB überspringen (Compile > 30 min) → ORT statt MIGraphX.
         try:
-            from backend.core.migraphx_adapter import MIGraphXSession, is_migraphx_available
+            size_mb = model_path.stat().st_size / (1024 * 1024)
+        except OSError:
+            size_mb = 0.0
+        try:
+            from backend.core.migraphx_adapter import (
+                MIGRAPHX_MAX_MODEL_MB,
+                MIGraphXSession,
+                is_migraphx_available,
+                is_migraphx_size_eligible,
+            )
 
             if is_migraphx_available():
-                logger.debug("SessionManager: trying MIGraphX GPU for %s", model_path.name)
-                session = MIGraphXSession(
-                    str(model_path),
-                    providers=["MIGraphXExecutionProvider", "CPUExecutionProvider"],
-                    sess_options=sess_options,
-                )
-                try:
-                    size_mb = model_path.stat().st_size / (1024 * 1024)
-                except OSError:
-                    size_mb = 0.0
-                return session, size_mb
+                if not is_migraphx_size_eligible(model_path):
+                    logger.debug(
+                        "SessionManager: %s überschreitet MIGraphX-Größenlimit (§v10.40, %.1f MB > %.0f MB) → ORT-Pfad",
+                        model_path.name,
+                        size_mb,
+                        MIGRAPHX_MAX_MODEL_MB,
+                    )
+                else:
+                    logger.debug("SessionManager: trying MIGraphX GPU for %s", model_path.name)
+                    session = MIGraphXSession(
+                        str(model_path),
+                        providers=["MIGraphXExecutionProvider", "CPUExecutionProvider"],
+                        sess_options=sess_options,
+                    )
+                    return session, size_mb
         except Exception as _mgx_exc:
             logger.debug("SessionManager: MIGraphX not available (%s), using ORT CPU", _mgx_exc)
 

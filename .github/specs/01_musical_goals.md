@@ -3,6 +3,11 @@
 > **Einzige normative Quelle** für alle Goal-Schwellwerte, Prioritäten, Adaptive Thresholds
 > und Applicability-Regeln. Alle anderen Dateien **referenzieren** hierher.
 >
+> **Hör-Entscheidungen:** Bei Konflikten zwischen Messgrößen regelt
+> `.github/instructions/hoerordnung.instructions.md` den Entscheidungsfluss
+> (Hör-Invarianten → Audibility → Wohlklang-Ordnung → Einladungs-Gate).
+> Diese Spec bleibt für die **Berechnung** der Größen normativ.
+>
 > **Zweck**: Die 15 Ziele operationalisieren §0 — sie messen, ob Aurik bei jeder Importdatei
 > unter Berücksichtigung der Quelldatei und der physikalischen Grenzen das maximal mögliche
 > Ergebnis erreicht. Ihre Schwellwerte sind so kalibriert, dass sie die qualitativ hochwertigsten

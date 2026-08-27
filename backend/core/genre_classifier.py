@@ -67,6 +67,50 @@ class SchlagerClassificationResult:
 GenreResult = SchlagerClassificationResult
 
 
+# ── §Spec 24: Deterministische DSP-Ersatzpfade für numba-defekte librosa-Aufrufe ──
+# Im ROCm-Venv ist der numba-Dispatcher ein plain function ohne get_call_template —
+# librosa.onset/chroma werfen dann AttributeError. Konstanten-Fallbacks
+# (2.0, „Unbekannt“) degradieren Genre/BPM dauerhaft; diese DSP-Pfade liefern
+# echte Messungen ohne numba.
+
+
+def _onset_rate_dsp(mono: np.ndarray, sr: int) -> float:
+    """Onset-Dichte (Onsets/s) via Energie-Flux — deterministisch, kein numba."""
+    hop = max(256, int(sr * 0.01))  # 10 ms Frames
+    n_frames = (len(mono) - hop) // hop
+    if n_frames < 8:
+        return 2.0
+    frames = mono[: n_frames * hop].reshape(n_frames, hop)
+    energies = np.mean(frames.astype(np.float64) ** 2, axis=1)
+    flux = np.diff(energies, prepend=energies[0])
+    thr = max(float(np.percentile(np.abs(flux), 90)), 1e-9)
+    onsets = int(np.sum(flux > thr))
+    duration_s = float(len(mono)) / float(sr)
+    return float(onsets / max(duration_s, 1.0))
+
+
+_KEY_NAMES_DSP = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "H"]
+
+
+def _estimate_key_dsp(mono: np.ndarray, sr: int) -> str:
+    """Tonart via Pitch-Class-Profile (FFT) — deterministisch, kein numba."""
+    n = len(mono)
+    if n < 4096:
+        return "Unbekannt"
+    n_fft = 1 << int(np.log2(min(n, 16384)))
+    frame = mono[-n_fft:] * np.hanning(n_fft)
+    mag = np.abs(np.fft.rfft(frame.astype(np.float64)))
+    freqs = np.fft.rfftfreq(n_fft, d=1.0 / float(sr))
+    # MIDI-Pitch-Klassen: p = round(69 + 12*log2(f/440)) mod 12
+    with np.errstate(divide="ignore", invalid="ignore"):
+        midi = np.round(69.0 + 12.0 * np.log2(np.maximum(freqs, 1e-9) / 440.0))
+    valid = (freqs >= 55.0) & np.isfinite(midi)
+    pc = midi[valid].astype(int) % 12
+    pcp = np.bincount(pc, weights=mag[valid], minlength=12)
+    idx = int(np.argmax(pcp))
+    return f"{_KEY_NAMES_DSP[idx]}-Dur"
+
+
 class GermanSchlagerClassifier:
     """Erkennt Deutschen Schlager zuverlässig ohne vortrainiertes Genre-Modell.
 
@@ -1060,8 +1104,14 @@ class GermanSchlagerClassifier:
             duration_s = len(mono) / sr
             return float(len(onsets) / max(duration_s, 1.0))
         except Exception as e:
-            logger.warning("genre_classifier.py::_onset_rate Ersatzpfad: %s", e)
-            return 2.0
+            # §Spec 24: librosa-Ausfall (numba-Defekt o. a.) → echter DSP-Messwert
+            # statt Konstante 2.0 (BPM/Groove-Features degradierten sonst still).
+            logger.warning("genre_classifier.py::_onset_rate DSP-Ersatzpfad: %s", e)
+            try:
+                return _onset_rate_dsp(mono, sr)
+            except Exception as _dsp_exc:
+                logger.warning("genre_classifier.py::_onset_rate Ersatzpfad: %s", _dsp_exc)
+                return 2.0
 
     @staticmethod
     def _dynamic_range_db(mono: np.ndarray, sr: int) -> float:
@@ -1920,6 +1970,20 @@ class GermanSchlagerClassifier:
         # Standardannahme: kein genuiner CLAP-Score → Fallback. Erst eine
         # erfolgreiche Tag-Inferenz (unten) setzt das Flag zurück auf False.
         self._clap_score_is_fallback = True
+        # §Spec 24: CLAP embed_audio verlangt exakt 48000 Hz. Analyse-Audio kann
+        # mit 22050 Hz ankommen (CQT-Analysepfad) — sonst fällt die Tag-Inferenz
+        # auf den Prior zurück (Befund 2026-08-16: „SR muss 48000 Hz sein,
+        # erhalten: 22050“). Root-Fix: vor clap.tag resampeln.
+        if sr != 48000:
+            try:
+                audio = self._resample(audio, sr, 48000)
+                sr = 48000
+            except Exception as _rs48_exc:
+                logger.warning(
+                    "GenreClassifier CLAP: Resample auf 48k fehlgeschlagen (%s) — neutraler Prior 0.35",
+                    _rs48_exc,
+                )
+                return 0.35
         try:
             from backend.core.ml_memory_budget import release as _release_clap_genre
             from backend.core.ml_memory_budget import try_allocate as _alloc_clap_genre
@@ -1950,7 +2014,15 @@ class GermanSchlagerClassifier:
                     clap_score = float(np.clip(proxy_score, 0.0, 1.0))
                     # Genuine positive CLAP-Messung erhalten → kein Fallback.
                     self._clap_score_is_fallback = False
-                except Exception:
+                except Exception as _tag_exc:
+                    # §V6 (copilot-instructions.md): ML→DSP-Fallback mit Warnung
+                    # + Begründung — hier fiel bisher STILL 0.35 (Befund
+                    # 2026-08-16: Resample-Defekt → assert sr==48000 in
+                    # embed_audio → unsichtbare Genre-Degradation).
+                    logger.warning(
+                        "GenreClassifier CLAP: Tag-Inferenz (positiv) fehlgeschlagen (%s) — neutraler Prior 0.35",
+                        _tag_exc,
+                    )
                     clap_score = 0.35
 
                 pos_total = clap_score
@@ -1961,7 +2033,13 @@ class GermanSchlagerClassifier:
                     _neg_dict = neg_tag.genre_tags if hasattr(neg_tag, "genre_tags") else {}
                     for v in _neg_dict.values():
                         neg_scores.append(float(v))
-                except Exception:
+                except Exception as _neg_exc:
+                    # §V6: Negativ-Tag-Fehler sichtbar machen (sonst neg_mean=0.0
+                    # ohne Spur — optimistischer Margin ohne Evidenz).
+                    logger.warning(
+                        "GenreClassifier CLAP: Tag-Inferenz (negativ) fehlgeschlagen (%s) — neg_mean=0.0",
+                        _neg_exc,
+                    )
                     neg_scores = []
                 neg_mean = float(np.mean(neg_scores)) if neg_scores else 0.0
                 result_score = float(np.clip(pos_total - 0.5 * neg_mean, 0.0, 1.0))
@@ -2029,15 +2107,18 @@ class GermanSchlagerClassifier:
         return np.asarray(audio, dtype=np.float32)  # type: ignore[no-any-return]
 
     def _resample(self, audio: np.ndarray, sr_in: int, sr_out: int) -> np.ndarray:
-        """Resampelt auf Ziel-Sample-Rate."""
+        """Resampelt auf Ziel-Sample-Rate (numba-Guard via resampling_utils)."""
         if sr_in == sr_out:
             return audio
         try:
-            import librosa
+            from backend.core.resampling_utils import resample_audio
 
-            return np.asarray(librosa.resample(audio, orig_sr=sr_in, target_sr=sr_out), dtype=np.float32)  # type: ignore[no-any-return]
+            return resample_audio(audio, sr_in, sr_out)
         except Exception as e:
-            logger.warning("genre_classifier.py::_resample Ersatzpfad: %s", e)
+            # §V6 (copilot-instructions.md): Fallback mit Warnung + Begründung.
+            # Pass-through nur als letzter Ausweg, wenn auch der SciPy-Pfad
+            # scheitert (z. B. fehlende scipy-Installation).
+            logger.warning("genre_classifier.py::_resample Ersatzpfad (beide Resample-Pfade fehlgeschlagen): %s", e)
             return audio
 
     def _estimate_key(self, audio: np.ndarray, sr: int) -> str:
@@ -2065,8 +2146,14 @@ class GermanSchlagerClassifier:
             key_names = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "H"]
             return f"{key_names[key_idx]}-Dur"
         except Exception as e:
-            logger.warning("genre_classifier.py::_estimate_key Ersatzpfad: %s", e)
-            return "Unbekannt"
+            # §Spec 24: librosa-Ausfall (numba-Defekt o. a.) → DSP-Pitch-Class-Profile
+            # statt „Unbekannt“ (Genre-/Schlager-Merkmale degradierten sonst still).
+            logger.warning("genre_classifier.py::_estimate_key DSP-Ersatzpfad: %s", e)
+            try:
+                return _estimate_key_dsp(audio, sr)
+            except Exception as _dsp_exc:
+                logger.warning("genre_classifier.py::_estimate_key Ersatzpfad: %s", _dsp_exc)
+                return "Unbekannt"
 
     def _determine_genre_label(self, subgenre: str, _bpm: float, lang_de_score: float = 0.5) -> str:
         """Bestimmt das Genre-Label aus Subgenre, BPM und Sprachscore.

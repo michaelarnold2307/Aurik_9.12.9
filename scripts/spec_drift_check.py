@@ -13,6 +13,7 @@ OUT = ROOT / "reports" / "spec_drift_report.json"
 
 WATCHED_FILES = [
     ".github/copilot-instructions.md",
+    ".github/instructions/hoerordnung.instructions.md",
     ".github/specs/01_musical_goals.md",
     ".github/specs/02_pipeline_architecture.md",
     ".github/specs/03_cognitive_modules.md",
@@ -29,6 +30,7 @@ WATCHED_FILES = [
     "scripts/compliance_check.py",
     "scripts/check_musical_goals.py",
     ".github/ID_REGISTRY.md",
+    ".github/FILE_REGISTRY.md",
     "docs/ID_COLLISION_MAP.md",
     "AGENTS.md",
 ]

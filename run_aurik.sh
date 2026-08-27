@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Aurik 10 — Startskript mit venv-Python (.venv_aurik, Python 3.10.12)
-# GPU-Modus: .venv_gpu (CUDA/ROCm) wird automatisch erkannt
+# GPU-Modus: .venv_gpu → venv_rocm72 (ROCm 7.2.4) → venv_rocm (ROCm 6.2, Legacy)
+# wird automatisch erkannt
 # Verwendung: ./run_aurik.sh [Argumente]
 #   AURIK_FORCE_CPU=1  ./run_aurik.sh  — erzwingt CPU-only
 #
@@ -82,18 +83,23 @@ PY
 }
 
 # GPU-Erkennung: ROCm-venv (ext4) + KFD-Device vorhanden und nicht explizit deaktiviert
-# Prüft sowohl .venv_gpu (neu) als auch venv_rocm (legacy)
+# Prüft .venv_gpu (neu), venv_rocm72 (ROCm 7.2.4) und venv_rocm (legacy 6.2)
 _GPU_PYTHON="$VENV_GPU"
 if [[ ! -x "$_GPU_PYTHON" ]]; then
-    _GPU_PYTHON="$HOME/.local/share/aurik/venv_rocm/bin/python"
+    _GPU_PYTHON="$HOME/.local/share/aurik/venv_rocm72/bin/python"  # ROCm 7.2.4 (Rev. 2026-08-16)
+fi
+if [[ ! -x "$_GPU_PYTHON" ]]; then
+    _GPU_PYTHON="$HOME/.local/share/aurik/venv_rocm/bin/python"  # ROCm 6.2 (Legacy-Fallback)
 fi
 if [[ "${AURIK_FORCE_CPU:-0}" != "1" && -x "$_GPU_PYTHON" && -e "/dev/kfd" ]]; then
     VENV_PYTHON="$_GPU_PYTHON"
     PIP_GPU="$(dirname "$VENV_PYTHON")/pip"
     _GPU_MODE="ROCm (AMD GPU)"
-    # ORT's libonnxruntime_providers_rocm.so benötigt libhipblas.so.2, libhipfft.so etc.
-    # Diese liegen im PyTorch-lib-Verzeichnis des ROCm-venv (ext4).
-    _TORCH_LIB="$HOME/.local/share/aurik/venv_rocm/lib/python3.10/site-packages/torch/lib"
+    # ORT's libonnxruntime_providers_rocm.so benötigt ROCm-Laufzeitbibliotheken
+    # (ROCm 7.2.4: libhipblas.so.3, libhipfft.so.0; Legacy 6.2: libhipblas.so.2).
+    # Diese liegen im PyTorch-lib-Verzeichnis des gewählten ROCm-venv (ext4) —
+    # robust aus dem tatsächlichen torch des selektierten venv ableiten (3.10-kompatibel).
+    _TORCH_LIB="$("$VENV_PYTHON" -c 'import torch, pathlib; print(pathlib.Path(torch.__file__).parent / "lib")' 2>/dev/null || true)"
     if [[ -d "$_TORCH_LIB" ]]; then
         export LD_LIBRARY_PATH="${_TORCH_LIB}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     fi
@@ -124,6 +130,24 @@ if [[ "${AURIK_FORCE_CPU:-0}" != "1" && -x "$_GPU_PYTHON" && -e "/dev/kfd" ]]; t
             _GPU_MODE="CPU-only (ROCm-Stack defekt)"
         fi
     fi
+    # Stack-Mismatch-Guard (Rev. 2026-08-16): torch+rocm6.2 auf System-ROCm 7.2.4
+    # erzeugt harte Native-Crashes ohne Python-Dump (Beleg: amdgpu-VM-Leak-Meldung
+    # im Kernel-Log beim Prozess-Exit). Warnen, wenn der venv nicht zum System-ROCm passt.
+    _sys_rocm_v=""
+    _rocm_target="$(readlink -f /opt/rocm 2>/dev/null || echo /opt/rocm)"
+    _rocm_base="${_rocm_target##*/}"  # z.B. rocm-7.2.4
+    if [[ "$_rocm_base" =~ ^rocm-([0-9]+)\.([0-9]+) ]]; then
+        _sys_rocm_v="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+    fi
+    _torch_hip="$("$VENV_PYTHON" -c 'import torch; print(getattr(torch.version, "hip", "") or "")' 2>/dev/null || true)"
+    if [[ -n "$_sys_rocm_v" && -n "$_torch_hip" ]]; then
+        _hip_mm="$(echo "$_torch_hip" | cut -d. -f1,2)"
+        if [[ "$_hip_mm" != "$_sys_rocm_v" ]]; then
+            echo "WARNUNG: Stack-Mismatch — System-ROCm ${_sys_rocm_v}, torch-HIP ${_hip_mm} (${VENV_PYTHON})." >&2
+            echo "         torch+rocm${_hip_mm} auf System-ROCm ${_sys_rocm_v} kann hart crashen (Rev. 2026-08-16, amdgpu-VM-Leak-Beleg)." >&2
+            echo "         Empfohlen: venv mit torch 2.11.0+rocm7.2 (venv_rocm72)." >&2
+        fi
+    fi
 else
     VENV_PYTHON="$VENV_CPU"
     _GPU_MODE="CPU-only"
@@ -141,9 +165,13 @@ cd "$SCRIPT_DIR"
 
 echo "Aurik GPU-Modus: ${_GPU_MODE} (Python: ${VENV_PYTHON})"
 
-# Numba-JIT deaktivieren: verhindert Circular-Import-Crash in ROCm-venv-Threads
-# (numba >= 0.57 entfernt is_nonelike aus numba.core.cgutils; librosa triggert numba)
-export NUMBA_DISABLE_JIT=1
+# NICHT NUMBA_DISABLE_JIT setzen (entfernt Rev. 2026-08-16): Der alte
+# Workaround gegen den numba-cgutils-Circular-Import-Crash (< 0.57) ist mit
+# numba 0.67 obsolet — und NUMBA_DISABLE_JIT=1 lässt @guvectorize-Dekoratoren
+# als plain functions zurück („'function' object has no attribute
+# 'get_call_template'“) → librosa-Submodule degradierten, DSP-Ersatzpfade.
+# Der thread-sichere Import wird jetzt über backend/core/librosa_bootstrap.py
+# sichergestellt (Hauptthread-Warmup vor Worker-Start).
 
 # Kein Doppelstart: verhindert UI-Konflikte und wiederholte Force-Quit-Dialoge.
 if pgrep -f "[A]urik10/main.py" >/dev/null 2>&1; then

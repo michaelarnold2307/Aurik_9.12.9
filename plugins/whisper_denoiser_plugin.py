@@ -1,5 +1,10 @@
-"""WhisperDenoiserPlugin (§v10.20) — Whisper-gesteuertes Musik-Denoising.
+"""WhisperDenoiserPlugin — DEPRECATED (Rev. 2026-08-16).
 
+⚠️ Nicht mehr Teil der Produktions-NR-Kette: Denoising tragen DeepFilterNet v3 II /
+SGMSE+ / OMLSA gemäß Spec 04 (§7.11, phase_66). Dieses Plugin bleibt nur für
+A/B-Vergleiche über music_model_flags.use_whisper_denoiser (= False) ladbar.
+
+Historisch: Whisper-gesteuertes Musik-Denoising (§v10.20).
 Selbst trainiert (MUSDB18-HQ, 48 kHz): Whisper-tiny (frozen, 39M) als
 Feature-Extraktor + ConditionedUNet (2M) + LightweightDecoder (2M).
 Training: AurikLoss = 0.7 × MSE(complex STFT) + 0.3 × BarkLoss (psychoakustisch).

@@ -137,26 +137,39 @@ class ExceptionAggregator:
         if not self.ndjson_path.exists():
             return []
 
-        raw_entries: list[dict[str, Any]] = []
-        with open(self.ndjson_path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if since and entry.get("timestamp", "") < since:
-                    continue
-                # Nur Einträge mit Fehlern
-                if "error" not in entry and entry.get("stage") not in (
-                    "phase_failed",
-                    "phase_exception_parallel",
-                    "phase_exception",
-                ):
-                    continue
-                raw_entries.append(entry)
+        # §Perf: Der Gate-Lauf rief aggregate() 3×/Restore auf und parste dabei
+        # 469.570 json.loads (11,7 s) — die NDJSON-Datei wird komplett gelesen,
+        # obwohl sie sich innerhalb eines Prozesses nur durch Appends ändert.
+        # Cache keyed auf (mtime, size): gleiche Datei → gleiche Roh-Entries.
+        # Der since-Filter wird pro Aufruf angewendet — identisches Ergebnis.
+        _st = self.ndjson_path.stat()
+        _cache_key = (float(_st.st_mtime), int(_st.st_size))
+        _cache = getattr(self, "_aggregate_cache", None)
+        if _cache is not None and _cache[0] == _cache_key:
+            raw_entries: list[dict[str, Any]] = _cache[1]
+        else:
+            raw_entries = []
+            with open(self.ndjson_path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entry = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    # Nur Einträge mit Fehlern
+                    if "error" not in entry and entry.get("stage") not in (
+                        "phase_failed",
+                        "phase_exception_parallel",
+                        "phase_exception",
+                    ):
+                        continue
+                    raw_entries.append(entry)
+            self._aggregate_cache = (_cache_key, raw_entries)
+
+        if since:
+            raw_entries = [e for e in raw_entries if e.get("timestamp", "") >= since]
 
         # Deduplizieren via Message-Fingerabdruck
         classified: dict[str, ClassifiedException] = {}

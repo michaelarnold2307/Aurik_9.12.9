@@ -11,6 +11,7 @@ sys.path.insert(0, ".")
 sys.path.insert(0, "models/deepfilternet_v3_ii/DeepFilterNet")
 sys.path.insert(0, "models/deepfilternet_v3_ii/pyDF-data")
 from pathlib import Path
+
 from df.config import config
 
 config.use_defaults()

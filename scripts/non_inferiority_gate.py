@@ -21,6 +21,7 @@ Usage:
 
 Exit-Codes: 0 = PASS, 1 = FAIL, 2 = BLOCKED
 """
+
 from __future__ import annotations
 
 import argparse

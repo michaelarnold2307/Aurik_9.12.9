@@ -56,6 +56,7 @@ class SalienceResult:
     mean_salience: float = 0.0
     n_salient: int = 0  # events with salience >= 0.5
     n_masked: int = 0  # events with salience < 0.3
+    pass_through_detected: bool = False  # Hörordnung Ebene 2: Filter maskiert nichts
 
 
 class PerceptualSalienceEstimator:
@@ -156,6 +157,29 @@ class PerceptualSalienceEstimator:
             n_salient=n_salient,
             n_masked=n_masked,
         )
+
+        # Hörordnung Ebene 2 (hoerordnung.instructions.md §4) — Mindestanforderung:
+        # Ein Salience-Filter, der real maskiert, darf auf breitbandigem Musikmaterial
+        # keinen Pass-Through liefern. Befund 2026-08-23: 12969/12969 salient,
+        # mean=1.000 — das Modell vergleicht Spitze-gegen-Spitze (die Defekt-Spitze
+        # IST das lokale Maximum), daher maskiert der ±400 ms-Kontext praktisch nie.
+        # Solange das der Fall ist, darf der Filter KEINE Audibility-Entscheidung
+        # tragen (kein Skip „inaudible“, keine Severity-Absenkung auf Basis Salience).
+        _n_ann = len(annotations)
+        _pass_through = False
+        if _n_ann >= 50:
+            _salient_ratio = n_salient / _n_ann
+            if _salient_ratio >= 0.99 and result.mean_salience >= 0.99:
+                _pass_through = True
+                logger.warning(
+                    "Hörordnung Ebene 2: PerceptualSalience wirkt als Pass-Through "
+                    "(%d/%d salient, mean=%.3f) — trägt keine Audibility-Entscheidung "
+                    "(Defekt-Spitze ist lokales Maximum, Kontext maskiert nicht)",
+                    n_salient,
+                    _n_ann,
+                    result.mean_salience,
+                )
+        result.pass_through_detected = _pass_through  # type: ignore[attr-defined]
 
         logger.info(
             "PerceptualSalience: %d events analysed, %d salient (>=0.5), %d masked (<0.3), mean=%.3f",
@@ -306,6 +330,11 @@ class PerceptualSalienceEstimator:
             ds = defect_result.scores[dt]
             mean_sal = float(np.mean([a.salience for a in type_annotations]))
             mean_sal = float(np.nan_to_num(mean_sal, nan=0.5))
+            # Hörordnung Ebene 2 (hoerordnung.instructions.md §4): Wirkt der Filter als
+            # Pass-Through (maskiert nichts), darf er keine Audibility-Entscheidung
+            # tragen — Severity-Skalierung neutral halten statt pauschal abzusenken.
+            if getattr(salience_result, "pass_through_detected", False):
+                mean_sal = 1.0
             ds.metadata["perceptual_salience"] = round(mean_sal, 3)
             ds.metadata["n_salient_events"] = sum(1 for a in type_annotations if a.salience >= 0.5)
             ds.metadata["n_masked_events"] = sum(1 for a in type_annotations if a.salience < 0.3)

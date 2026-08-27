@@ -667,9 +667,7 @@ class ArtifactFreedomGate:
         from backend.core.calibration_context import resolve_restorability_score
 
         _rs_veto = float(
-            resolve_restorability_score(
-                restorability_score if isinstance(restorability_score, (int, float)) else None
-            )
+            resolve_restorability_score(restorability_score if isinstance(restorability_score, (int, float)) else None)
         )
         _depth_veto = max(1, int(transfer_chain_depth if isinstance(transfer_chain_depth, (int, float)) else 1))
         # Restorability-Faktor: rs 0→0.82, rs 50→0.91, rs 100→1.00

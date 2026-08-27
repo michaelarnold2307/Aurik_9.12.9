@@ -286,6 +286,17 @@ def _register_all() -> None:
             return _instance is not None and _instance.is_loaded()
         except ImportError:
             return False
+        except AttributeError as exc:
+            # §V6 (copilot-instructions.md): Ein Readiness-Check darf NIE werfen.
+            # Import-Ketten mit numba/librosa-Inkompatibilität (ROCm-Venv:
+            # "'function' object has no attribute 'get_call_template'") lösten hier
+            # CRITICAL im Selftest aus — der Check meldet dann ehrlich „nicht
+            # bereit“ statt den Selftest dauerhaft zu vergiften.
+            logger.warning(
+                "AST-Perceptual-ONNX Readiness-Check nicht durchführbar (%s) — als nicht bereit gemeldet",
+                exc,
+            )
+            return False
 
     register_ml_check("AST-Perceptual-ONNX", _ast_ready)
 
@@ -316,7 +327,7 @@ def _register_all() -> None:
         _probe_plugin("plugins.harmonic_inpainting_plugin", "get_harmonic_inpainting_plugin", "is_loaded"),
     )
     register_ml_check(
-        "WhisperDenoiser",
+        "WhisperDenoiser (deprecated, Rev. 2026-08-16)",
         _probe_plugin("plugins.whisper_denoiser_plugin", "get_whisper_denoiser_plugin", "is_loaded"),
     )
     # --- Music Demixing ---

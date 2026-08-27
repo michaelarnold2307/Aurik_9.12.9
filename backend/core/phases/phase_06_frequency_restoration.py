@@ -1791,8 +1791,14 @@ class FrequencyRestorationPhase(PhaseInterface):
 
         # Compose final gain: zone-optimal where available, reference ratio elsewhere
         valid = w_acc > 0.0
+        # Blend zone gains with Hanning crossfade for smooth transitions
         G_combined = G_ref.copy()
-        G_combined[valid, :] = (G_acc[valid, :] / w_acc[valid, np.newaxis]).astype(np.float32)
+        win_len = 2  # number of bins over which to apply Hann window
+        for k in range(G_acc.shape[0]):
+            if valid[k]:
+                gain_zone = (G_acc[k] / w_acc[k])
+                blended_gain = _hann_crossfade(gain_zone, G_ref[k], win_len)
+                G_combined[k] = blended_gain.astype(np.float32)
         G_combined = np.nan_to_num(G_combined, nan=1.0)
 
         # Apply blended gain to reference input STFT + PGHI

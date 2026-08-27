@@ -107,27 +107,11 @@ class PreAnalysisResult:
 
     # Restorability estimate (backend.core.restorability_estimator)
     restorability: object | None = None  # RestorabilityResult
-    # §v10.220: Defect Consensus Pipeline — 30 Module koordiniert
-    # Ersetzt den einzelnen defect_scanner durch die Consensus-Pipeline
-    try:
-        from backend.core.defect_consensus_pipeline import DefectConsensusPipeline
-
-        _consensus_pipeline = DefectConsensusPipeline()
-        _consensus_manifest = _consensus_pipeline.analyze(audio, sample_rate)
-        if _consensus_manifest and _consensus_manifest.defects:
-            logger.info(
-                "§v10.220 Defect Consensus: %d Defekte gefunden "
-                "(%d Hypothesen, %d Konflikte gelöst, %d Merges, %d kausale Downgrades)",
-                len(_consensus_manifest.defects),
-                _consensus_manifest.total_hypotheses,
-                _consensus_manifest.conflicts_resolved,
-                _consensus_manifest.merged_defects,
-                _consensus_manifest.causal_downgrades,
-            )
-            # Nutze Consensus-Manifest statt Einzel-Scanner
-            _defect_list_consensus = _consensus_manifest.defects
-    except Exception:
-        _defect_list_consensus = None
+    # §v10.220 (Roadmap): DefectConsensusPipeline (30 Module) ist noch NICHT in
+    # run_pre_analysis() verdrahtet — ein früherer Refactor hatte den Aufruf in
+    # diesen Dataclass-Body eingerückt (NameError auf audio/sample_rate, still
+    # geschluckt → die Pipeline lief nie). Integration benötigt einen
+    # Manifest→DefectAnalysisResult-Adapter (Rev. 2026-08-16, Spec 24).
 
     # Metadata
     native_sr: int = 0
@@ -188,6 +172,49 @@ def _resample_for_restorability(audio_native: np.ndarray, sr_native: int) -> tup
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+def _apply_carrier_depth_cap(_md_result: Any) -> None:
+    """§v10.19 Depth-Cap-2 bei Roh-Konfidenz < 0.50 — FRÜH anwenden.
+
+    Muss VOR dem DefectScanner laufen: Der konsumiert _medium_result.transfer_chain
+    für chain-adaptive Thresholds. Der späte post-Era-Cap (unten) griff zu spät —
+    der Scanner erhielt die ungekürzte 3-Stufen-Kette (Befund 2026-08-16:
+    md_conf=0.31 → 658 Tape-Head-Dip-False-Positives auf digitalem Material).
+    """
+    try:
+        _conf = float(getattr(_md_result, "confidence", 0.5) or 0.5)
+        if _conf >= 0.50:
+            return
+        _chain = list(getattr(_md_result, "transfer_chain", []) or [])
+        if len(_chain) <= 2:
+            return
+        _ANALOG_SET = {
+            "shellac",
+            "wax_cylinder",
+            "vinyl",
+            "cassette",
+            "reel_tape",
+            "tape",
+            "lacquer_disc",
+            "wire_recording",
+        }
+        if len(_chain) > 1 and _chain[-1] not in _ANALOG_SET:
+            # Digitales Endformat behalten, einen analogen Zwischenträger kappen.
+            _trimmed = [_chain[0], _chain[-1]]
+        else:
+            _trimmed = _chain[:2]
+        logger.warning(
+            "§v10.712 Chain-Depth-Cap (früh): confidence=%.2f → Kette von %d auf %d Träger gekürzt [%s] ⇒ [%s]",
+            _conf,
+            len(_chain),
+            len(_trimmed),
+            " → ".join(_chain),
+            " → ".join(_trimmed),
+        )
+        _md_result.transfer_chain = _trimmed  # type: ignore[attr-defined]
+    except Exception as _cap_exc:
+        logger.debug("Chain-Depth-Cap (früh) nicht anwendbar: %s", _cap_exc)
 
 
 def run_pre_analysis(
@@ -261,6 +288,7 @@ def run_pre_analysis(
     _medium_result = _cached_parts.get("medium")
     if _medium_result is not None:
         result.medium = _medium_result
+        _apply_carrier_depth_cap(_medium_result)
         logger.debug("pre_Analyse: medium aus Zwischenspeicher geladen")
 
     _medium_primary_error: str | None = None
@@ -269,6 +297,7 @@ def run_pre_analysis(
             _get_md = cast(Callable[[], Any], _load_symbol("forensics.medium_detector", "get_medium_detector"))
 
             _medium_result = _get_md().detect(audio_native, sr_native, file_ext=file_ext)
+            _apply_carrier_depth_cap(_medium_result)
             result.medium = _medium_result
             _medium_result_any = cast(Any, _medium_result)
 
@@ -559,12 +588,26 @@ def run_pre_analysis(
             elif _cv_agreements:
                 # Boost confidence when multiple independent factors agree
                 _boost = min(0.15, len(_cv_agreements) * 0.05)
+                _new_cv_conf = min(1.0, _cv_confidence + _boost)
+                # §v10.19/§2.47a (2026-08-22): Der Boost wurde bisher nur geloggt
+                # und ging verloren — Era-Prior/Iterative-Physical-Bayesian rechneten
+                # auf dem veralteten Wert weiter, und §v10.303/§2.47a strippten
+                # Phasen wegen einer Konfidenz, die der Detektions-Konsens längst
+                # überholt hatte (Befund: 0.25→0.40 geloggt, final 0.279 →
+                # 25/29 Phasen entfernt, statt ~25-30 aktiv). Der Konsens ist die
+                # normative Wahrheit: persistieren, damit alle Folge-Stufen und
+                # das Low-Confidence-Gate dieselbe Basis verwenden.
+                result.medium.confidence = _new_cv_conf  # type: ignore[attr-defined]
+                try:
+                    result.medium.cross_validation_agreements = len(_cv_agreements)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
                 logger.info(
-                    "Cross-Validierung: %d Faktoren stimmen überein (%s). Confidence %.2f → %.2f",
+                    "Cross-Validierung: %d Faktoren stimmen überein (%s). Confidence %.2f → %.2f (persistiert)",
                     len(_cv_agreements),
                     ", ".join(_cv_agreements),
                     _cv_confidence,
-                    min(1.0, _cv_confidence + _boost),
+                    _new_cv_conf,
                 )
         except Exception as _cv_exc:
             logger.debug("Cross-Validierung uebersprungen: %s", _cv_exc)
@@ -1133,11 +1176,20 @@ def run_pre_analysis(
                 # §v10.14 FIX: Chain-Depth-Cap angehoben für depth≥4.
                 # Bei niedriger Confidence kurze Ketten (Sicherheit), bei höherer
                 # Confidence tiefe Ketten erlauben (depth 4-5 für Kassetten etc.).
-                # §v10.19: effective_confidence nutzt Physical-Boost.
-                _max_chain_depth = {
-                    True: 2,
-                    False: (3 if _effective_confidence < 0.55 else (4 if _effective_confidence < 0.60 else 99)),
-                }[_effective_confidence < 0.50]
+                # §v10.19: Der wörtliche Depth-Cap-2 gilt für die ROH-Konfidenz
+                # (_md_confidence < 0.50), die oberen Stufen für die geboostete
+                # Konfidenz. Befund 2026-08-16: Gekürzt auf effective_confidence
+                # lief bei md_conf=0.31+Boost eine 3-stufige Kette → kettenadaptive
+                # Tape-Detektoren erzeugten 658 Head-Dip-False-Positives auf
+                # digitalem Material.
+                if _md_confidence < 0.50:
+                    _max_chain_depth = 2
+                elif _effective_confidence < 0.55:
+                    _max_chain_depth = 3
+                elif _effective_confidence < 0.60:
+                    _max_chain_depth = 4
+                else:
+                    _max_chain_depth = 99
                 if len(_chain) > _max_chain_depth:
                     # §v10.14: Letzten Eintrag (Endformat, z.B. mp3_high) IMMER behalten.
                     # Aus den analogen Zwischenträgern den Ära-plausibelsten wählen.
@@ -1171,7 +1223,7 @@ def run_pre_analysis(
                     else:
                         _trimmed = _chain[:_max_chain_depth]
                     logger.info(
-                        "§v10.712 Chain-Depth-Cap: confidence=%.2f → chain von %d auf %d Träger gekürzt (%s → %s)",
+                        "§v10.712 Chain-Depth-Cap: confidence=%.2f → chain von %d auf %d Träger gekürzt [%s] ⇒ [%s]",
                         _md_confidence,
                         len(_chain),
                         len(_trimmed),
@@ -1224,7 +1276,12 @@ def run_pre_analysis(
 
                     _consensus = resolve_material_consensus(
                         medium_result={
-                            "material": _chain[-1] if _chain else "unknown",
+                            # §v10.20 BUG-FIX 2026-08-22: Der MediumDetector-Vote war der
+                            # TERMINALE Träger (_chain[-1] = mp3_low) statt des PRIMÄREN
+                            # (_chain[0] = vinyl). Dadurch votierte der MediumDetector im
+                            # Konsens gegen sein eigenes Ergebnis (Befund: KONFLIKT mit
+                            # 'medium_detector': 'mp3_low' statt 'vinyl').
+                            "material": _chain[0] if _chain else "unknown",
                             "confidence": _md_confidence,
                             "chain": " → ".join(_chain),
                         },
@@ -1259,6 +1316,7 @@ def run_pre_analysis(
                                 "vinyl",
                                 "lacquer_disc",
                                 "reel_tape",
+                                "tape",
                                 "cassette",
                                 "dat",
                                 "cd",
@@ -1272,6 +1330,28 @@ def run_pre_analysis(
                             _chain = _all_materials
                             _md.transfer_chain = _chain  # type: ignore[attr-defined]
                             logger.info("pre_Analyse: Kette KORRIGIERT: %s", " → ".join(_chain))
+
+                    # §v10.20 Material-Konsens-Write-back (2026-08-22): Konsens als
+                    # EIGENE Felder persistieren — primary_material bleibt der
+                    # Medium-Primär (Kalibrierungs-Quelle). UV3 konsumiert
+                    # consensus_material/final_chain (kein Era-Dominanz-Flip-Flop).
+                    _cons_mat = str(_consensus.get("material", "unknown") or "unknown")
+                    if hasattr(_md, "consensus_material"):
+                        try:
+                            _md.consensus_material = _cons_mat  # type: ignore[attr-defined]
+                        except Exception:
+                            logger.debug("pre_Analyse: consensus_material write-back fehlgeschlagen", exc_info=True)
+                    if hasattr(_md, "final_chain") and _chain:
+                        try:
+                            _md.final_chain = list(_chain)  # type: ignore[attr-defined]
+                        except Exception:
+                            logger.debug("pre_Analyse: final_chain write-back fehlgeschlagen", exc_info=True)
+                    logger.info(
+                        "pre_Analyse: Material-Konsens final — primary=%s, consensus=%s, chain=%s",
+                        str(getattr(_md, "primary_material", "unknown")),
+                        _cons_mat,
+                        " → ".join(_chain),
+                    )
 
                     # Ära und Kette sind KOMPLEMENTÄR, nicht widersprüchlich.
                     # Ära = Aufnahmedatum. Kette = gesamte Medien-Historie.

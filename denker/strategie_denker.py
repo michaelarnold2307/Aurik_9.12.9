@@ -352,24 +352,46 @@ class StrategieDenker:
 
         # ── §v10 HPE & Gänsehaut-Baseline ──
         # Psychoakustische Metriken auf dem kompletten Audio. Für Spuren >60s
-        # werden sie übersprungen: numpy-BLAS-Mehrkernberechnung auf 10M+
+        # werden sie auf einen deterministischen 30-s-Mittel-Ausschnitt
+        # umgeleitet (BUG-FIX 2026-08-22): Voll-Längen-Berechnung auf 10M+
         # Samples alloziert >400 MB temporär und kann Minuten blockieren.
-        # HPE/Goosebumps sind Baseline-Referenzwerte, keine kritischen
-        # Pipeline-Parameter — Default 0.5 ist ein konservativer Fallback.
+        # HPE/Goosebumps sind Baseline-Referenzwerte — Default 0.5 bleibt
+        # der konservative Fallback bei Timeout.
+        def _middle_excerpt(audio: np.ndarray, sr: int, win_s: float = 30.0) -> np.ndarray:
+            """Deterministischer Mittel-Ausschnitt für ML-Scorer (§G5 (copilot-instructions.md))."""
+            arr = np.asarray(audio, dtype=np.float32)
+            if arr.ndim == 2:
+                _axis = 0 if arr.shape[-1] <= 2 else -1
+            else:
+                _axis = 0
+            total = arr.shape[_axis]
+            win = int(win_s * sr)
+            if total <= win:
+                return arr
+            start = (total - win) // 2
+            return np.take(arr, np.arange(start, start + win), axis=_axis)
+
         _hpe_base = 0.5
         _goose_base = 0.5
         _HPE_GOOSE_TIMEOUT = 30.0
-        if audio_dur <= 60.0:
+        # §9 Performance-Budget BUG-FIX 2026-08-22: Kein Skip mehr bei >60s —
+        # HPE/Goosebumps laufen auf einem deterministischen 30-s-Mittel-Ausschnitt,
+        # damit die Wohlklang-Baseline auch bei langen Songs am Leben bleibt.
+        _hpe_audio = audio
+        _hpe_note = ""
+        if audio_dur > 60.0:
+            _hpe_audio = _middle_excerpt(audio, sr, 30.0)
+            _hpe_note = f" (Excerpt 30s von {audio_dur:.0f}s)"
             try:
                 from backend.core.human_pleasantness_estimator import compute_pleasantness
 
                 logger.debug("StrategieDenker: HPE-Berechnung gestartet (%.1fs Audio) …", audio_dur)
                 _pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
                 try:
-                    _hpe_fut = _pool.submit(compute_pleasantness, audio, sr)
+                    _hpe_fut = _pool.submit(compute_pleasantness, _hpe_audio, sr)
                     _hpe_r = _hpe_fut.result(timeout=_HPE_GOOSE_TIMEOUT)
                     _hpe_base = float(_hpe_r.score)
-                    logger.info("StrategieDenker: HPE-Baseline = %.3f (%s)", _hpe_base, _hpe_r.label)
+                    logger.info("StrategieDenker: HPE-Baseline = %.3f (%s)%s", _hpe_base, _hpe_r.label, _hpe_note)
                 finally:
                     _pool.shutdown(wait=False)
             except concurrent.futures.TimeoutError:
@@ -382,21 +404,18 @@ class StrategieDenker:
                 logger.debug("StrategieDenker: Goosebumps-Berechnung gestartet …")
                 _pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
                 try:
-                    _goose_fut = _pool.submit(compute_goosebumps, audio, sr)
+                    _goose_fut = _pool.submit(compute_goosebumps, _hpe_audio, sr)
                     _goose_r = _goose_fut.result(timeout=_HPE_GOOSE_TIMEOUT)
                     _goose_base = float(_goose_r.score)
-                    logger.info("StrategieDenker: Goosebumps-Baseline = %.3f (%s)", _goose_base, _goose_r.label)
+                    logger.info(
+                        "StrategieDenker: Goosebumps-Baseline = %.3f (%s)%s", _goose_base, _goose_r.label, _hpe_note
+                    )
                 finally:
                     _pool.shutdown(wait=False)
             except concurrent.futures.TimeoutError:
                 logger.warning("StrategieDenker: Goosebumps Zeitlimit (>%.0fs) — Ersatzpfad 0.5", _HPE_GOOSE_TIMEOUT)
             except Exception:
                 logger.warning("strategie_denker.py::Goosebumps Ersatzpfad", exc_info=True)
-        else:
-            logger.info(
-                "StrategieDenker: HPE/Goosebumps übersprungen (%.1fs Audio > 60s) — Baseline 0.5",
-                audio_dur,
-            )
 
         note = ""
         if audio_dur > 300:

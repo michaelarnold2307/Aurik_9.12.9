@@ -131,16 +131,26 @@ class ONNXInferenceSession:
 
         try:
             # Try MIGraphX GPU backend first if requested
+            # (§v10.40 Compile-Zeit-Regel: Modelle > 200 MB → ORT statt MIGraphX)
             if "MIGraphXExecutionProvider" in self.providers:
                 try:
-                    from backend.core.migraphx_adapter import MIGraphXSession
+                    from backend.core.migraphx_adapter import MIGraphXSession, is_migraphx_size_eligible
 
-                    self.session = MIGraphXSession(
-                        self.model_path,
-                        providers=self.providers,
-                        sess_options=sess_options,
-                    )
-                    logger.info("ONNX Sitzung via MIGraphX (GPU): %s", self.model_path.name)
+                    if not is_migraphx_size_eligible(self.model_path):
+                        logger.debug(
+                            "MIGraphX übersprungen (§v10.40 Größenlimit > 200 MB): %s",
+                            self.model_path.name,
+                        )
+                        self.session = ort.InferenceSession(
+                            str(self.model_path), sess_options, providers=self.providers
+                        )
+                    else:
+                        self.session = MIGraphXSession(
+                            self.model_path,
+                            providers=self.providers,
+                            sess_options=sess_options,
+                        )
+                        logger.info("ONNX Sitzung via MIGraphX (GPU): %s", self.model_path.name)
                 except Exception as _mgx_exc:
                     logger.debug("MIGraphX session fallback: %s", _mgx_exc)
                     self.session = ort.InferenceSession(str(self.model_path), sess_options, providers=self.providers)

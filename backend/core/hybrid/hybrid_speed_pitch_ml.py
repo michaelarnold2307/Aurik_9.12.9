@@ -142,7 +142,8 @@ class HybridSpeedPitch:
         """Initialisiert pitch plugin: FCPE -> RMVPE -> PESTO -> pYIN (§4.4 Spec).
 
         Order: Tier-1 FCPE, Tier-2 RMVPE (Wei et al. ICASSP 2023, ~30 % lower pitch
-        error for vocals), Tier-3 PESTO, Tier-4 CREPE legacy fallback.
+        error for vocals), Tier-3 PESTO, Tier-4 pYIN (DSP-Endfall, §4.4).
+        CREPE als Produktions-Tier VERBOTEN (Spec 04, Z. 1129) — Rev. 2026-08-16.
         VERBOTEN: FCPE -> CREPE -> RMVPE (RMVPE muss vor CREPE stehen — §4.4).
         """
         try:
@@ -176,16 +177,17 @@ class HybridSpeedPitch:
             logger.info("PESTO plugin geladen for Verarbeitungsschritt 31 speed/pitch detection (§4.4 Tier-3)")
             return
         except Exception as e:
-            logger.debug("PESTO nicht verfügbar (%s) — CREPE-Legacy-Ersatzpfad (§4.4 Tier-4)", e)
-        # Tier-4: CREPE (legacy — only if PESTO unavailable)
+            logger.debug("PESTO nicht verfügbar (%s) — pYIN-DSP-Ersatzpfad (§4.4 Tier-4)", e)
+        # Tier-4: pYIN (DSP-Endfall, §4.4). CREPE als Produktions-Tier VERBOTEN
+        # (Spec 04, Z. 1129) — Rev. 2026-08-16.
+        logger.warning("Kein Pitch-ML-Plugin verfügbar — pYIN-DSP-Ersatzpfad (§V6)")
         try:
-            from plugins.crepe_plugin import CREPEPlugin
+            from backend.core.fallback_auditor import get_fallback_auditor
 
-            self.crepe = CREPEPlugin()  # type: ignore[assignment]
-            logger.info("CREPE plugin geladen for Verarbeitungsschritt 31 speed/pitch detection (§4.4 Tier-4 legacy)")
-        except Exception as e:
-            logger.warning("Kein Pitch-ML-Plugin verfügbar: %s", e)
-            self.crepe = None
+            get_fallback_auditor().record("PitchDetection", "fcpe_rmvpe_pesto", "pyin_dsp", "all_ml_unavailable")
+        except Exception:
+            logger.debug("FallbackAuditor nicht verfügbar (unkritisch)", exc_info=True)
+        self.crepe = None
 
     def detect_global_pitch(self, audio: np.ndarray, sample_rate: int = 48000) -> SpeedPitchResult:
         """

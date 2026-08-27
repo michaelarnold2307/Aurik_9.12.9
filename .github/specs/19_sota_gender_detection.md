@@ -141,6 +141,23 @@ Quellen: Titze 1994 (singing ranges), Klatt & Klatt 1990 (speech formants).
 2. **Contralto**: Wenn GenderDetector "male" sagt, ABER F0 140–220 Hz UND
    F1+F2 im weiblichen Bereich → Override auf FEMALE
 
+### Contralto-Zonen-Erweiterung (2026-08-22)
+
+Die Contralto-Zone ist in `phase_19_de_esser.py` auf **120–240 Hz** erweitert
+(§13.7 nennt 145–195 Hz, §19 nennt 140–220 Hz als Kern), um **Oktavfehler der
+F0-Detektion** abzudecken (94 Hz gemessen statt 188 Hz bei sehr tiefen
+Frauenstimmen). Regeln:
+
+- **Oktavkandidat**: F0 < 120 Hz UND 2×F0 in [120, 240] → effektives F0 = 2×F0.
+- **Notfall-Regel §v10.303.11** (F1 > 300 Hz + F0 < 120 Hz → Override) greift
+  **nur bei degradiertem F2** (F2-Messung fehlt < 50 Hz oder
+  `bandwidth_loss > 0.5`). Eine **gesunde** F2-Messung unterhalb des weiblichen
+  Bereichs (z. B. 719 Hz = männliches /u/-Profil) ist Evidenz für MALE und wird
+  nicht überstimmt (Befund 2026-08-22: Override trotz F2=719 Hz + Meldung
+  behauptete unmöglich „F2=719 Hz in [920–2790]“).
+- **Confidence**: Der Override setzt confidence auf **0.65** (Contralto-Floor)
+  und erbt nicht die Confidence des widersprochenen 'male'-Urteils.
+
 ---
 
 ## §19.3 Änderungen im Detail

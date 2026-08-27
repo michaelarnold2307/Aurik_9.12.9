@@ -5,6 +5,10 @@ Integriert in ModernMainWindow.keyPressEvent().
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class KeyboardShortcuts:
     """Zentrale Tastatursteuerung für den Audio-Player.

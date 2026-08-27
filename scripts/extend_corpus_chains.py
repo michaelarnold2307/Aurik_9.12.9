@@ -17,6 +17,7 @@ Zwei Schritte, beide deterministisch (§G5 (copilot-instructions.md)) und idempo
 Usage:
     python scripts/extend_corpus_chains.py
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -112,9 +113,7 @@ def _pick_source(material: str) -> tuple[Path, dict[str, Any]]:
     ]
     if not entries:
         entries = [
-            e
-            for e in _load_manifest(material).get("entries", [])
-            if str(e.get("file", "")).startswith("damaged/")
+            e for e in _load_manifest(material).get("entries", []) if str(e.get("file", "")).startswith("damaged/")
         ]
     if not entries:
         raise FileNotFoundError(f"kein damaged-Eintrag für Material {material}")

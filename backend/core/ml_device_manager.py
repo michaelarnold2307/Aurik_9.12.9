@@ -14,6 +14,18 @@ Platform support:
   Windows: DirectML via onnxruntime-directml + optionally torch-directml
   Both:    CPU-only fallback (preserves §9.5-compatible behaviour when no GPU present)
 
+ROCm-Versionskope (Rev. 2026-08-16):
+  Verifiziert: ROCm 6.x und ROCm 7.2.4.
+  Produktions-Stack 7.2.4 (Rev. 2026-08-16): Radeon RX 7900 XTX (gfx1100),
+  torch 2.11.0+rocm7.2 (hip 7.2.26015) + torchaudio 2.11.0+rocm7.2 +
+  torchvision 0.26.0+rocm7.2 + onnxruntime-rocm 1.22.2.post3
+  (ROCMExecutionProvider). Hinweis: torchaudio ist für ROCm 7.2 offiziell nur
+  bis 2.11.0 verfügbar — neuere bräuchten Eigenbau.
+  GPU-Gate tests/unit/test_gpu_determinism_gate.py: 6/6 grün auf der Hardware
+  (Backend-Erkennung, kein §v10.304.30-Hang, GPU=CPU innerhalb 1e-5).
+  §G5: Bit-Determinismus ist nur für den CPU-Pfad garantiert; GPU-Inferenz
+  ist Toleranz-equal, nicht bit-identisch (keine deterministischen Kernel konfiguriert).
+
 VRAM budget (§GPU-VRAM-Guard):
   Analog to ml_memory_budget for system RAM — tracks allocated VRAM per plugin and
   falls back to CPU when VRAM headroom is insufficient. On ROCm, free VRAM is queried
@@ -30,6 +42,7 @@ import logging
 import os
 import sys
 import threading
+from collections.abc import Callable
 from typing import Any
 
 try:
@@ -52,7 +65,7 @@ class GPUBackend(enum.Enum):
     """GPU-Beschleunigungsbackend — CUDA (NVIDIA), ROCm (AMD Linux), DirectML (AMD Windows) oder CPU-Only."""
 
     CUDA = "cuda"  # NVIDIA GPU via CUDA (Linux & Windows)
-    ROCM = "rocm"  # AMD GPU via ROCm 6.x (Linux only)
+    ROCM = "rocm"  # AMD GPU via ROCm 6.x / 7.2.4 (Linux only; 7.2.4 per GPU-Gate verifiziert)
     DIRECTML = "directml"  # AMD GPU via DirectML (Windows only)
     NONE = "none"  # CPU-only (no GPU or GPU suppressed)
 
@@ -736,7 +749,14 @@ class MLDeviceManager:
                 self._gpu_name = device_info.get("name", "AMD GPU (MIGraphX)")
                 self._vram_total_gb = device_info.get("vram_gb", 8.0)
                 self._vram_free_gb = self._vram_total_gb * 0.85
-                self._gpu_architecture = device_info.get("arch", "gfx1100")
+                # §Rev. 2026-08-16: _gpu_architecture MUSS ein AMDArchitecture-Enum sein —
+                # gpu_status_summary() greift auf .value zu. Die frühere String-Zuweisung
+                # (device_info["arch"]) war ein latenter AttributeError.
+                _arch_str = str(device_info.get("arch", "") or "")
+                _arch_enum = _detect_amd_architecture(self._gpu_name)
+                if _arch_enum is AMDArchitecture.UNKNOWN and _arch_str:
+                    _arch_enum = _detect_amd_architecture(_arch_str)
+                self._gpu_architecture = _arch_enum
                 # Tier 2: RDNA3 dGPU — capable, >8GB
                 self._gpu_tier = GPUTier.TIER_2
             logger.info(
@@ -1353,3 +1373,44 @@ class MLDeviceManager:
         except Exception as exc:
             logger.debug("pin_tensor_rocm fehlgeschlagen (unkritisch, using Originalsignal): %s", exc)
             return array
+
+
+def ort_run_with_cpu_fallback(
+    session: Any,
+    feeds: dict[str, Any],
+    *,
+    output_names: Any = None,
+    rebuild_cpu_factory: Callable[[], Any] | None = None,
+    label: str = "ONNX",
+) -> Any:
+    """§ROCm-Fallback: run() mit einmaligem CPU-Retry bei MIOpen-Kernel-Fehlern.
+
+    MIOpen kann auf manchen ROCm-Versionen Kernels nicht bauen
+    ("Code object build failed", v. a. AveragePool/Pooling-Nodes) — die Inferenz
+    wirft dann, obwohl das Modell gesund ist. Diese Helper-Funktion ist DIE
+    zentrale Stelle für den CPU-Fallback (Spec 23-Kontext, 2026-08-16):
+    Plugins bauen per ``rebuild_cpu_factory`` dieselbe Session CPU-only neu und
+    wiederholen die Inferenz EINMAL.
+
+    Args:
+        session: onnxruntime.InferenceSession (oder kompatibles Mock-Objekt).
+        feeds: input_name → Tensor-Dict wie für session.run().
+        output_names: Optional; entspricht session.run(output_names, feeds).
+        rebuild_cpu_factory: Callable, das eine CPU-only Session für denselben
+            Modellpfad baut; None → kein Retry, Exception propagiert.
+        label: Log-Präfix für die §V6-Warnung.
+
+    Returns:
+        session.run(...)-Ergebnis.
+    """
+    try:
+        return session.run(output_names, feeds)
+    except Exception as exc:
+        if rebuild_cpu_factory is None:
+            raise
+        # §V6 (copilot-instructions.md): ML→DSP/CPU-Fallback mit Warnung + Begründung.
+        logger.warning("%s: ONNX-Inferenz fehlgeschlagen (%s) — CPU-Fallback-Retry", label, exc)
+        cpu_session = rebuild_cpu_factory()
+        if cpu_session is None:
+            raise
+        return cpu_session.run(output_names, feeds)

@@ -1,0 +1,676 @@
+{
+  "gate": {
+    "passed": false,
+    "phase_execution_recall": 1.0,
+    "phase_delta_coverage": 1.0,
+    "artifact_contract_rate": 0.0,
+    "hpi_contract_rate": 1.0,
+    "vocal_contract_rate": 1.0,
+    "export_contract_rate": 1.0,
+    "forbidden_phase_executions": 0,
+    "runtime_factor": 80.99615482489268,
+    "fail_reasons": [
+      "artifact_contract_rate 0.000 < 1.000",
+      "runtime_factor 80.996 > 25.000"
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "real_vinyl_jazz_1950s_scratched",
+      "required_phases": [
+        "phase_09_crackle_removal",
+        "phase_01_click_removal",
+        "phase_28_surface_noise_profiling",
+        "phase_03_denoise"
+      ],
+      "planned_phases": [
+        "phase_09_crackle_removal",
+        "phase_01_click_removal",
+        "phase_28_surface_noise_profiling",
+        "phase_03_denoise",
+        "phase_12_wow_flutter_fix",
+        "phase_31_speed_pitch_correction",
+        "phase_61_groove_echo_cancellation",
+        "phase_20_reverb_reduction",
+        "phase_23_spectral_repair",
+        "phase_63_intermodulation_reduction",
+        "phase_07_harmonic_restoration",
+        "phase_06_frequency_restoration",
+        "phase_29_tape_hiss_reduction",
+        "phase_04_eq_correction",
+        "phase_49_advanced_dereverb"
+      ],
+      "phases_executed": [
+        "phase_01_click_removal",
+        "phase_04_eq_correction",
+        "phase_09_crackle_removal",
+        "phase_12_wow_flutter_fix",
+        "phase_20_reverb_reduction",
+        "phase_26_dynamic_range_expansion",
+        "phase_28_surface_noise_profiling",
+        "phase_29_tape_hiss_reduction",
+        "phase_31_speed_pitch_correction",
+        "phase_49_advanced_dereverb",
+        "phase_63_intermodulation_reduction"
+      ],
+      "phases_skipped": [
+        "phase_03_denoise",
+        "phase_06_frequency_restoration",
+        "phase_25_azimuth_correction",
+        "phase_54_transparent_dynamics",
+        "phase_61_groove_echo_cancellation"
+      ],
+      "missing_required_executions": [],
+      "forbidden_executed": [],
+      "phase_delta_phases": [
+        "coalition:tape_transport",
+        "coalition:vinyl_disc",
+        "coalition:vocal_production",
+        "phase_01_click_removal",
+        "phase_04_eq_correction",
+        "phase_07_harmonic_restoration",
+        "phase_09_crackle_removal",
+        "phase_12_wow_flutter_fix",
+        "phase_14_phase_correction",
+        "phase_16_final_eq",
+        "phase_17_mastering_polish",
+        "phase_20_reverb_reduction",
+        "phase_23_spectral_repair",
+        "phase_26_dynamic_range_expansion",
+        "phase_28_surface_noise_profiling",
+        "phase_29_tape_hiss_reduction",
+        "phase_31_speed_pitch_correction",
+        "phase_40_loudness_normalization",
+        "phase_49_advanced_dereverb",
+        "phase_63_intermodulation_reduction"
+      ],
+      "missing_phase_deltas": [],
+      "artifact_freedom": null,
+      "artifact_contract_passed": false,
+      "hpi": 0.9736,
+      "hpi_contract_passed": true,
+      "vqi": null,
+      "vocal_required": false,
+      "vocal_contract_passed": true,
+      "export_contract_passed": true,
+      "export_strategy": "success",
+      "export_blocked": false,
+      "degradation_status": "ok",
+      "fail_reasons": [],
+      "runtime_seconds": 420.4914176464081,
+      "duration_seconds": 3.0,
+      "metadata": {
+        "path": "test_audio/vinyl/jazz_1950s_scratched.wav",
+        "material": "vinyl",
+        "sample_rate": 48000,
+        "quality_estimate": 0.6805173974537535,
+        "goal_directed_candidate_recovery": {
+          "attempted": true,
+          "initial_violations": [
+            "brillanz",
+            "transient_energie",
+            "transparenz",
+            "waerme"
+          ],
+          "p1p2_blend_applied": false,
+          "global_blend_applied": true,
+          "global_blend_alpha": 0.64,
+          "material_causal_penalties": {
+            "hpi_best_checkpoint": 0.01,
+            "best_carrier_checkpoint": 0.015,
+            "original_audio": 0.04,
+            "material_defect_consistency_flag": false,
+            "material_defect_consistency_warning_count": 0
+          },
+          "waerme_focus_rescue": {
+            "waerme_rescue_used": true,
+            "waerme_deficit_db": 2.0106357246106272,
+            "waerme_boost_db": 0.9047860760747822,
+            "waerme_spatial_guard_applied": false,
+            "waerme_spatial_blend_alpha": 1.0
+          },
+          "candidate_ranking_applied": true,
+          "candidate_ranking_best": "blend_original_audio_0.82",
+          "candidate_ranking_before": [
+            4,
+            3,
+            0,
+            0,
+            0.34897577744636904,
+            0.4483757774463691,
+            0,
+            -0.7642459296338316
+          ],
+          "candidate_ranking_after": [
+            4,
+            3,
+            0,
+            0,
+            0.34821332858219545,
+            0.4080133285821955,
+            1,
+            -0.7626106920891815
+          ],
+          "transparency_objective": 0.7911997929140419,
+          "waerme_focus_rescue_applied": false,
+          "candidate_ranking_evaluated": 10,
+          "final_violations": [
+            "brillanz",
+            "waerme",
+            "transparenz",
+            "transient_energie"
+          ],
+          "resolved_count": 0,
+          "resolved": false
+        },
+        "noise_texture_repair": null,
+        "frisson_goosebumps_recovery": null,
+        "vqi_floor": null,
+        "vqi_source": "none",
+        "sidecar_quality_gate_passed": true,
+        "sidecar_degradation_status": "ok"
+      }
+    },
+    {
+      "case_id": "real_vinyl_classical_1960s_hiss",
+      "required_phases": [
+        "phase_06_frequency_restoration",
+        "phase_29_tape_hiss_reduction",
+        "phase_03_denoise",
+        "phase_04_eq_correction"
+      ],
+      "planned_phases": [
+        "phase_12_wow_flutter_fix",
+        "phase_31_speed_pitch_correction",
+        "phase_61_groove_echo_cancellation",
+        "phase_20_reverb_reduction",
+        "phase_03_denoise",
+        "phase_60_inner_groove_distortion_repair",
+        "phase_23_spectral_repair",
+        "phase_04_eq_correction",
+        "phase_63_intermodulation_reduction",
+        "phase_07_harmonic_restoration",
+        "phase_06_frequency_restoration",
+        "phase_50_spectral_repair",
+        "phase_29_tape_hiss_reduction",
+        "phase_22_tape_saturation",
+        "phase_49_advanced_dereverb"
+      ],
+      "phases_executed": [
+        "phase_03_denoise",
+        "phase_04_eq_correction",
+        "phase_12_wow_flutter_fix",
+        "phase_20_reverb_reduction",
+        "phase_29_tape_hiss_reduction",
+        "phase_31_speed_pitch_correction",
+        "phase_49_advanced_dereverb",
+        "phase_63_intermodulation_reduction"
+      ],
+      "phases_skipped": [
+        "phase_06_frequency_restoration",
+        "phase_25_azimuth_correction",
+        "phase_26_dynamic_range_expansion",
+        "phase_54_transparent_dynamics",
+        "phase_60_inner_groove_distortion_repair",
+        "phase_61_groove_echo_cancellation"
+      ],
+      "missing_required_executions": [],
+      "forbidden_executed": [],
+      "phase_delta_phases": [
+        "coalition:tape_transport",
+        "coalition:vocal_production",
+        "phase_03_denoise",
+        "phase_04_eq_correction",
+        "phase_07_harmonic_restoration",
+        "phase_12_wow_flutter_fix",
+        "phase_14_phase_correction",
+        "phase_16_final_eq",
+        "phase_17_mastering_polish",
+        "phase_20_reverb_reduction",
+        "phase_23_spectral_repair",
+        "phase_26_dynamic_range_expansion",
+        "phase_29_tape_hiss_reduction",
+        "phase_31_speed_pitch_correction",
+        "phase_40_loudness_normalization",
+        "phase_49_advanced_dereverb",
+        "phase_63_intermodulation_reduction"
+      ],
+      "missing_phase_deltas": [],
+      "artifact_freedom": null,
+      "artifact_contract_passed": false,
+      "hpi": 0.96,
+      "hpi_contract_passed": true,
+      "vqi": null,
+      "vocal_required": false,
+      "vocal_contract_passed": true,
+      "export_contract_passed": true,
+      "export_strategy": "blocked",
+      "export_blocked": true,
+      "degradation_status": "degraded",
+      "fail_reasons": [
+        "NOISE_TEXTURE_INCOHERENT"
+      ],
+      "runtime_seconds": 266.5992753505707,
+      "duration_seconds": 3.0,
+      "metadata": {
+        "path": "test_audio/vinyl/classical_1960s_hiss.wav",
+        "material": "vinyl",
+        "sample_rate": 48000,
+        "quality_estimate": 0.7295147393166795,
+        "goal_directed_candidate_recovery": {
+          "attempted": true,
+          "initial_violations": [
+            "brillanz",
+            "transient_energie",
+            "transparenz"
+          ],
+          "p1p2_blend_applied": false,
+          "global_blend_applied": true,
+          "global_blend_alpha": 0.7,
+          "material_causal_penalties": {
+            "hpi_best_checkpoint": 0.01,
+            "best_carrier_checkpoint": 0.015,
+            "original_audio": 0.04,
+            "material_defect_consistency_flag": false,
+            "material_defect_consistency_warning_count": 0
+          },
+          "candidate_ranking_applied": false,
+          "candidate_ranking_best": "current",
+          "transparency_objective": 0.784634895498896,
+          "waerme_focus_rescue_applied": false,
+          "candidate_ranking_evaluated": 10,
+          "final_violations": [
+            "brillanz",
+            "transparenz",
+            "transient_energie"
+          ],
+          "resolved_count": 0,
+          "resolved": false
+        },
+        "noise_texture_repair": {
+          "attempted": true,
+          "initial_coherence": 0.0,
+          "material": "vinyl",
+          "applied": true,
+          "best_candidate": "hpi_best_checkpoint",
+          "final_coherence": 0.29565446282916014,
+          "resolved": false
+        },
+        "frisson_goosebumps_recovery": {
+          "attempted": true,
+          "initial_score": 0.6556,
+          "initial_transient_integrity": 0.6633,
+          "initial_micro_dynamics": 0.3769,
+          "applied": true,
+          "best_candidate": "original_audio",
+          "final_score": 0.9539,
+          "resolved": true
+        },
+        "vqi_floor": null,
+        "vqi_source": "none",
+        "sidecar_quality_gate_passed": null,
+        "sidecar_degradation_status": null
+      }
+    },
+    {
+      "case_id": "real_vinyl_rock_1970s_worn",
+      "required_phases": [
+        "phase_09_crackle_removal",
+        "phase_01_click_removal",
+        "phase_28_surface_noise_profiling",
+        "phase_06_frequency_restoration",
+        "phase_03_denoise"
+      ],
+      "planned_phases": [
+        "phase_09_crackle_removal",
+        "phase_01_click_removal",
+        "phase_28_surface_noise_profiling",
+        "phase_03_denoise",
+        "phase_04_eq_correction",
+        "phase_16_final_eq",
+        "phase_05_rumble_filter",
+        "phase_02_hum_removal",
+        "phase_29_tape_hiss_reduction",
+        "phase_23_spectral_repair",
+        "phase_63_intermodulation_reduction",
+        "phase_12_wow_flutter_fix",
+        "phase_31_speed_pitch_correction",
+        "phase_06_frequency_restoration",
+        "phase_07_harmonic_restoration"
+      ],
+      "phases_executed": [
+        "phase_01_click_removal",
+        "phase_03_denoise",
+        "phase_04_eq_correction",
+        "phase_05_rumble_filter",
+        "phase_09_crackle_removal",
+        "phase_12_wow_flutter_fix",
+        "phase_16_final_eq",
+        "phase_28_surface_noise_profiling",
+        "phase_29_tape_hiss_reduction",
+        "phase_31_speed_pitch_correction",
+        "phase_63_intermodulation_reduction",
+        "phase_49_advanced_dereverb"
+      ],
+      "phases_skipped": [
+        "phase_02_hum_removal",
+        "phase_06_frequency_restoration",
+        "phase_08_transient_preservation",
+        "phase_25_azimuth_correction",
+        "phase_26_dynamic_range_expansion"
+      ],
+      "missing_required_executions": [],
+      "forbidden_executed": [],
+      "phase_delta_phases": [
+        "coalition:tape_transport",
+        "coalition:vinyl_disc",
+        "phase_01_click_removal",
+        "phase_03_denoise",
+        "phase_04_eq_correction",
+        "phase_05_rumble_filter",
+        "phase_09_crackle_removal",
+        "phase_12_wow_flutter_fix",
+        "phase_16_final_eq",
+        "phase_28_surface_noise_profiling",
+        "phase_29_tape_hiss_reduction",
+        "phase_31_speed_pitch_correction",
+        "phase_49_advanced_dereverb",
+        "phase_63_intermodulation_reduction"
+      ],
+      "missing_phase_deltas": [],
+      "artifact_freedom": null,
+      "artifact_contract_passed": false,
+      "hpi": 0.9402,
+      "hpi_contract_passed": true,
+      "vqi": null,
+      "vocal_required": false,
+      "vocal_contract_passed": true,
+      "export_contract_passed": true,
+      "export_strategy": "blocked",
+      "export_blocked": true,
+      "degradation_status": "degraded",
+      "fail_reasons": [
+        "NOISE_TEXTURE_INCOHERENT"
+      ],
+      "runtime_seconds": 284.8631649017334,
+      "duration_seconds": 3.0,
+      "metadata": {
+        "path": "test_audio/vinyl/rock_1970s_worn.wav",
+        "material": "vinyl",
+        "sample_rate": 48000,
+        "quality_estimate": 0.6651785193274027,
+        "goal_directed_candidate_recovery": {
+          "attempted": true,
+          "initial_violations": [
+            "authentizitaet",
+            "brillanz",
+            "tonal_center",
+            "transient_energie",
+            "transparenz",
+            "waerme"
+          ],
+          "p1p2_blend_applied": true,
+          "global_blend_applied": true,
+          "p1p2_blend_alpha": 0.85,
+          "global_blend_alpha": 0.64,
+          "material_causal_penalties": {
+            "hpi_best_checkpoint": 0.01,
+            "best_carrier_checkpoint": 0.015,
+            "original_audio": 0.04,
+            "material_defect_consistency_flag": false,
+            "material_defect_consistency_warning_count": 0
+          },
+          "waerme_focus_rescue": {
+            "waerme_rescue_used": true,
+            "waerme_deficit_db": 6.7358465050214065,
+            "waerme_boost_db": 1.5,
+            "waerme_spatial_guard_applied": false,
+            "waerme_spatial_blend_alpha": 1.0
+          },
+          "candidate_ranking_applied": true,
+          "candidate_ranking_best": "hpi_best_checkpoint",
+          "candidate_ranking_before": [
+            3,
+            2,
+            0,
+            0,
+            0.19028227493094502,
+            0.5044822749309451,
+            0,
+            -0.7783550075669721
+          ],
+          "candidate_ranking_after": [
+            2,
+            2,
+            0,
+            0,
+            0.19028227493094502,
+            0.20028227493094503,
+            0,
+            -0.8111571034383943
+          ],
+          "transparency_objective": 0.7485870627660575,
+          "waerme_focus_rescue_applied": false,
+          "candidate_ranking_evaluated": 10,
+          "final_violations": [
+            "brillanz",
+            "transparenz"
+          ],
+          "resolved_count": 4,
+          "resolved": false
+        },
+        "noise_texture_repair": {
+          "attempted": true,
+          "initial_coherence": 0.3488357141060364,
+          "material": "vinyl",
+          "applied": false,
+          "best_candidate": "current",
+          "final_coherence": 0.3488357141060364,
+          "resolved": false
+        },
+        "frisson_goosebumps_recovery": null,
+        "vqi_floor": null,
+        "vqi_source": "none",
+        "sidecar_quality_gate_passed": null,
+        "sidecar_degradation_status": null
+      }
+    }
+  ],
+  "skipped_cases": [
+    {
+      "case_id": "real_tape_reel_1940s_dropout",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_tape_cassette_1980s_wow",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_digital_mp3_64kbps_artifacts",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_digital_streaming_glitches",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_vocal_choir_breaths_hiss",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_1908_caruso_rigoletto_la_donna_e_mobile",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_1911_caruso_celeste_aida",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_1916_caruso_o_sole_mio",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_1919_samuels_dance_orch_taxi",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_1922_kaufman_eddie_leonard_blues",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_1923_bessie_smith_far_away_blues",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_1923_jolson_style_dirty_hands_dirty_face",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_1924_schachmeister_slik_pinden",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_1924_two_franks_rock_a_bye_blues",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_1924_virtuoso_string_quartet_op59_no2_mvt3",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_1925_caruso_vesti_la_giubba",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_1925_covent_garden_scheherazade_pt3",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_vinyl_blues_1950s_hiss_hum",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_vinyl_soul_1970s_wow_flutter",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_vinyl_rock_1970s_clicks",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_vinyl_classical_1960s_hiss_hum_wow",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_vinyl_jazz_1960s_hiss_crackle",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_vinyl_classical_1960s_surface_noise",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_tape_country_1960s_hiss",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_tape_country_1960s_dropouts",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_tape_folk_1970s_hiss_hum",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_tape_folk_1970s_wow_flutter",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_tape_rock_1980s_hiss",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_tape_rock_1980s_dropouts_hiss",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_tape_jazz_1950s_hiss_hum",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_tape_classical_1970s_hiss",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_tape_classical_1970s_dropouts_hum",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_cassette_rock_1990s_hiss_wow",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_cassette_rock_1990s_dropouts",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_cassette_hiphop_1980s_hiss",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_cassette_hiphop_1980s_wow_flutter",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_reel_jazz_1950s_hiss_hum",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_reel_jazz_1950s_dropouts",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_reel_classical_1960s_hiss",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_reel_classical_1960s_wow_flutter",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_digital_pop_2000s_clicks",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_digital_pop_2000s_mp3_artifacts",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_digital_jazz_2010s_clicks",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_digital_jazz_2010s_mp3_artifacts",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_blues_1930s_hiss_crackle_hum",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_blues_1930s_surface_noise",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_classical_1940s_crackle",
+      "reason": "max_cases"
+    },
+    {
+      "case_id": "real_shellac_classical_1940s_hiss_hum",
+      "reason": "max_cases"
+    }
+  ],
+  "manifest_path": "/media/michael/Software 4TB/Aurik_Standalone/audit/real_audio_strategy_golden_manifest.json",
+  "scanned_cases": 3,
+  "elapsed_seconds": 977.8279428482056
+}

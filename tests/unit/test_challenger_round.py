@@ -1,4 +1,5 @@
 """Tests für scripts/challenger_round.py — Paarung, Paketbau, Entscheidungsregel."""
+
 from __future__ import annotations
 
 import sys
@@ -10,7 +11,7 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "scripts"))
 
-import challenger_round as cr  # noqa: E402
+import challenger_round as cr
 
 
 def _golden(tmp_path: Path, ids: list[str]) -> dict:

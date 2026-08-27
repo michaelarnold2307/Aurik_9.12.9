@@ -438,7 +438,7 @@ class SotaVocalModelRouter:
         energy_bias_db: float = -6.0,
         noise_snr_db: float = 0.0,
     ) -> EnhancementRouteResult:
-        """Enhance vocal stem through MIIPHER → SGMSE+ → DFN with explicit fallback metadata."""
+        """Deep-Noise-Vokal-Kette via SGMSE+/DFN (Legacy-MIIPHER-Adapter) mit expliziten Fallback-Metadaten."""
         reference = np.asarray(vocal_stem, dtype=np.float32)
         attempts: list[str] = []
         capability_report = self._capability_report()

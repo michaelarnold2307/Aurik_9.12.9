@@ -7,17 +7,15 @@ import pytest
 Stellt sicher, dass kein Anti-Pattern-Scan-Ergebnis veraltet ist:
 der Linter wird bei jedem Pytest-Lauf direkt ausgeführt und validiert.
 
-Abgedeckte Regeln (ERROR-Level):
-    V01 np.corrcoef → guarded dot-product
-    V03 boundary='reflect' → 'even'
-    V04 apply_musical_gain_envelope ohne reference_for_gate
-    V05 print() statt logger
-    V06 map_location='cuda' ohne ml_device_manager
-    V07 scipy.signal.wiener() direkt
-    V08 np.correlate O(n²)
-    V09 from Aurik10 in backend/
-    V10 load_audio_file ohne do_carrier_analysis=False
+Abgedeckte Regeln (ERROR-Level, Stand Rev. 2026-08-16, gem. .github/VERBOTEN.md):
+    V01 print() statt logger
+    V02 sf.read()/librosa.load() direkt
+    V03 map_location='cuda' ohne ml_device_manager (plugins/)
+    V04 gate_dbfs=-36.0 ohne reference_for_gate (backend/core/)
+    V05 griffinlim() als letzter ISTFT (backend/core/phases/)
+    V09 consecutive_rollbacks += in Carrier-Repair-Phase
     V12 CAUSE_TO_PHASES/CAUSES Bidirektional-Sync (§2.59)
+    V13 Duplikat-Schlüssel in _MATERIAL_PRIORITY_PHASES (F601)
 """
 
 
@@ -41,11 +39,14 @@ class TestVerbotenlLinterZeroViolations:
     def test_linter_script_exists(self) -> None:
         assert _LINTER.exists(), f"aurik_verboten_linter.py nicht gefunden: {_LINTER}"
 
-    @pytest.mark.skip(
-        reason="Bekannte V01/V08-Verstöße in Production-Code (np.corrcoef, np.correlate) — erfordert breites Refactoring"
-    )
     def test_backend_no_error_violations(self) -> None:
-        """Aktuelle ERROR-Level-Regeln des VERBOTEN-Linters: 0 Verstöße in backend/."""
+        """Aktuelle ERROR-Level-Regeln des VERBOTEN-Linters: 0 Verstöße in backend/.
+
+        Rev. 2026-08-16: Skip entfernt — die historischen V01/V08-Verstöße
+        (np.corrcoef, np.correlate) sind im Production-Code nicht mehr vorhanden,
+        der Linter meldet backend/ clean (gemessen). Vendored-Drittanbieter-Code
+        (plugins/_vendor_*) ist über SKIP_DIRS ausgenommen.
+        """
         result = subprocess.run(
             [_PYTHON, str(_LINTER), str(_ROOT / "backend")],
             capture_output=True,

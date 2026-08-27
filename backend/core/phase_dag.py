@@ -9,6 +9,7 @@ Spec: 06_phases_system.md §7.5a (v10.0.0)
 """
 
 import logging
+import re
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -251,13 +252,24 @@ def _normalize_phase_id(phase_id: str) -> str:
     return phase_id
 
 
+_PHASE_ID_RE = re.compile(r"^phase_(\d+)(?:_|$)")
+
+
 def _phase_num(pid: str) -> int:
-    """Extrahiert die Phasennummer aus einer Phase-ID (Tiebreaker für Sortierung)."""
-    try:
-        return int(pid.split("_")[1])
-    except Exception as e:
-        logger.warning("Verarbeitungsschritt_dag.py::_Verarbeitungsschritt_num Ersatzpfad: %s", e)
-        return 999
+    """Extrahiert die Phasennummer aus einer Phase-ID (Tiebreaker für Sortierung).
+
+    §III (copilot-instructions.md): `phase_glue_stage` ist die vorletzte Phase —
+    ihr Sortierschlüssel liegt hinter allen nummerierten Phasen (die exakte
+    Position regeln die HARD_BEFORE-Constraints). Unbekannte IDs erhalten den
+    neutralen Schlüssel 999. Kein Exception-Ersatzpfad (§V7 (copilot-instructions.md)):
+    Die Glue-Stage ist ein definierter Fall, kein Parse-Fehler.
+    """
+    if pid == "phase_glue_stage":
+        return 1000
+    match = _PHASE_ID_RE.match(pid)
+    if match:
+        return int(match.group(1))
+    return 999
 
 
 def sort_phases_by_dag(phase_list: list[str]) -> list[str]:

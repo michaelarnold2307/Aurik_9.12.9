@@ -1,4 +1,5 @@
 """Tests für scripts/non_inferiority_gate.py — Bootstrap-CI & fail-closed."""
+
 from __future__ import annotations
 
 import sys
@@ -10,7 +11,7 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "scripts"))
 
-import non_inferiority_gate as nig  # noqa: E402
+import non_inferiority_gate as nig
 
 
 def _verdicts(offset: float, n: int = 10) -> dict:

@@ -304,6 +304,11 @@ Exit-Codes: 0=OK, 1=Goal-Fails, 2=Pipeline-Fehler, 3=Import-Fehler
 
     # --- Debug-Importe ---
     try:
+        from backend.api.debug_api import (
+            get_debug_summary,
+            get_goal_fails,
+            get_worst_phases,
+        )
         from backend.core.pipeline_trace import (
             build_from_result,
             format_goal_deltas,
@@ -314,11 +319,6 @@ Exit-Codes: 0=OK, 1=Goal-Fails, 2=Pipeline-Fehler, 3=Import-Fehler
         )
         from backend.core.pipeline_trace import (
             format_goals_table as _fmt_goals,
-        )
-        from backend.api.debug_api import (
-            get_debug_summary,
-            get_goal_fails,
-            get_worst_phases,
         )
     except ImportError as e:
         print(f"\n✗ Debug-API Import fehlgeschlagen: {e}", file=sys.stderr)

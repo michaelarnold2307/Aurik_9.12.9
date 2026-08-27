@@ -1,6 +1,27 @@
 # Aurik 10.0.10 — Spec-Änderungshistorie
 
-> Stand: 19. Juli 2026
+> Stand: 16. August 2026
+
+## v10.0.x (16. August 2026) — ML-Fallback-Architektur & Suite-Stabilisierung
+
+- **§v10.53-Invariante**: Explizite Stärke bleibt autoritativ — §DENKER- und
+  §3.0-CrossPhase-Modulation in `_profiled_phase_call` mit `not _strength_explicit`
+  geschützt (vorher überschrieb der Consensus-Cap explizite 0.99; Spec 23-Nachtrag).
+- **ROCm/MIOpen-CPU-Fallback**: LAION-CLAP, MelBandRoformer, PANNs — bei
+  Nicht-Memory-ONNX-Fehlern einmaliger CPU-Session-Rebuild statt Ausfall.
+  Zentrale Helper `ort_run_with_cpu_fallback()` in `ml_device_manager.py`.
+- **numba-Resample-Guard**: `resampling_utils.resample_audio()` — librosa zuerst,
+  bei `get_call_template`-Defekt scipy.signal.resample_poly. Never-Pass-Through.
+  Genre-Classifier-CLAP-Pfad darauf umgestellt (§V6-Warnungen statt stiller 0.35);
+  DSP-Ersatzpfade für `_onset_rate` (Energie-Flux) und `_estimate_key` (FFT-PCP).
+- **Readiness-Vertrag**: Readiness-Checks werfen nie — Import-Ketten-Fehler
+  (numba/librosa) melden „nicht bereit“ statt CRITICAL-Selbsttest-Abbruch.
+- **EraClassifier**: Tier-1 ruft CLAP nur bei geladenem Modell (eine §V6-Warnung,
+  kein Traceback-Spam); EraResult-Label/Decade-Invariante (Snap → Label).
+- **FeedbackChain-Budget**: Formel auf Normtabelle korrigiert
+  (≤120 s/min Audio, Floor 60 s — vorher min 120 s).
+- **Suite-Stabilisierung**: 5 Flake-Klassen kanonisch gefixt (siehe
+  `.github/instructions/tests.instructions.md`, Abschnitt Test-Isolation).
 
 ## v10.10.0 (19. Juli 2026) — Preset-Learning × Selbstkalibrierung
 

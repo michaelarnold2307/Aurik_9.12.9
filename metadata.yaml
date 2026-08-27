@@ -1,0 +1,9 @@
+# Konfiguration für den Export‑Guard
+sample_rate: 44100          # Hz
+bit_depth: 24              # 16/24/32‑bit PCM
+formats:
+  - wav
+  - flac
+  - ogg
+  - caf
+batch: true               # Batch‑Export aktivieren

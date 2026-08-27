@@ -30,20 +30,12 @@ MAX_CHANNELS: int = 8
 
 def is_channels_first(arr: np.ndarray) -> bool:
     """True wenn 2-D und erste Achse die KANAL-Achse ist: (C, N) mit C ≤ 8."""
-    return bool(
-        arr.ndim == 2
-        and arr.shape[0] <= MAX_CHANNELS
-        and arr.shape[1] > MAX_CHANNELS
-    )
+    return bool(arr.ndim == 2 and arr.shape[0] <= MAX_CHANNELS and arr.shape[1] > MAX_CHANNELS)
 
 
 def is_samples_first(arr: np.ndarray) -> bool:
     """True wenn 2-D und letzte Achse die KANAL-Achse ist: (N, C) mit C ≤ 8."""
-    return bool(
-        arr.ndim == 2
-        and arr.shape[1] <= MAX_CHANNELS
-        and arr.shape[0] > MAX_CHANNELS
-    )
+    return bool(arr.ndim == 2 and arr.shape[1] <= MAX_CHANNELS and arr.shape[0] > MAX_CHANNELS)
 
 
 def sample_axis(arr: np.ndarray) -> int:

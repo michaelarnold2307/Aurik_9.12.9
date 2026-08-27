@@ -3237,16 +3237,18 @@ class DeEsserPhase(PhaseInterface):
                 # (Vokaltrakt-Länge ist konstant; F0 variiert mit Tonhöhe).
                 # Daher: Kein Confidence-Gate mehr. Wenn F1 UND F2 weiblich-typisch
                 # sind und F0 im Überlappungsbereich liegt → override auf FEMALE.
-                # §v10.119: Contralto-F0-Schwelle auf 120 Hz gesenkt (war 140).
-                # Sehr tiefe Frauenstimmen + Oktavfehler der F0-Detektion (94 Hz
-                # statt 188 Hz) wurden vorher nicht erkannt.
-                _CONTRALTO_F0_LOW = 120.0  # §v10.119: 140→120 — deckt tiefe Alte + Oktavfehler
-                _CONTRALTO_F0_HIGH = 240.0  # §v10.119: 220→240 — bis H3, deckt Mezzo ab
+                # §13.7 (13_human_ear_quality.md) + §19 (19_sota_gender_detection.md):
+                # Contralto = F0 im Überlappungsbereich + F1 UND F2 weiblich-typisch.
+                # Erweiterte Zone 120–240 Hz mit Oktavfehler-Erkennung (94→188):
+                # dokumentiert in Spec 19 „Contralto-Zonen-Erweiterung“ (2026-08-22;
+                # ersetzt das frühere dangling Zitat §v10.119).
+                _CONTRALTO_F0_LOW = 120.0  # deckt tiefe Alte + Oktavfehler ab
+                _CONTRALTO_F0_HIGH = 240.0  # bis H3, deckt Mezzo ab
                 _FEMALE_F1 = (310.0, 860.0)
                 _FEMALE_F2 = (920.0, 2790.0)
                 _contralto_detected = False
-                # §v10.119: Oktavfehler-Erkennung — wenn F0 < 120 aber 2×F0
-                # im Contralto-Bereich liegt UND F1 weiblich ist → Oktavfehler.
+                # Oktavfehler-Erkennung — wenn F0 < 120 aber 2×F0 im
+                # Contralto-Bereich liegt UND F1 weiblich ist → Oktavfehler.
                 _octave_candidate = f0 < _CONTRALTO_F0_LOW and (_CONTRALTO_F0_LOW <= 2.0 * f0 <= _CONTRALTO_F0_HIGH)
                 _effective_f0 = 2.0 * f0 if _octave_candidate else f0
                 if (
@@ -3256,36 +3258,57 @@ class DeEsserPhase(PhaseInterface):
                 ):
                     f1_in_female = _FEMALE_F1[0] <= formants[0] <= _FEMALE_F1[1]
                     f2_in_female = _FEMALE_F2[0] <= formants[1] <= _FEMALE_F2[1]
-                    # §v10.119: Bei MP3/Bandbreitenverlust ist F2 oft degradiert.
-                    # F1 allein ist dann ausreichend für Contralto-Erkennung.
-                    _f2_degraded = float(kwargs.get("bandwidth_loss", 0.0) or 0.0) > 0.5
-                    # §v10.303.11: Auch ohne bw_loss-Info: Wenn F1 weiblich (>300 Hz)
-                    # und F0 extrem tief (<120 Hz = sicherer Oktavfehler) → Contralto.
+                    # §v10.303.11 (20_erkenntnisse…): Bei MP3/Bandbreitenverlust
+                    # wird F2 unter die weibliche Schwelle gedrückt — dann ist
+                    # F1 allein ausreichend. Degradiert heißt: Messung fehlt
+                    # (< 50 Hz) oder bandwidth_loss > 0.5.
+                    _f2_missing = formants[1] < 50.0
+                    _f2_degraded = _f2_missing or float(kwargs.get("bandwidth_loss", 0.0) or 0.0) > 0.5
+                    # BUG-FIX 2026-08-22: Die Notfall-Regel (F1>300 + F0<120) darf
+                    # NUR bei degradiertem F2 greifen — eine gesunde F2-Messung
+                    # unterhalb des weiblichen Bereichs (z. B. 719 Hz = männliches
+                    # /u/-Profil) ist Evidenz FÜR male und wird nicht überstimmt.
+                    # Vorher feuerte der Override auch bei gesundem, männlich-
+                    # typischem F2 und die Meldung behauptete unmöglich
+                    # „F2=719 Hz in [920–2790]“.
                     _strong_contralto_signal = (
                         formants[0] > 300.0  # F1 im weiblichen Bereich (>300 Hz)
                         and f0 < _CONTRALTO_F0_LOW  # F0 extrem tief → Oktavfehler
+                        and _f2_degraded  # NUR im Degradationsfall (§v10.303.11)
                     )
                     if f1_in_female and (f2_in_female or _f2_degraded or _strong_contralto_signal):
                         _contralto_detected = True
                         _octave_note = f" (Oktavkorrektur: {f0:.0f}→{2.0 * f0:.0f} Hz)" if _octave_candidate else ""
+                        if f2_in_female:
+                            _formant_note = "F1+F2 weiblich-typisch"
+                        elif _f2_degraded:
+                            _formant_note = "F2 degradiert (§v10.303.11)"
+                        else:
+                            _formant_note = "Notfall-Regel"
                         logger.warning(
                             "🎤 CONTRALTO erkannt — classifier said 'male' (F0=%.0f Hz%s, "
-                            "confidence=%.2f) but formants are female-typical "
-                            "(F1=%.0f Hz in [%.0f–%.0f], F2=%.0f Hz in [%.0f–%.0f]). "
+                            "confidence=%.2f) — %s: F1=%.0f Hz in [%.0f–%.0f], "
+                            "F2=%.0f Hz %s [%.0f–%.0f]. "
                             "This is likely a deep female voice (contralto). "
                             "→ Overriding to FEMALE. Use --gender male to force male.",
                             f0,
                             _octave_note,
                             confidence,
+                            _formant_note,
                             formants[0],
                             _FEMALE_F1[0],
                             _FEMALE_F1[1],
                             formants[1],
+                            "in" if f2_in_female else "AUSSERHALB",
                             _FEMALE_F2[0],
                             _FEMALE_F2[1],
                         )
                         gender_str = VocalGender.FEMALE
-                        confidence = max(confidence, 0.65)  # Mindest-Confidence für contralto
+                        # §19/§v10.303.11: Contralto-Override auf den definierten
+                        # Mindest-Wert setzen — die Confidence des widersprochenen
+                        # 'male'-Urteils wird NICHT geerbt (Befund 2026-08-22:
+                        # „FEMALE @ 0.94“ aus einem Male-Verdikt).
+                        confidence = 0.65
 
                 # §2.9.2 Contralto-Fallback: Wenn Formanten fehlgeschlagen sind
                 # (F1≈0), aber F0 im weiblichen Überlappungsbereich liegt,

@@ -99,7 +99,7 @@ Warum ist die Funktion nützlich?
 
 - Python 3.10+
 - Git
-- (Optional) AMD GPU mit ROCm 6.x
+- (Optional) AMD GPU mit ROCm 7.2.4
 
 ### Installation
 

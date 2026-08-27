@@ -27,6 +27,9 @@ Spalten: Regel-ID | Quelle | Ohr-Grund | Prüf-Token | Implementierung | Test | 
 | §2.70 nur Erfolge | .github/instructions/pipeline.instructions.md §2.70 | Lernen aus Fehlern verschlechtert künftige Restaurierungen hörbar | restoration_memory | backend/core/restoration_memory.py | tests/unit/test_restoration_memory.py | enforced | — |
 | Golden-Set-Gate | docs/guides/GOLDEN_LISTENING_SET.md | misst das Ohr direkt; fail-closed ohne Hörurteile | non_inferiority_gate | scripts/non_inferiority_gate.py | tests/unit/test_non_inferiority_gate.py | enforced | — |
 | V01/V08 ERROR-Gate | AGENTS.md §3 | dokumentierte Production-Verstöße; ERROR-Gate-Test skipped | — | — | — | deferred | Maintainer-Sign-off nötig (AGENTS.md §3: nicht „nebenbei“ fixen) |
+| SNR<10/Codec-Task-Split | .github/specs/04_dsp_standards.md (Rev. 2026-08-15) | verhindert Task-Vertragsbruch: Deep-Noise-Vokal → SGMSE+/DFN-Legacy-Router; Codec-Degradation → DiT | miipher_deepfilternet_v3_ii | plugins/miipher_plugin.py | tests/unit/test_miipher_plugin.py | enforced | — |
+| Pitch-Hierarchie FCPE primär | .github/specs/04_dsp_standards.md (Pitch-Zeile) | CREPE (2018) ist spec-verworfen und gemessen 4× schlechter (39 % GPE) — FCPE primär | FCPE | backend/core/unified_restorer_v3.py | tests/normative/test_hybrid_release_mode.py | enforced | — |
+| Decrackle-ML verifiziert & domänenkonform | .github/specs/04_dsp_standards.md (Rev. 2026-08-16) | verhindert erfundene Modell-Zitate (RBME-Net existiert nicht) und Sprach-Modelle im Musik-Decrackle-Pfad | banquet | backend/core/phases/phase_09_crackle_removal.py | tests/unit/test_banquet_gate.py | enforced | — |
 | v10.22 Modell-Gating | .github/specs/v10.22_model_orchestration.md | per-Modell-Bypass bei Hörverschlechterung | — | — | — | deferred | Nicht implementiert; großer Eingriff, Maintainer-Sign-off |
 
 ## Hinweis: obsolete Regel-Dokumente

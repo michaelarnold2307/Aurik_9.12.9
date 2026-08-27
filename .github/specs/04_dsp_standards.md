@@ -217,7 +217,7 @@ def hz_to_mel(f_hz: float) -> float:
 | Music/Vocal Enhancement | ML: **MP-SENet 2023** ONNX | SGMSE+ ONNX → OMLSA DSP | ~~DCCRN/FullSubNet+~~ |
 | MOS (mit Referenz) | ML: **ViSQOL v3** (**`--audio` PFLICHT**) | PQS-DSP | ~~--speech Mode~~ |
 | Phasen-Rekonstruktion | DSP: **PGHI** | Griffin-Lim ≥ 32 Iter. | ~~Direkte ISTFT~~ |
-| Decrackle | ML: **RBME-Net CNN** (ONNX, Bando et al. 2023) → DSP RBME + iterative Konsistenz | Sparse Bayes | ~~Medianfilter~~ |
+| Decrackle | ML: **Banquet-Vinyl** (Band-Split/SeqBand ONNX, gemessen 5,7 dB ref_snr — Rev. 2026-08-16) | DSP RBME-artig + iterative Konsistenz + Sparse Bayes | ~~Medianfilter~~ |
 | Spektral-Matching | DSP: **Optimal Transport** | Multibänder-EQ | ~~fixe EQ-Kurve~~ |
 | Groove / Timing | DSP: **Onset-DTW (madmom RNN)** | Beat-Tracking (librosa) | ~~fixes Raster~~ |
 | Stem-Separation (Gesang, Alternativ) | ML: **HTDemucs** (Hybrid Transformer-Demucs v4, 2023) | MelBandRoformer | — |
@@ -225,18 +225,18 @@ def hz_to_mel(f_hz: float) -> float:
 | Musik-NR (spezialisiert) | ML: **AERO** (Richter et al., ICASSP 2024) → **MP-SENet 2023** | OMLSA/IMCRA | ~~DeepFilterNet ohne energy_bias~~ |
 | Langes Inpainting / Generativ | ML: **Consistency Models** (Song et al. 2023, < 3 s Latenz) → CQTdiff+ | DiffWave → NMF-β | ~~DDPM 1000 Schritte~~ |
 | Codec-Artefakte (Streaming) | ML: **Apollo v2** (Band-Splitting Mamba v2) → Apollo v1 | Spectral Repair + PGHI | ~~EQ-Anhebung~~ |
-| Stark degradierter Gesang (SNR < 10 dB) | ML: **SGMSE+ v2** (Score-Based Diffusion, Richter 2022) | DeepFilterNet v3.II + energy_bias=−6 dB → MIIPHER¹ | ~~VoiceFixer~~ |
+| Stark degradierter Gesang (SNR < 10 dB) | ML: **SGMSE+ v2** (Score-Based Diffusion, Richter 2022) | DeepFilterNet v3.II + energy_bias=−6 dB | ~~VoiceFixer~~ |
 | Latent-Space-Restaurierung / Codec | ML: **DAC** (Descript Audio Codec, Kumar et al. 2023) → EnCodec | CQTdiff+ → NMF-β | — |
 | Singer-Identity-Erhalt | ML: **Resemblyzer** (dvector, GE2E-Loss) → X-Vector | DSP Formant-Korrelation | — |
 | Vibrato-vs-Flutter-Diskriminierung | DSP: **F0-Autokorrelation** (Vibrato 4–7 Hz; Wow < 2 Hz) + FCPE | pYIN | — |
 
-> ¹ **MIIPHER-DiT** (§v10.14): Flow-Matching-DiT-Modell (806 MB ONNX, OpSet 17). **Open-Source**, ersetzt proprietäres Google MIIPHER. CPU-fähig (RT 0.1×). Route: DiT → MIIPHER(prop.) → SGMSE+ → DFN+HNR. Plugin: `plugins/miipher_dit_plugin.py`.
+> ¹ **MIIPHER-DiT** (§v10.14): Flow-Matching-DiT-Modell (806 MB ONNX, OpSet 17). **Open-Source**, ersetzt proprietäres Google MIIPHER. **Task (Rev. 2026-08-15): Codec-Degradation** — Zielmaterialien `{mp3_low, streaming, aac, minidisc}` (Gate `should_apply`); der SNR<10-Gesang-Task wird von SGMSE+ v2 getragen, nicht von der MIIPHER-Stufe. Plugin: `plugins/miipher_dit_plugin.py`.
 
 **HTDemucs / AERO / MIIPHER Auswahllogik (Normativ):**
 
 - **HTDemucs** wird als alternative Vokal-Separation aktiviert wenn: `panns_singing_confidence ≥ 0.5` UND `material_type ∈ {cd_digital, mp3_low, mp3_high, dat}` UND MelBandRoformer SDR < 7 dB auf 30-s-Probe.
 - **AERO** (Musik-spezialisiertes NR, ICASSP 2024) wird für `mode="studio_2026"` bevorzugt gegenüber DeepFilterNet wenn `genre_label ∈ {classical, jazz, acoustic}` — diese Genres profitieren von musikalisch-bewusstem NR stärker als Vocal-Prior-basiertem NR.
-- **MIIPHER** (proprietär, nicht öffentlich verfügbar) ist Last-Resort für stark degradierten Gesang (SNR < 10 dB, `restorability_score < 30`), sofern extern bereitgestellt. Es transformiert Vokal-Features in W2v-BERT-Latent-Raum — nur auf Vokal-Stem, nie auf Vollmix. Pflicht-Guard: `hallucination_guard.check_hallucination(pre, post)` nach MIIPHER-Anwendung. Wenn nicht verfügbar: `_compensate_missing_miipher()` in `sota_vocal_model_router.py` aktiviert SGMSE+-Fallback-Kette automatisch.
+- **MIIPHER-Stufe** (Rev. 2026-08-15: **Codec-Restaurierer**, nicht SNR<10-Gesang): aktiv bei `material_type ∈ {mp3_low, streaming, aac, minidisc}` und `restorability_score < 30`; Transform in W2v-BERT-Latent-Raum — nur auf Vokal-Stem, nie auf Vollmix. Pflicht-Guard: `hallucination_guard.check_hallucination(pre, post)`. Das proprietäre Original ist nicht gebündelt (Stub → DFN → Wiener); die operative Implementierung ist der offene DiT (`plugins/miipher_dit_plugin.py`). Stark degradierter Gesang (SNR < 10 dB) läuft über SGMSE+ v2 — siehe Tabelle oben.
 - **AERO/MIIPHER ONNX-Fallback**: `OMLSA/IMCRA` bei OOM oder Modell-Fehler — beide Modelle haben keinen eigenen DSP-Pass als Primär.
 
 **DAC / Consistency-Models Laufzeitvertrag (Normativ):**

@@ -98,6 +98,14 @@ def check_models(app_root: Path | None = None) -> ModelCheckResult:
     Returns:
         ModelCheckResult mit deutschsprachiger Nutzer-Meldung.
     """
+    # §Spec 24 Root-Fix: librosa VOR jedem Worker-Thread vollständig auflösen.
+    # check_models() läuft im Hauptthread, bevor der bridge-Warmup-Daemon startet
+    # (Befund 2026-08-16: parallele Erst-Importe korrumpierten numba/lazy_loader).
+    # Idempotent — kostet bei späteren Aufrufen nichts.
+    from backend.core.librosa_bootstrap import ensure_librosa_ready
+
+    ensure_librosa_ready()
+
     root = app_root or _MANIFEST_PATH.parent.parent
 
     # Manifest laden

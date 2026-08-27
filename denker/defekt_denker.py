@@ -281,11 +281,18 @@ class DefektDenker:
             except Exception as exc:
                 logger.warning("DefektDenker: scan() fehlgeschlagen (%s).", exc)
 
-        # §v10.220: Run Consensus Pipeline for enriched defect manifest
+        # §v10.220: Run Consensus Pipeline for enriched defect manifest.
+        # Denker-eigenen Scan als Seed übergeben — der defect_scanner-Detektor
+        # scannt dann NICHT erneut („kein Doppelscan“ gilt auch für die
+        # Consensus-Pipeline).
         _consensus_manifest = None
         if self._consensus is not None and scan_result is not None:
             try:
-                _consensus_manifest = self._consensus.analyze(audio, sr)
+                _consensus_manifest = self._consensus.analyze(
+                    audio,
+                    sr,
+                    precomputed_results={"defect_scanner": scan_result},
+                )
                 logger.info(
                     "DefektDenker: Consensus Manifest erstellt (%d Defekte, %d Konflikte gelöst)",
                     len(_consensus_manifest.defects) if _consensus_manifest else 0,

@@ -57,11 +57,18 @@ def _provider_names(providers: list) -> list[str]:
 
 
 def _make_manager_cpu_only() -> MLDeviceManager:
-    """Erstellt einen MLDeviceManager im CPU-only-Modus (kein GPU detektiert)."""
+    """Erstellt einen MLDeviceManager im CPU-only-Modus (kein GPU detektiert).
+
+    ALLE GPU-Detektionspfade werden gepatcht — deterministisch unabhängig vom
+    Host-Zustand: der MIGraphX-Bridge-Pfad (_detect_migraphx_bridge) erkennt
+    AMD-GPUs ohne ONNX-ROCm-EP und lief in Full-Suite-Läufen bei warmem
+    ROCm-State an → order-/umgebungsabhängige Flakes (Spec 07, TEST-DESIGN).
+    """
     from backend.core.ml_device_manager import MLDeviceManager
 
     with (
         patch("backend.core.ml_device_manager.MLDeviceManager._detect_cuda_or_rocm"),
+        patch("backend.core.ml_device_manager.MLDeviceManager._detect_migraphx_bridge"),
         patch("backend.core.ml_device_manager.MLDeviceManager._detect_directml"),
     ):
         mgr = MLDeviceManager()

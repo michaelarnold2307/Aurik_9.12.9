@@ -97,13 +97,24 @@ def get_mode_green_zone(mode=""):
     return dict(GREEN_ZONE_STUDIO2026) if "studio" in m or "2026" in m else dict(GREEN_ZONE_RESTORATION)
 
 
-def find_sweet_spot(audio: np.ndarray, sr: int, *, genre: str = "unknown") -> SweetSpotResult:
+def find_sweet_spot(
+    audio: np.ndarray,
+    sr: int,
+    *,
+    genre: str = "unknown",
+    reference: np.ndarray | None = None,
+) -> SweetSpotResult:
     """Findet den Sweet Spot — alle Metriken gleichzeitig bewerten.
 
     Args:
         audio:  Mono oder Stereo Audio
         sr:     Sample-Rate
         genre:  Optionales Genre
+        reference: Optionales Original-Signal (Pre-Restaurierung). Ist es
+            gegeben, werden die drei vererbbaren Metriken (Kammfilter,
+            Kompression, Maskierung) BASELINE-RELATIV bewertet: geerbte
+            Original-Artefakte (Vinyl-Rotation, mp3_low-Quelle) werden der
+            Pipeline nicht als Verschlechterung angelastet.
 
     Returns:
         SweetSpotResult mit Gesamtbewertung und allen Detail-Metriken
@@ -128,15 +139,48 @@ def find_sweet_spot(audio: np.ndarray, sr: int, *, genre: str = "unknown") -> Sw
     musical_comp = _check_musical_compression(mono, sr)
     masking = _check_frequency_masking(mono, sr)
 
+    # §Spec 24 (Root-Fix 2026-08-16): Baseline-relative Bewertung der drei
+    # vererbbaren Metriken. Vinyl-Rotation/mp3_low-Quellen HABEN inhärente
+    # Kammfilter-/Kompressions-/Maskierungs-Artefakte — ohne Baseline bestraft
+    # der Score die Pipeline für geerbtes Material und der SweetSpot-Loop
+    # dreht leer (Befund: comb=0.10, 3 Iterationen ohne Fortschritt).
+    _inherited: dict[str, bool] = {}
+    if reference is not None:
+        _ref_arr = np.asarray(reference, dtype=np.float64)
+        if _ref_arr.ndim == 2:
+            _ref_mono = _ref_arr.mean(axis=1) if _ref_arr.shape[1] <= 2 else _ref_arr.mean(axis=0)
+        else:
+            _ref_mono = _ref_arr
+        _ref_mono = np.atleast_1d(_ref_mono).ravel()
+        if _ref_mono.size >= 4096:
+            _ref_comb = _check_comb_filter(_ref_mono, sr)
+            _ref_comp = _check_musical_compression(_ref_mono, sr)
+            _ref_mask = _check_frequency_masking(_ref_mono, sr)
+            _REL_TOL = 0.08  # Toleranz: Pipeline darf max. 0.08 schlechter sein
+            _inherited["comb_filter"] = comb_filter >= _ref_comb - _REL_TOL
+            _inherited["musical_compression"] = musical_comp >= _ref_comp - _REL_TOL
+            _inherited["masking_health"] = masking >= _ref_mask - _REL_TOL
+
+    # Effektive Score-Werte: geerbte Artefakte nicht bestrafen — die Zone
+    # zählt mit Grünzone-Wert, der Messwert bleibt im Resultat ehrlich sichtbar.
+    _comb_eff = comb_filter if not _inherited.get("comb_filter") else max(comb_filter, GREEN_ZONE["comb_filter"])
+    _comp_eff = (
+        musical_comp
+        if not _inherited.get("musical_compression")
+        else max(musical_comp, GREEN_ZONE["musical_compression"])
+    )
+    _mask_eff = masking if not _inherited.get("masking_health") else max(masking, GREEN_ZONE["masking_health"])
+
     # ── Grünzone-Check ──
     greens = {
         "hpe": hpe >= GREEN_ZONE["hpe"],
         "inviting": inviting >= GREEN_ZONE["inviting"],
         "transparency": transparency >= GREEN_ZONE["transparency"],
         "goosebumps": goosebumps >= GREEN_ZONE["goosebumps"],
-        "comb_filter": comb_filter >= GREEN_ZONE["comb_filter"],
-        "musical_compression": musical_comp >= GREEN_ZONE["musical_compression"],
-        "masking_health": masking >= GREEN_ZONE["masking_health"],
+        "comb_filter": comb_filter >= GREEN_ZONE["comb_filter"] or _inherited.get("comb_filter", False),
+        "musical_compression": musical_comp >= GREEN_ZONE["musical_compression"]
+        or _inherited.get("musical_compression", False),
+        "masking_health": masking >= GREEN_ZONE["masking_health"] or _inherited.get("masking_health", False),
         "spectral_color": spectral_color >= GREEN_ZONE["spectral_color"],
         "microdynamics": microdynamics >= GREEN_ZONE["microdynamics"],
     }
@@ -152,9 +196,9 @@ def find_sweet_spot(audio: np.ndarray, sr: int, *, genre: str = "unknown") -> Sw
             + inviting * 0.20
             + transparency * 0.15
             + goosebumps * 0.10
-            + comb_filter * 0.10
-            + musical_comp * 0.10
-            + masking * 0.10
+            + _comb_eff * 0.10
+            + _comp_eff * 0.10
+            + _mask_eff * 0.10
             + spectral_color * 0.05
             + microdynamics * 0.05,
             0.0,
@@ -172,11 +216,11 @@ def find_sweet_spot(audio: np.ndarray, sr: int, *, genre: str = "unknown") -> Sw
         warnings.append(f"Künstlicher Klang ({transparency:.2f})")
     if not greens["goosebumps"]:
         warnings.append(f"Emotional flach ({goosebumps:.2f})")
-    if not greens["comb_filter"]:
+    if not greens["comb_filter"] and not _inherited.get("comb_filter"):
         warnings.append(f"Kammfilter-Artefakte ({comb_filter:.2f})")
-    if not greens["musical_compression"]:
+    if not greens["musical_compression"] and not _inherited.get("musical_compression"):
         warnings.append(f"Bösartige Kompression ({musical_comp:.2f})")
-    if not greens["masking_health"]:
+    if not greens["masking_health"] and not _inherited.get("masking_health"):
         warnings.append(f"Frequenz-Maskierung ({masking:.2f})")
     if not greens["spectral_color"]:
         warnings.append(f"Klangfarbe veraendert ({spectral_color:.2f})")

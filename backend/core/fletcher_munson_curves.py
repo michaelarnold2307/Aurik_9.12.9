@@ -245,15 +245,24 @@ class EqualLoudnessContour:
         freq_hz = np.clip(freq_hz, self.frequencies[0], self.frequencies[-1])
 
         # Interpolate (log-space for frequency)
-        interpolator = interp1d(
-            np.log10(self.frequencies),
-            self.spl_levels,
-            kind="linear",  # Changed from cubic to linear (more stable)
-            fill_value="extrapolate",
-            bounds_error=False,
-        )
-        spl = float(interpolator(np.log10(freq_hz)))
-        return spl
+        # §Perf: interp1d-Instanz pro Contour nur EINMAL bauen und cachen —
+        # get_correction_curve() ruft diese Methode pro Frequenzpunkt (bis zu
+        # 288k Aufrufe pro phase_40-Lauf). Vorher: 67,8 s reine Interpolator-
+        # Konstruktion. Identische Werte, nur ohne Wiederaufbau.
+        interpolator = getattr(self, "_spl_interpolator_cache", None)
+        if interpolator is None:
+            interpolator = interp1d(
+                np.log10(self.frequencies),
+                self.spl_levels,
+                kind="linear",  # Changed from cubic to linear (more stable)
+                fill_value="extrapolate",
+                bounds_error=False,
+            )
+            self._spl_interpolator_cache = interpolator
+        _spl_vals = interpolator(np.log10(freq_hz))
+        if isinstance(freq_hz, np.ndarray):
+            return np.asarray(_spl_vals, dtype=float)  # type: ignore[no-any-return]
+        return float(_spl_vals)
 
     def get_relative_loudness_curve(self, reference_freq: float = 1000.0) -> np.ndarray:
         """
@@ -394,8 +403,12 @@ class FletcherMunsonProcessor:
         reference_contour = self.get_contour(reference_phon)
 
         # Interpolate to requested frequencies
-        target_spl = np.array([target_contour.get_spl_at_frequency(f) for f in frequencies])
-        reference_spl = np.array([reference_contour.get_spl_at_frequency(f) for f in frequencies])
+        # §Perf: Vektorisiert über den gecachten Interpolator statt 288k Einzel-
+        # Aufrufe mit je einer interp1d-Konstruktion (vorher ~22,6 s _evaluate
+        # + 32,3 s __init__ pro phase_40). Werte identisch: derselbe Interpolator,
+        # dieselben Stützstellen.
+        target_spl = np.asarray(target_contour.get_spl_at_frequency(frequencies))
+        reference_spl = np.asarray(reference_contour.get_spl_at_frequency(frequencies))
 
         # Correction = difference in SPL
         # If target < reference: bass needs boost, treble needs boost

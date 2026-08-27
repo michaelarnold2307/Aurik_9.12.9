@@ -50,6 +50,17 @@ def _audio_tags_cache_key(audio: np.ndarray, sr: int) -> str:
 
 logger = logging.getLogger(__name__)
 
+# ROCm-MIOpen-Prozess-Latch: Der MIOpen-Pooling-Kernel-Build schlägt auf
+# gfx1100 (RX 7900 XTX) reproduzierbar fehl ("Code object build failed",
+# miopenStatusUnknownError). Das ist eine UMWELT-Fähigkeit, kein Song-Zustand —
+# §V8 (copilot-instructions.md) Song-Isolation bleibt unberührt: Der Latch gilt
+# pro Prozess (nicht pro Song) und trifft keine Audio-Entscheidung, sondern nur
+# die Provider-Wahl. Nach dem ersten Fehler bauen ALLE weiteren
+# PANNs-Instanzen in diesem Prozess direkt eine CPU-Session — kein erneuter
+# GPU-Versuch, kein MIOpen-Log-Spam (Befund 2026-08-22: Fehler wiederholte
+# sich bei jeder neuen Plugin-Instanz).
+_MIOPEN_POOL_FAILED_THIS_PROCESS: bool = False
+
 # ---------------------------------------------------------------------------
 # AudioSet-527-Klassen — Tag-Name → Indizes in clipwise_output[527]
 # Quelle: models/clap/class_labels/audioset_class_labels_indices.json
@@ -161,7 +172,7 @@ class PANNsPlugin(MLPluginBase):  # §A2
                 # Prüfe auf fp16-Unterstützung (ab Compute Capability 5.3 bzw. Volta+)
                 fp16_ok = torch.cuda.get_device_capability(0)[0] >= 7
                 logger.info(
-                    "PANNs GPU: CUDA erkannt (berechnen Capability %s), fp16=%s",
+                    "PANNs GPU: CUDA/ROCm erkannt (capability=%s), fp16=%s",
                     torch.cuda.get_device_capability(0),
                     fp16_ok,
                 )
@@ -212,18 +223,34 @@ class PANNsPlugin(MLPluginBase):  # §A2
 
                 _providers = _get_prov("PANNs")
             except Exception:
-                # Build provider list with GPU preference
+                # §v10.304 GPU-Provider-Fallback: HIP-Backend = ROCm-EP, sonst CUDA-EP.
                 _providers = []
                 if device == "cuda":
-                    _providers.append("CUDAExecutionProvider")
+                    try:
+                        import torch as _torch_probe
+
+                        _is_hip = bool(getattr(_torch_probe.version, "hip", None))
+                    except Exception:
+                        _is_hip = False
+                    _providers.append("ROCMExecutionProvider" if _is_hip else "CUDAExecutionProvider")
                 _providers.append("CPUExecutionProvider")
+
+            if _MIOPEN_POOL_FAILED_THIS_PROCESS and device == "cuda":
+                logger.info(
+                    "PANNs ONNX: MIOPEN-Pooling in diesem Prozess als defekt erkannt — "
+                    "CPU-Inferenz für alle weiteren PANNs-Sessions (Prozess-Latch)"
+                )
+                device = "cpu"
+                self._device = "cpu"
+                self._use_fp16 = False
+                _providers = ["CPUExecutionProvider"]
 
             # ONNX Session options for GPU optimization
             sess_options = ort.SessionOptions()
             if device == "cuda":
                 # Enable graph optimization for GPU
                 sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-                logger.info("PANNs ONNX: GPU-Inferenz aktiviert (CUDAExecutionProvider)")
+                logger.info("PANNs ONNX: GPU-Inferenz angefordert (providers=%s)", _providers)
             else:
                 sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
                 logger.info("PANNs ONNX: CPU-Inferenz")
@@ -233,6 +260,16 @@ class PANNsPlugin(MLPluginBase):  # §A2
                 sess_options=sess_options,
                 providers=_providers,
             )
+            _active_providers = self._session.get_providers()
+            if device == "cuda" and not any(
+                "CUDAExecutionProvider" in _p or "ROCMExecutionProvider" in _p for _p in _active_providers
+            ):
+                # §V6 (copilot-instructions.md): GPU angefordert, ORT still auf CPU zurückgefallen — nie still.
+                logger.warning(
+                    "PANNs: GPU-Inferenz angefordert (%s), aber Session nutzt nur %s — Provider-Fallback (§v10.304)",
+                    _providers,
+                    _active_providers,
+                )
             logger.info(
                 "panns_plugin: CNN14 ONNX model geladen (%s, device=%s, fp16=%s, §4.4 primary genre/tagging)",
                 self._ONNX_PATH.name,
@@ -394,6 +431,26 @@ class PANNsPlugin(MLPluginBase):  # §A2
     # Haupt-Inferenz-Methode
     # ------------------------------------------------------------------
 
+    def _build_cpu_session(self) -> object | None:
+        """ROCm-Fallback: Session CPU-only neu aufbauen (MIOpen-Kernel-Fehler).
+
+        Returns:
+            Neue CPU-Session oder None bei Fehlschlag.
+        """
+        try:
+            import onnxruntime as ort
+
+            _sess_opts = ort.SessionOptions()
+            _sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
+            return ort.InferenceSession(
+                str(self._ONNX_PATH),
+                sess_options=_sess_opts,
+                providers=["CPUExecutionProvider"],
+            )
+        except Exception as _exc:
+            logger.warning("PANNs: CPU-Session-Rebuild fehlgeschlagen: %s", _exc)
+            return None
+
     def get_tags(self, audio: np.ndarray, sr: int) -> dict[str, float]:
         """Gibt Konfidenz-Dict zurück (Tag-Name → Score ∈ [0, 1]).
 
@@ -456,10 +513,36 @@ class PANNsPlugin(MLPluginBase):  # §A2
 
             # Primär-Inferenz: Mitte (position_ratio=0.5)
             model_input = self._to_model_input(audio, sr, position_ratio=0.5)
-            ort_out = self._session.run(  # type: ignore[attr-defined]
-                None,
-                {self._session.get_inputs()[0].name: model_input},  # type: ignore[attr-defined]
-            )
+            try:
+                ort_out = self._session.run(  # type: ignore[attr-defined]
+                    None,
+                    {self._session.get_inputs()[0].name: model_input},  # type: ignore[attr-defined]
+                )
+            except Exception as _ort_exc:
+                # §ROCm-Fallback: MIOpen-Kernel-Fehler (AveragePool, "Code object
+                # build failed") → Session CPU-only neu aufbauen und EINMAL
+                # wiederholen. Sonst: PANNs tags: {} — Singing/Genre-Erkennung
+                # fällt aus und degradiert alle panns_singing-Guards.
+                global _MIOPEN_POOL_FAILED_THIS_PROCESS
+                _is_miopen = "miopen" in str(_ort_exc).lower()
+                if _is_miopen:
+                    _MIOPEN_POOL_FAILED_THIS_PROCESS = True
+                logger.warning(
+                    "PANNs: ONNX-Inferenz fehlgeschlagen (%s) — CPU-Fallback-Retry%s",
+                    _ort_exc,
+                    " (MIOPEN defekt — Prozess-Latch gesetzt)" if _is_miopen else "",
+                )
+                _cpu_sess = self._build_cpu_session()
+                if _cpu_sess is None:
+                    raise
+                self._session = _cpu_sess
+                self._device = "cpu"
+                self._use_fp16 = False
+                model_input = self._to_model_input(audio, sr, position_ratio=0.5)
+                ort_out = self._session.run(  # type: ignore[attr-defined]
+                    None,
+                    {self._session.get_inputs()[0].name: model_input},  # type: ignore[attr-defined]
+                )
             scores: np.ndarray = ort_out[0][0].copy()  # [527] float32
 
             # Multi-Window-Fallback: nur wenn Singing-Score < 0.35 UND Song > 20 s bei Model-SR

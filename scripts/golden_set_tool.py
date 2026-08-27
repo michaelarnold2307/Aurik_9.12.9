@@ -14,6 +14,7 @@ Usage:
 
 Exit-Codes: 0 = PASS, 1 = FAIL (Format/Coverage), 2 = BLOCKED (keine Hörurteile)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -195,9 +196,7 @@ def classify_item(item: dict[str, Any]) -> None:
         _rs = float(getattr(_res, "restorability_score", float("nan")))
         item["detected_restorability_score"] = int(round(_rs)) if np.isfinite(_rs) else None
     except Exception:
-        logger.debug(
-            "golden_set_tool: Restorability fehlgeschlagen für %s", item.get("id"), exc_info=True
-        )
+        logger.debug("golden_set_tool: Restorability fehlgeschlagen für %s", item.get("id"), exc_info=True)
         item["detected_restorability_score"] = None
     try:
         # §9.4 Anti-Parallelwelten: die kanonische Implementierung liegt im
@@ -222,9 +221,7 @@ def classify_item(item: dict[str, Any]) -> None:
         _depth = int(len(getattr(_chain, "transfer_chain", []) or []))
         item["detected_depth"] = "4+" if _depth >= 4 else str(_depth)
     except Exception:
-        logger.debug(
-            "golden_set_tool: MediumDetector fehlgeschlagen für %s", item.get("id"), exc_info=True
-        )
+        logger.debug("golden_set_tool: MediumDetector fehlgeschlagen für %s", item.get("id"), exc_info=True)
         item["detected_material"] = None
         item["detected_confidence"] = None
         item["detected_depth"] = None
@@ -233,8 +230,7 @@ def classify_item(item: dict[str, Any]) -> None:
     det_mat = str(item.get("detected_material") or "").lower()
     if det_mat and corpus_mat and det_mat != corpus_mat:
         issues.append(
-            f"Material-Mismatch: Corpus={corpus_mat}, Detektor={det_mat}"
-            f" (conf={item.get('detected_confidence')})"
+            f"Material-Mismatch: Corpus={corpus_mat}, Detektor={det_mat} (conf={item.get('detected_confidence')})"
         )
     item["classification_issues"] = issues
     item["classification_verified"] = False
@@ -313,9 +309,7 @@ def verify_all(
     done: list[dict[str, Any]] = []
     skipped: list[tuple[str, list[str]]] = []
     for it in items:
-        problems = verify_item(
-            it, verified_by=verified_by, accept_detected=accept_detected, force=force
-        )
+        problems = verify_item(it, verified_by=verified_by, accept_detected=accept_detected, force=force)
         if problems:
             skipped.append((str(it.get("id")), problems))
         else:
@@ -337,8 +331,8 @@ def curation_report(manifest: dict[str, Any]) -> dict[str, Any]:
 
 def coverage_report(manifest: dict[str, Any]) -> dict[str, Any]:
     items = manifest.get("items", [])
-    mat_counts = {m: 0 for m in MATERIALS}
-    depth_counts = {d: 0 for d in DEPTH_CLASSES}
+    mat_counts = dict.fromkeys(MATERIALS, 0)
+    depth_counts = dict.fromkeys(DEPTH_CLASSES, 0)
     problems: list[str] = []
     for it in items:
         mid = str(it.get("id", "?"))
@@ -357,9 +351,7 @@ def coverage_report(manifest: dict[str, Any]) -> dict[str, Any]:
         if dep in depth_counts:
             depth_counts[dep] += 1
         else:
-            problems.append(
-                f"{mid}: fehlende/unbekannte Depth-Klasse {dep!r} (erlaubt: {DEPTH_CLASSES})"
-            )
+            problems.append(f"{mid}: fehlende/unbekannte Depth-Klasse {dep!r} (erlaubt: {DEPTH_CLASSES})")
     if len(items) < MIN_ITEMS_TOTAL:
         problems.append(f"nur {len(items)} Items (< {MIN_ITEMS_TOTAL})")
     for m in MATERIALS:
@@ -414,13 +406,71 @@ def check(path: Path) -> tuple[int, dict[str, Any]]:
     return code, report
 
 
+def crosscheck(path: Path) -> dict[str, Any]:
+    """Empfehlung 9: Flacher Klassifikator vs. MediumDetector vs. kuratierte Labels.
+
+    Misst auf den verifizierten Manifest-Items die Übereinstimmung beider
+    Schätzer mit der kuratierten Wahrheit — deterministisch, ohne Modelle zu
+    verändern. Ohne Artefakt (models/medium_shallow_v1.joblib) → Fehlertext.
+    """
+    import joblib
+
+    manifest = load_manifest(path)
+    art_path = _ROOT / "models" / "medium_shallow_v1.joblib"
+    if not art_path.exists():
+        return {"error": f"Artefakt fehlt: {art_path} (erst scripts/train_medium_classifier.py ausführen)"}
+    sys.path.insert(0, str(_ROOT / "scripts"))
+    import train_medium_classifier as tm
+
+    art = joblib.load(str(art_path))
+    n = det_mat_ok = shallow_mat_ok = det_dep_ok = shallow_dep_ok = 0
+    for it in manifest.get("items", []):
+        if it.get("classification_verified") is not True:
+            continue
+        loaded = _load_audio(str(it["path"]))
+        if loaded is None:
+            continue
+        audio = loaded[0]
+        feats = tm.extract_features(audio)
+        era = float(it.get("era_year") or 0.0)
+        feats = np.concatenate([feats, np.asarray([era, era // 10.0 * 10.0], dtype=np.float32)]).reshape(1, -1)
+        n += 1
+        if it.get("detected_material") == it.get("material"):
+            det_mat_ok += 1
+        if it.get("detected_depth") == it.get("depth"):
+            det_dep_ok += 1
+        if str(art["material"]["model"].predict(feats)[0]) == str(it.get("material")):
+            shallow_mat_ok += 1
+        if str(art["depth"]["model"].predict(feats)[0]) == str(it.get("depth")):
+            shallow_dep_ok += 1
+    return {
+        "n_verified": n,
+        "medium_detector_agreement": {
+            "material": round(det_mat_ok / n, 4) if n else None,
+            "depth": round(det_dep_ok / n, 4) if n else None,
+        },
+        "shallow_train_agreement": {
+            # Achtung: Trainings-Set-Leakage — der Klassifikator wurde auf
+            # diesen Items gefittet. Die ehrlichen Werte sind cv_accuracy.
+            "material": round(shallow_mat_ok / n, 4) if n else None,
+            "depth": round(shallow_dep_ok / n, 4) if n else None,
+        },
+        "shallow_cv_accuracy": {
+            "material": round(float(art["material"]["cv"]["accuracy"]), 4),
+            "depth": round(float(art["depth"]["cv"]["accuracy"]), 4),
+        },
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Golden Listening Set — Manifest & Coverage")
     sub = parser.add_subparsers(dest="command", required=True)
     p_init = sub.add_parser("init", help="Manifest aus Corpus-Verzeichnis erzeugen")
     p_init.add_argument("--corpus", type=Path, required=True)
     p_init.add_argument("--classify", action="store_true", help="Depth/Restorability detektieren")
-    p_init.add_argument("--subdir", nargs="+", default=None, help="nur diese Unterverzeichnisse scannen (z. B. damaged)")
+    p_init.add_argument(
+        "--subdir", nargs="+", default=None, help="nur diese Unterverzeichnisse scannen (z. B. damaged)"
+    )
     p_init.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     p_check = sub.add_parser("check", help="Coverage + Hörurteile prüfen (fail-closed)")
     p_check.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
@@ -433,6 +483,8 @@ def main(argv: list[str] | None = None) -> int:
     p_ver.add_argument("--force", action="store_true", help="accept-detected trotz Material-Mismatch")
     p_ver.add_argument("--verified-by", required=True, help="Name des Kurators (Audit-Trail)")
     p_ver.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
+    p_cross = sub.add_parser("crosscheck", help="Flacher Klassifikator vs. MediumDetector vs. kuratierte Labels")
+    p_cross.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     p_status = sub.add_parser("status", help="Kurzstatus ausgeben")
     p_status.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     args = parser.parse_args(argv)
@@ -458,6 +510,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(report, indent=2, ensure_ascii=False))
         return code
 
+    if args.command == "crosscheck":
+        print(json.dumps(crosscheck(args.manifest), indent=2, ensure_ascii=False))
+        return 0
+
     if args.command == "verify":
         manifest = load_manifest(args.manifest)
         items = manifest.setdefault("items", [])
@@ -465,9 +521,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.accept_detected:
                 print("--all erfordert --accept-detected (sonst einzeln kurieren)", file=sys.stderr)
                 return 1
-            done, skipped = verify_all(
-                items, verified_by=args.verified_by, accept_detected=True, force=args.force
-            )
+            done, skipped = verify_all(items, verified_by=args.verified_by, accept_detected=True, force=args.force)
             print(f"kuriert: {len(done)}, verweigert: {len(skipped)}")
             for iid, probs in skipped:
                 print(f"  {iid}: {probs}")

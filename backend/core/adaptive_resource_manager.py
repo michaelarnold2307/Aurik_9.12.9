@@ -67,13 +67,30 @@ class AdaptiveResourceManager:
         self._monitor_thread: threading.Thread | None = None
         self._stop_event: threading.Event | None = None
         self.use_lightweight = False  # Fallback-Flag
+        # §Perf: get_cpu_usage() wurde im Fast-Mode-Gate 277×/Lauf aufgerufen
+        # (27,4 s). psutil.cpu_percent(interval=None) kostet ~0,1–0,3 s pro Aufruf
+        # (cpu_times-/proc-Read auf belastetem Desktop). CPU-Last ändert sich im
+        # Sekundenbereich nicht relevant — 5-s-Cache liefert dieselben adaptiven
+        # Entscheidungen (Lightweight-Mode-Wechsel sind Minuten-Entscheidungen).
+        self._cpu_cache_value: float | None = None
+        self._cpu_cache_ts: float = 0.0
+        self._CPU_CACHE_TTL = 5.0  # Sekunden
+        self._mem_cache_value: float | None = None
+        self._mem_cache_ts: float = 0.0
+        self._MEM_CACHE_TTL = 5.0  # Sekunden
         logger.info("AdaptiveResourceManager initialisiert: %s-%s cores", self.min_cores, self.max_cores)
 
     def get_cpu_usage(self) -> float:
         """Gibt zurück: current CPU usage percentage."""
         if psutil:
+            # §Perf: 5-s-Cache — identische Entscheidungsgrundlage, kein Polling-Sturm.
+            _now = time.monotonic()
+            if self._cpu_cache_value is not None and (_now - self._cpu_cache_ts) < self._CPU_CACHE_TTL:
+                return float(self._cpu_cache_value)
             # interval=None: non-blocking, gibt Wert seit letztem Aufruf zurück
-            return float(psutil.cpu_percent(interval=None))
+            self._cpu_cache_value = float(psutil.cpu_percent(interval=None))
+            self._cpu_cache_ts = _now
+            return float(self._cpu_cache_value)
         else:
             return 0.0  # Fallback: keine Überwachung
 
@@ -81,7 +98,14 @@ class AdaptiveResourceManager:
         """Gibt zurück: current system memory usage percentage."""
         if psutil:
             try:
-                return float(psutil.virtual_memory().percent)
+                # §Perf: 5-s-Cache wie bei get_cpu_usage — virtual_memory()
+                # kostete im Gate-Profil 11,4 s (390 Aufrufe).
+                _now = time.monotonic()
+                if self._mem_cache_value is not None and (_now - self._mem_cache_ts) < self._MEM_CACHE_TTL:
+                    return float(self._mem_cache_value)
+                self._mem_cache_value = float(psutil.virtual_memory().percent)
+                self._mem_cache_ts = _now
+                return float(self._mem_cache_value)
             except AttributeError:
                 return 0.0  # Mock-Objekt ohne .percent (z. B. in Tests)
         else:

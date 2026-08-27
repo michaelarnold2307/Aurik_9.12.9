@@ -148,14 +148,19 @@ except (RuntimeError, MemoryError):
     result = _dsp_fallback(audio, sr)
 ```
 
-## MIIPHER-Fallback (SNR < 10 dB + Gesang)
+## MIIPHER-Fallback (Codec-Degradation — Spec 04 Rev. 2026-08-15)
+
+Die MIIPHER-Stufe ist Codec-Restaurierer (`mp3_low`/`streaming`/`aac`/`minidisc`).
+Stark degradierter Gesang (SNR < 10 dB) läuft über SGMSE+ v2, nicht über MIIPHER.
+Legacy-Pfad des alten Plugins (operative Implementierung ist der offene DiT,
+`plugins/miipher_dit_plugin.py`, Gate `should_apply`):
 
 ```python
 from plugins.miipher_plugin import get_miipher_plugin
 
-if noise_snr_db < 10.0 and panns_singing >= 0.35:
+if material_type in {"mp3_low", "streaming", "aac", "minidisc"} and panns_singing >= 0.35:
     miipher = get_miipher_plugin()
-    if miipher.should_activate(noise_snr_db, panns_singing):
+    if miipher.should_activate(material_type, panns_singing):
         audio_pre_miipher = audio.copy()  # für HNR-Blend-Referenz
         audio = miipher.enhance(audio, sr)
         # Intern: Stub → DeepFilterNet(-6dB) → Wiener-Fallback

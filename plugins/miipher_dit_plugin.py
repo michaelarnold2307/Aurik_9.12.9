@@ -162,7 +162,11 @@ class MiipherDiTPlugin:
             _providers = ["CPUExecutionProvider"]
             if ort is not None:
                 _available = ort.get_available_providers()
-                if "CUDAExecutionProvider" in _available:
+                if "ROCMExecutionProvider" in _available:
+                    # §v10.304: ROCm-EP vor CUDA-EP — AMD-Systeme liefern CUDA-EP nie.
+                    _providers = ["ROCMExecutionProvider", "CPUExecutionProvider"]
+                    self._device = "cuda"
+                elif "CUDAExecutionProvider" in _available:
                     _providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
                     self._device = "cuda"
 

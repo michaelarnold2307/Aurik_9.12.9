@@ -1,4 +1,5 @@
 """Tests für scripts/golden_set_tool.py — Coverage-Quoten & fail-closed-Verhalten."""
+
 from __future__ import annotations
 
 import sys
@@ -9,7 +10,7 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_ROOT / "scripts"))
 
-import golden_set_tool as gst  # noqa: E402
+import golden_set_tool as gst
 
 
 def _make_item(tmp_path: Path, mid: str, material: str, depth: str) -> dict:
@@ -26,11 +27,7 @@ def _make_item(tmp_path: Path, mid: str, material: str, depth: str) -> dict:
 
 
 def _full_items(tmp_path: Path) -> list[dict]:
-    return [
-        _make_item(tmp_path, f"{m}_{d}", m, d)
-        for m in gst.MATERIALS
-        for d in gst.DEPTH_CLASSES
-    ]
+    return [_make_item(tmp_path, f"{m}_{d}", m, d) for m in gst.MATERIALS for d in gst.DEPTH_CLASSES]
 
 
 def test_check_fails_on_insufficient_coverage(tmp_path: Path) -> None:
@@ -105,6 +102,31 @@ def test_scan_corpus_subdir_filter_excludes_clean_and_nonmaterials(tmp_path: Pat
     items = gst.scan_corpus(corpus, subdirs=("damaged",))
     assert [i["id"] for i in items] == ["vinyl_01"]
     assert items[0]["material"] == "vinyl"
+
+
+def test_crosscheck_single_item(tmp_path: Path) -> None:
+    """crosscheck misst beide Schätzer gegen die kuratierten Labels (Empfehlung 9)."""
+    import json
+
+    pytest.importorskip("joblib")
+    art = _ROOT / "models" / "medium_shallow_v1.joblib"
+    if not art.exists():
+        pytest.skip("Artefakt fehlt — erst scripts/train_medium_classifier.py ausführen")
+    golden = json.loads((_ROOT / "audit" / "golden_listening_set.json").read_text(encoding="utf-8"))
+    it = golden["items"][0]
+    manifest = {
+        "items": [
+            {k: it[k] for k in ("id", "path", "material", "depth", "era_year", "detected_material", "detected_depth")}
+            | {"classification_verified": True}
+        ]
+    }
+    mp = tmp_path / "m.json"
+    mp.write_text(json.dumps(manifest), encoding="utf-8")
+    report = gst.crosscheck(mp)
+    assert report["n_verified"] == 1
+    assert set(report["medium_detector_agreement"]) == {"material", "depth"}
+    assert set(report["shallow_cv_accuracy"]) == {"material", "depth"}
+    assert "shallow_train_agreement" in report
 
 
 def test_scan_corpus_uses_manifest_truth_and_declared_chain(tmp_path: Path) -> None:

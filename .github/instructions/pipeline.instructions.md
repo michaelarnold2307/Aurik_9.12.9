@@ -151,6 +151,53 @@ metadata["material_confidence"] = material_confidence
 metadata["material_used"] = material  # kann von detected abweichen
 ```
 
+- **Finaler Wert für die Planung**: Der an UV3/§v10.303 (Planer-Intelligenz,
+  Low-Confidence-Gate) übergebene `material_confidence`-Wert ist die FINALE
+  MediumDetector-Konfidenz NACH der bayesianischen Verfeinerung in
+  `run_pre_analysis()`. Der zum Defekt-Scan-Zeitpunkt eingefrorene
+  Forensic-Wert darf die Phasen-SELEKTION nicht steuern (Befund 2026-08-22:
+  0.307 eingefroren vs. 0.482 final → 17 Phasen fälschlich gestrichen).
+  Implementiert in `unified_restorer_v3.py` („§2.47a material_confidence-
+  Aktualisierung“).
+- **Material-Konsens-Vote (§v10.20, Befund 2026-08-22)**: Der
+  MediumDetector-Vote in `resolve_material_consensus()` ist der PRIMÄRE
+  Träger (`chain[0]`, z. B. vinyl) — nie der terminale Träger
+  (`chain[-1]`, z. B. mp3_low). Der terminale Träger ist ein
+  KETTEN-Attribut, kein Material-Ergebnis des Detektors. Zusätzlich ist
+  `tape` Teil der chronologischen Kettenordnung (vor `cassette`), damit
+  Konflikt-Korrekturen nicht terminal-first sortieren (Befund:
+  „Kette KORRIGIERT: mp3_low → tape“).
+- **ML-Scorer-Längen-Cap (§9 Performance-Budget, Befund 2026-08-22)**:
+  Alle ML-Qualitäts-Scorer (FeedbackChain VERSA/PQS, MUSHRA-Proxy/MERT,
+  HPE/Goosebumps) bewerten lange Signale (> 90 s bzw. > 60 s) auf
+  deterministischen Fenstern (3×30 s Anfang/Mitte/Ende bzw. 30-s-Mittel-
+  Ausschnitt) statt auf der Voll-Länge — gleicher Input ⇒ gleiche Fenster
+  ⇒ bit-identische Scores (§G5 (copilot-instructions.md)). Kein Skip mehr:
+  Die Wohlklang-Baseline fällt bei langen Songs nicht mehr auf Konstante
+  0.5 zurück (Befund: 224 s → 37.3 s pro Aufruf, Iterations-Budget
+  erschöpft).
+- **Ein kanonischer Defect-Scan (§v10.702 B3-P2, Befund 2026-08-22)**:
+  Liegt der pre_Analyse-Scan vor (`cached_defect_result`, vom Denker
+  durchgereicht), übernimmt B3-Phase-2 dessen Defekt-Typen
+  deterministisch — statt eines zweiten Full-Song-Scans mit abweichender
+  Samplerate und inkonsistenten Thresholds (Befund: 95 s @48k + 77 s
+  @44.1k). `scan_defect_presence` bleibt Ersatzpfad ohne Cache.
+- **PIM-first erhält die Song-Struktur (§2.52b, Befund 2026-08-22)**:
+  Der UV3-PIM-Aufruf reicht die `SongStructureAnalyzer`-Segmente an
+  `compute_intensity_map()` durch — der Mapper lief zuvor ohne Kontext
+  („10 Bänder × 1 Segmente — 0 Entscheidungen“), die per-Segment-
+  Intensität war de facto inert.
+- **Material-Konsens-Write-back (§v10.20, 2026-08-22)**: Der Konsens wird
+  als EIGENE Felder auf dem MediumDetectionResult persistiert
+  (`consensus_material`, `final_chain`) — `primary_material` bleibt der
+  Medium-Primär (Kalibrierungs-Quelle). UV3 konsumiert bei vorhandenem
+  Konsens dessen Kette und überspringt die Era-Dominanz-Regel — kein
+  Flip-Flop vinyl→tape→vinyl mehr.
+- **Session-Memory-Hygiene (§Sitzung-MEMORY, 2026-08-22)**: Nur Läufe mit
+  Verdikt `improved` werden persistiert; `unchanged`/degradierte Läufe
+  werden nicht als Erfahrung gespeichert — das Gedächtnis lernt nicht aus
+  Fehlentscheidungen.
+
 ## §2.48 Kumulative-Phasen-Interaktions-Guard
 
 ```python

@@ -25,7 +25,7 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
-
+PYTHON = "python3"
 _PROJECT = Path(__file__).resolve().parent.parent
 MODELS_DIR = _PROJECT / "models"
 
@@ -41,7 +41,7 @@ def run(cmd: list[str], desc: str):
         print("  ✅ Done")
 
 
-def export_all(python: str = "python3", only: str | None = None):
+def export_all(python: str = PYTHON, only: str | None = None):
     print(f"Export pipeline — Python: {python}")
     print(f"Models dir: {MODELS_DIR}")
 
@@ -52,7 +52,7 @@ def export_all(python: str = "python3", only: str | None = None):
         if ckpt.exists():
             run(
                 [
-                    python,
+                    PYTHON,
                     "scripts/export_miipher_dit_onnx.py",
                     "--checkpoint",
                     str(ckpt),
@@ -70,7 +70,7 @@ def export_all(python: str = "python3", only: str | None = None):
         if ckpt.exists():
             run(
                 [
-                    python,
+                    PYTHON,
                     "scripts/export_df_musik_onnx.py",
                     "--checkpoint",
                     str(ckpt),
@@ -85,9 +85,17 @@ def export_all(python: str = "python3", only: str | None = None):
         ckpt = MODELS_DIR / "sgmse_plus" / "finetuned" / "sgmse_musik_best.pt"
         ts_out = MODELS_DIR / "sgmse_plus" / "sgmse_musik.ts"
         if ckpt.exists():
-            print("\n  ⚠️  SGMSE+ TorchScript export requires manual script.")
-            print(f"     Checkpoint: {ckpt}")
-            print("     Run: python scripts/train_sgmse_musik.py --export-only")
+            run(
+                [
+                    PYTHON,
+                    "scripts/export_sgmse_musik_ts.py",
+                    "--checkpoint",
+                    str(ckpt),
+                    "--output",
+                    str(ts_out),
+                ],
+                "SGMSE+ TorchScript export",
+            )
         else:
             print(f"\n  ⚠️  SGMSE+ checkpoint not found: {ckpt}")
 

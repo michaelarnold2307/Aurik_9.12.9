@@ -428,11 +428,13 @@ class TestVqiPerPhaseGates:
 
     def test_uv3_phase50_in_hnr_blend_set(self):
         """UV3: phase_50_spectral_repair muss im _NR_PHASES_HNR-Set sein."""
-        import inspect
+        # Spec 07 TEST-DESIGN: direkte Datei-Lesung statt inspect.getsource —
+        # linecache ist prozessglobal und order-abhängig (Suite-Flakes).
+        from pathlib import Path
 
-        from backend.core.unified_restorer_v3 import UnifiedRestorerV3
+        import backend.core.unified_restorer_v3 as _uv3_mod
 
-        src = inspect.getsource(UnifiedRestorerV3._profiled_phase_call)
+        src = Path(str(_uv3_mod.__file__)).read_text(encoding="utf-8")
         assert "phase_50_spectral_repair" in src, (
             "§0p HNR-Blend: phase_50_spectral_repair fehlt in _NR_PHASES_HNR (UV3)"
         )
@@ -2203,16 +2205,18 @@ class TestPmggPathPannsInjection:
 
     def _wrap_phase_kwargs_window(self) -> str:
         """Extrahiert das phase_kwargs-Fenster direkt nach _pmgg_gate.wrap_phase( in
-        _execute_pipeline. Datei-basiert für Robustheit gegen Method-Refactors."""
-        import inspect
+        _execute_pipeline. Direkte Datei-Lesung statt inspect.getsource —
+        linecache wird prozessglobal gecacht und von anderen Tests verschmutzt
+        (order-abhängige Full-Suite-Flakes, Bug-Klasse TEST-DESIGN, Spec 07)."""
+        from pathlib import Path
 
-        from backend.core.unified_restorer_v3 import UnifiedRestorerV3
+        import backend.core.unified_restorer_v3 as _uv3_mod
 
-        src = inspect.getsource(UnifiedRestorerV3._execute_pipeline)
+        src = Path(str(_uv3_mod.__file__)).read_text(encoding="utf-8")
         marker = "_pmgg_gate.wrap_phase("
         idx = src.find(marker)
         assert idx != -1, "PMGG-Primärpfad _pmgg_gate.wrap_phase( nicht in _execute_pipeline gefunden"
-        # phase_kwargs-Dict folgt unmittelbar; ~3000 Zeichen Fenster deckt den Dict sicher ab.
+        # phase_kwargs-Dict folgt unmittelbar; ~3500 Zeichen Fenster deckt den Dict sicher ab.
         return src[idx : idx + 3500]
 
     def test_pmgg_wrap_phase_uses_canonical_context_helper(self):
@@ -2225,12 +2229,17 @@ class TestPmggPathPannsInjection:
 
     def test_profiled_path_uses_canonical_context_helper(self):
         """Fallback-Pfad _prepare_profiled_phase_runtime_context nutzt denselben Helper."""
-        import inspect
+        from pathlib import Path
 
-        from backend.core.unified_restorer_v3 import UnifiedRestorerV3
+        import backend.core.unified_restorer_v3 as _uv3_mod
 
-        src = inspect.getsource(UnifiedRestorerV3._prepare_profiled_phase_runtime_context)
-        assert "_canonical_phase_context_kwargs()" in src, (
+        src = Path(str(_uv3_mod.__file__)).read_text(encoding="utf-8")
+        # Nur den Methoden-Rumpf betrachten (deterministisch, kein linecache).
+        _def_idx = src.find("def _prepare_profiled_phase_runtime_context")
+        assert _def_idx != -1
+        _nxt_idx = src.find("\n    def ", _def_idx + 1)
+        window = src[_def_idx : _nxt_idx if _nxt_idx != -1 else _def_idx + 40000]
+        assert "_canonical_phase_context_kwargs()" in window, (
             "§0f/§0p BUG: Fallback-Pfad nutzt _canonical_phase_context_kwargs() NICHT — "
             "die beiden Pfade injizieren divergierende Kontext-Keys"
         )

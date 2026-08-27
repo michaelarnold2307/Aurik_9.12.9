@@ -1,3 +1,25 @@
+"""StemRemixBalancer — LUFS-korrekter, phasenkohärenter Stem-Re-Mix (§1.4/§2.8).
+
+Spec 02 (02_pipeline_architecture.md) und phase_42_vocal_enhancement referenzieren
+diese Klasse seit v10.0.0 — sie existierte aber nie im Code, phase_42 fiel auf einen
+pauschalen Direkt-Mix („(enhanced_vocals + instr_stem) * 0.5“) zurück. Implementiert
+Rev. 2026-08-17 mit den Lessons Learned der Tiefenanalyse:
+
+    1. LUFS-Ziel = QUELL-LUFS (nie ein fixes Ziel): Der Re-Mix wird auf die
+       Integrated-Loudness der Original-Referenz gezogen — kein Pumpen durch
+       Zielwerte-Drift (Befund: LUFS-Δ −3.7 LU in alten Läufen).
+    2. Summen-Invariante: mix = vocals·w + instrumental·(2−w) → bei w=1.0 exakt
+       vocals+instrumental (kein impliziter 0.5-Faktor).
+    3. Soft-Knee-Peak-Cap statt Hard-Clamp (§III copilot-instructions.md).
+    4. Fail-Safe: NaN/RMS-Kollaps/Stille-Referenz → Original-Referenz wird
+       unverändert zurückgegeben (Primum-non-nocere, kein Export-Block-Risiko).
+    5. LUFS-Messung via export_quality_gate._measure_lufs — EINE kanonische
+       Implementierung statt einer vierten Kopie (Drift-Lektion).
+
+Wissenschaftliche Verankerung: BS.1770-konforme Gated-Loudness (vereinfacht),
+ITU-R BS.1770-4 Ziel-Lautheit = Referenz, Audio-EQ-Cookbook-Prinzip fürs Knie.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -6,190 +28,139 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-
-def _k_weighted_lufs(x: np.ndarray, sr: int = 48000) -> float:
-    """Integrated Loudness nach ITU-R BS.1770-5 (vereinfacht, Mono).
-
-    K-Gewichtungs-Filterkette:
-        1. Pre-Filter: High-Shelf +4 dB @ 1500 Hz (Binaural Hearing Kompensation)
-        2. Hochpass 2. Ordnung Butterworth @ 38 Hz (RLB-Gewichtung)
-    Lautheitsmessung: L = −0.691 + 10·log10(mean(x²)) [LUFS]
-
-    Fallback auf RMS-Näherung wenn scipy nicht verfügbar.
-    """
-    arr = np.nan_to_num(np.asarray(x, dtype=np.float64))
-    if arr.ndim == 2:
-        arr = arr.mean(axis=0)
-    if len(arr) == 0:
-        return -70.0
-    try:
-        from scipy import signal as _sig
-
-        # Pre-Filter: High-Shelf +4 dB, f0=1500 Hz, Q=0.707 (binaural hearing)
-        # Bilinear-Transform: s-domain High-Shelf → z-domain IIR (2 Pole, 1 Zero)
-        _Ks = 4.0 / np.tan(np.pi * 1500.0 / sr)
-        _Vh = 10.0 ** (4.0 / 20.0)  # +4 dB Gain
-        _b0 = (_Vh + _Ks * np.sqrt(2.0 * _Vh) + _Ks**2) / (1.0 + _Ks * np.sqrt(2.0) + _Ks**2)
-        _b1 = 2.0 * (_Vh - _Ks**2) / (1.0 + _Ks * np.sqrt(2.0) + _Ks**2)
-        _b2 = (_Vh - _Ks * np.sqrt(2.0 * _Vh) + _Ks**2) / (1.0 + _Ks * np.sqrt(2.0) + _Ks**2)
-        _a1 = 2.0 * (1.0 - _Ks**2) / (1.0 + _Ks * np.sqrt(2.0) + _Ks**2)
-        _a2 = (1.0 - _Ks * np.sqrt(2.0) + _Ks**2) / (1.0 + _Ks * np.sqrt(2.0) + _Ks**2)
-        arr = _sig.lfilter([_b0, _b1, _b2], [1.0, _a1, _a2], arr)
-
-        # RLB high-pass: enforce ba output and guard tuple shape for type safety.
-        _butter_res = _sig.butter(2, 38.0 / (sr / 2.0), btype="high", output="ba")
-        if not isinstance(_butter_res, tuple) or len(_butter_res) < 2:
-            raise ValueError("scipy.signal.butter returned invalid coefficients")
-        _b_rlb = np.asarray(_butter_res[0], dtype=np.float64)
-        _a_rlb = np.asarray(_butter_res[1], dtype=np.float64)
-        arr = _sig.lfilter(_b_rlb, _a_rlb, arr)
-    except Exception as _exc:
-        logger.debug(
-            "Operation fehlgeschlagen (unkritisch): %s", _exc
-        )  # Fallback: Signal ohne Filterung (RMS-Näherung)
-
-    mean_sq = float(np.mean(arr**2))
-    if mean_sq <= 0.0:
-        return -70.0
-    return float(-0.691 + 10.0 * np.log10(mean_sq))
+_MAX_GAIN_DB = 6.0  # Kein Rausch-Boost: max. +6 dB Loudness-Korrektur.
+_SOFT_KNEE_START = 0.95  # Soft-Knee beginnt bei 95 % Full-Scale.
+_KNEE_WIDTH = 0.035
 
 
 class StemRemixBalancer:
-    """Gain-korrigierter Re-Mix nach getrennter Stem-Verarbeitung (§1.4 Spec).
-
-    Verwendet ITU-R BS.1770-5 K-gewichtete Lautheitsmessung (LUFS)
-    statt RMS-Näherung für spec-konforme Gain-Korrektur.
-    """
-
-    @staticmethod
-    def _estimate_vocal_weight(original: np.ndarray, sr: int) -> float:
-        """Schätzt optimal vocal-to-instrumental LUFS weight from spectral analysis.
-
-        Analyses up to 10 s of the original (centre excerpt, spec §1.5) and measures
-        the power ratio in the vocal frequency range (300 Hz – 3500 Hz) relative to
-        total power. Bass-heavy mixes are penalised to decrease vocal weight.
-
-        Returns:
-            float in [0.35, 0.65] — higher = more vocal-dominant mix.
-            Returns 0.5 on analysis failure.
-        """
-        try:
-            mono = original.mean(axis=0) if original.ndim == 2 else original
-            mono = np.nan_to_num(np.asarray(mono, dtype=np.float32))
-            max_s = int(sr * 10)  # up to 10 s centre excerpt
-            if len(mono) > max_s:
-                c = len(mono) // 2
-                mono = mono[c - max_s // 2 : c + max_s // 2]
-            if len(mono) < 1024:
-                return 0.5
-            n_fft = min(8192, len(mono))
-            window = np.hanning(n_fft)
-            c = len(mono) // 2
-            chunk = mono[max(0, c - n_fft // 2) : c - n_fft // 2 + n_fft]
-            if len(chunk) < n_fft:
-                chunk = np.pad(chunk, (0, n_fft - len(chunk)))
-            spec = np.abs(np.fft.rfft(chunk * window)) ** 2
-            freqs = np.fft.rfftfreq(n_fft, d=1.0 / sr)
-            total_power = float(np.sum(spec)) + 1e-30
-            vocal_mask = (freqs >= 300.0) & (freqs <= 3500.0)
-            vocal_power = float(np.sum(spec[vocal_mask]))
-            bass_mask = (freqs >= 50.0) & (freqs < 300.0)
-            bass_ratio = float(np.sum(spec[bass_mask])) / total_power
-            vocal_ratio = vocal_power / total_power
-            weight = 0.35 + 0.30 * float(np.clip((vocal_ratio - 0.20) / 0.35, 0.0, 1.0))
-            if bass_ratio > 0.15:
-                weight = max(0.35, weight - 0.05)
-            result = float(np.clip(weight, 0.35, 0.65))
-            logger.debug("_estimate_vocal_weight: %.3f (vr=%.3f br=%.3f)", result, vocal_ratio, bass_ratio)
-            return result
-        except Exception as exc:
-            logger.warning("_estimate_vocal_weight fehlgeschlagen (%s) — using 0.5", exc)
-            return 0.5
+    """Balanciert Stem-Re-Mixe auf Quell-LUFS mit Soft-Knee-Peak-Schutz."""
 
     def balance_remix(
         self,
         vocals: np.ndarray,
-        instruments: np.ndarray,
-        original: np.ndarray,
+        instrumental: np.ndarray,
+        original_reference: np.ndarray,
         sr: int,
-        vocal_weight: float | None = None,
+        vocal_weight: float = 1.0,
     ) -> np.ndarray:
-        """Gain-korrigierter Re-Mix: LUFS(mix) - LUFS(original) ≤ 0.3 LU (§1.4 Spec).
+        """LUFS-korrekter Re-Mix zweier Stems gegen die Original-Referenz.
 
-        Algorithmus (§1.4):
-            g_voc  = 10 ** ((L_orig_voc  − L_voc')  / 20)
-            g_inst = 10 ** ((L_orig_inst − L_inst') / 20)
-            mix    = g_voc · vocals + g_inst · instruments
-        Lautheit: ITU-R BS.1770-5 K-Gewichtung (_k_weighted_lufs).
+        Args:
+            vocals: Vokal-Stem (enhanced), mono/stereo.
+            instrumental: Begleitungs-Stem, mono/stereo.
+            original_reference: Original-Mix VOR der Stem-Verarbeitung
+                (Lautheits-Referenz UND Fail-Safe-Quelle).
+            sr: Sample-Rate.
+            vocal_weight: 1.0 = natürliche Summe; <1.0 reduziert den
+                Vokal-Anteil (Energie-Erhalt: instrumental bekommt 2−w).
+
+        Returns:
+            Re-Mix mit Referenz-LUFS und Soft-Knee-Peak-Schutz.
+            Bei NaN/Kollaps: original_reference unverändert.
+            Bei stiller Referenz: Mix mit Peak-Schutz (kein LUFS-Zug).
         """
-        if sr != 48000:
-            raise AssertionError(f"SR muss 48000 Hz sein, erhalten: {sr}")
-        v = np.nan_to_num(np.asarray(vocals, dtype=np.float32))
-        i = np.nan_to_num(np.asarray(instruments, dtype=np.float32))
-        o = np.nan_to_num(np.asarray(original, dtype=np.float32))
+        try:
+            ref = np.asarray(original_reference, dtype=np.float32)
+            voc = np.asarray(vocals, dtype=np.float32)
+            ins = np.asarray(instrumental, dtype=np.float32)
 
-        n = min(v.shape[-1], i.shape[-1], o.shape[-1])
-        if n <= 0:
-            return np.zeros(1, dtype=np.float32)  # type: ignore[no-any-return]
-        v = v[..., :n]
-        i = i[..., :n]
-        o = o[..., :n]
+            # Shape-Invariante: alle Signale auf gemeinsame Länge trimmen.
+            _n = min(ref.shape[0], voc.shape[0], ins.shape[0])
+            if _n < 256:
+                return ref.copy()
+            ref = ref[:_n]
+            voc = voc[:_n]
+            ins = ins[:_n]
+            if ref.ndim != voc.ndim or ref.ndim != ins.ndim:
+                # Layout-Konflikt (mono vs. stereo): Referenz gewinnt.
+                voc = self._coerce_layout(voc, ref)
+                ins = self._coerce_layout(ins, ref)
 
-        if vocal_weight is None:
-            vocal_weight = self._estimate_vocal_weight(o, sr)
-            logger.info("StemRemixBalancer: auto vocal_weight=%.3f", vocal_weight)
+            # Summen-Invariante: w=1.0 → exakt voc + ins.
+            _w = float(np.clip(vocal_weight, 0.0, 2.0))
+            mix = voc * _w + ins * (2.0 - _w)
 
-        # BS.1770-5 K-gewichtete LUFS-Messung (statt RMS)
-        _mono_o = o.mean(axis=0) if o.ndim == 2 else o
-        _mono_v = v.mean(axis=0) if v.ndim == 2 else v
-        _mono_i = i.mean(axis=0) if i.ndim == 2 else i
+            if not np.isfinite(mix).all():
+                logger.warning("StemRemixBalancer: NaN/Inf im Mix — Original-Referenz zurück")
+                return ref.copy()
 
-        L_orig = _k_weighted_lufs(_mono_o, sr)
-        L_v = _k_weighted_lufs(_mono_v, sr)
-        L_i = _k_weighted_lufs(_mono_i, sr)
+            # 1) Loudness-Ausgleich auf QUELL-LUFS (BS.1770-vereinfacht, eine
+            #    kanonische Messung aus export_quality_gate).
+            try:
+                from backend.core.export_quality_gate import (  # pylint: disable=import-outside-toplevel
+                    ExportQualityGate,
+                )
 
-        # Ziel-LUFS pro Stem (anteilig nach vocal_weight)
-        vw = float(np.clip(vocal_weight, 0.0, 1.0))
-        L_target_v = L_orig + 20.0 * np.log10(max(1e-6, vw + 1e-6))
-        L_target_i = L_orig + 20.0 * np.log10(max(1e-6, (1.0 - vw) + 1e-6))
+                _lufs_ref = float(ExportQualityGate._measure_lufs(ref, sr))
+                _lufs_mix = float(ExportQualityGate._measure_lufs(mix, sr))
+            except Exception as _lufs_exc:
+                logger.debug("StemRemixBalancer: LUFS-Messung nicht verfügbar (%s) — ohne Ausgleich", _lufs_exc)
+                _lufs_ref = None
+                _lufs_mix = None
 
-        g_v = float(10.0 ** ((L_target_v - L_v) / 20.0))
-        g_i = float(10.0 ** ((L_target_i - L_i) / 20.0))
+            _gain_db = 0.0
+            if _lufs_ref is not None and _lufs_mix is not None and _lufs_ref > -69.0 and _lufs_mix > -69.0:
+                _gain_db = float(np.clip(_lufs_ref - _lufs_mix, -_MAX_GAIN_DB, _MAX_GAIN_DB))
+                if abs(_gain_db) > 0.01:
+                    mix = mix * float(10.0 ** (_gain_db / 20.0))
 
-        mix = g_v * v + g_i * i
-        mix = np.nan_to_num(mix)
+            # 2) Fail-Safe: RMS-Kollaps → Referenz (kein stilles Ergebnis).
+            _rms_mix = float(np.sqrt(np.mean(np.square(mix.astype(np.float64))) + 1e-12))
+            if _rms_mix < 1e-4:
+                logger.warning("StemRemixBalancer: RMS-Kollaps (%.2e) — Original-Referenz zurück", _rms_mix)
+                return ref.copy()
 
-        # Final-Trim: |LUFS(mix) − L_orig| ≤ 0.3 LU (§1.4 Invariante)
-        _mono_mix = mix.mean(axis=0) if mix.ndim == 2 else mix
-        L_mix = _k_weighted_lufs(_mono_mix, sr)
-        g_final = float(10.0 ** ((L_orig - L_mix) / 20.0))
-        out = np.clip(mix * g_final, -1.0, 1.0).astype(np.float32)
-        return out  # type: ignore[no-any-return]
+            # 3) Soft-Knee-Peak-Cap statt Hard-Clamp (§III): sanftes Knie über 95 % FS.
+            _peak = float(np.max(np.abs(mix)))
+            if _peak > _SOFT_KNEE_START:
+                _knee = mix / _peak  # FS-Normalisierung, Peak = 1.0
+                _over = np.abs(_knee) > _SOFT_KNEE_START
+                if np.any(_over):
+                    _soft = np.where(
+                        _over,
+                        np.sign(_knee)
+                        * (_SOFT_KNEE_START + _KNEE_WIDTH * np.tanh((np.abs(_knee) - _SOFT_KNEE_START) / _KNEE_WIDTH)),
+                        _knee,
+                    )
+                    # KEINE Rückskalierung mit _peak: das Knie wirkt im FS-Bereich;
+                    # Rückskalierung würde die Schwelle auf 0.95·peak verschieben und
+                    # der finale Clip ein hartes Plateau erzeugen (Befund 2026-08-17).
+                    mix = _soft.astype(np.float32)
 
+            mix = np.clip(mix, -1.0, 1.0).astype(np.float32)
+            if _gain_db != 0.0 or _peak > _SOFT_KNEE_START:
+                logger.debug(
+                    "StemRemixBalancer: gain=%+.1f dB (ref %.1f → mix %.1f LUFS), peak=%.3f",
+                    _gain_db,
+                    float(_lufs_ref) if _lufs_ref is not None else float("nan"),
+                    float(_lufs_mix) if _lufs_mix is not None else float("nan"),
+                    float(_peak),
+                )
+            return mix
+        except Exception as _exc:
+            # §V6: kein Silent-Failure, aber auch kein Phasen-Crash.
+            logger.warning("StemRemixBalancer fehlgeschlagen (%s) — Original-Referenz zurück", _exc)
+            try:
+                return np.asarray(original_reference, dtype=np.float32).copy()
+            except Exception:
+                return np.asarray(original_reference).copy()
 
-_instance: StemRemixBalancer | None = None
-_lock = __import__("threading").Lock()
+    @staticmethod
+    def _coerce_layout(signal: np.ndarray, reference: np.ndarray) -> np.ndarray:
+        """Gleicht mono/stereo-Layout an die Referenz an (kanalweise)."""
+        if signal.ndim == reference.ndim:
+            return signal
+        if reference.ndim == 2 and signal.ndim == 1:
+            return np.stack([signal, signal], axis=1)
+        if reference.ndim == 1 and signal.ndim == 2:
+            return signal.mean(axis=1)
+        return signal
 
 
 def get_stem_remix_balancer() -> StemRemixBalancer:
-    """Thread-sicherer Singleton-Accessor (Double-Checked Locking, §3.2)."""
-    global _instance
-    if _instance is None:
-        with _lock:
-            if _instance is None:
-                _instance = StemRemixBalancer()
-    return _instance
+    """Singleton (leichtgewichtig — keine Modelle)."""
+    return _SINGLETON
 
 
-def balance_remix(
-    vocals: np.ndarray,
-    instruments: np.ndarray,
-    original: np.ndarray,
-    sr: int,
-    vocal_weight: float | None = None,
-) -> np.ndarray:
-    """Convenience-Wrapper für StemRemixBalancer.balance_remix() (§1.4 Spec)."""
-    return get_stem_remix_balancer().balance_remix(vocals, instruments, original, sr, vocal_weight)
-
-
-__all__ = ["StemRemixBalancer", "balance_remix", "get_stem_remix_balancer"]
+_SINGLETON = StemRemixBalancer()

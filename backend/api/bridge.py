@@ -1979,6 +1979,13 @@ def warmup_models_background() -> None:
     import gc as _warmup_gc
     import importlib
 
+    # §Spec 24 Root-Fix: Defensiv für Caller ohne startup_model_check —
+    # serialisiert librosa, bevor dieser Daemon-Thread neben dem Hauptthread
+    # läuft. Idempotent (No-Op, wenn der Hauptthread bereits fertig war).
+    from backend.core.librosa_bootstrap import ensure_librosa_ready
+
+    ensure_librosa_ready()
+
     # ── Tier-1: Kritische Sofort-Plugins (<100 MB, immer laden) ──────────
     _plugins_tier1 = [
         ("plugins.silero_plugin", "get_silero_plugin"),  # VAD (~1 MB)

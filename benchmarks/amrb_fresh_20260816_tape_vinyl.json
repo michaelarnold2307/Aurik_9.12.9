@@ -1,0 +1,105 @@
+{
+  "amrb_version": "1.0",
+  "aurik_version": "9.10.123",
+  "run_seed": 42,
+  "system_name": "Aurik 10.0.0.x (restoration)",
+  "timestamp": "2026-08-16T13:50:42.582943+00:00",
+  "overall_score": 82.5,
+  "n_scenarios": 2,
+  "n_passed": 2,
+  "best_scenario": "AMRB-02-VINYL",
+  "worst_scenario": "AMRB-01-TAPE",
+  "os_leadership": false,
+  "external_validation": {
+    "dataset": "",
+    "n_external_scenarios": 0,
+    "ready": false,
+    "leadership_claim_ready": false,
+    "notes": "Synthetic-only AMRB run; external dataset validation pending."
+  },
+  "scenarios": {
+    "AMRB-01-TAPE": {
+      "description": "Tape-Hiss + Dropout",
+      "scenario_type": "synthetic",
+      "mushra_mean": 82.1,
+      "mushra_std": 0.0,
+      "pqs_mos_mean": 3.84,
+      "passed": true,
+      "goal_scores": {
+        "bass_kraft": 1.0,
+        "brillanz": 0.6633545641322247,
+        "waerme": 0.6842594366386003,
+        "natuerlichkeit": 0.9941488555926272,
+        "authentizitaet": 0.9963911199695964,
+        "emotionalitaet": 0.8376850867440107,
+        "transparenz": 0.7336945682160352,
+        "groove": 0.9,
+        "spatial_depth": 0.75,
+        "timbre_authentizitaet": 0.9042125673804126,
+        "tonal_center": 0.9981969984974455,
+        "micro_dynamics": 1.0,
+        "separation_fidelity": 0.9133366531991784,
+        "artikulation": 0.75,
+        "transient_energie": 1.0
+      }
+    },
+    "AMRB-02-VINYL": {
+      "description": "Vinyl-Crackle + Rumble",
+      "scenario_type": "synthetic",
+      "mushra_mean": 82.9,
+      "mushra_std": 0.0,
+      "pqs_mos_mean": 3.87,
+      "passed": true,
+      "goal_scores": {
+        "bass_kraft": 1.0,
+        "brillanz": 0.6812044284889416,
+        "waerme": 0.6810738459220624,
+        "natuerlichkeit": 0.9943059676573525,
+        "authentizitaet": 0.9966469347740143,
+        "emotionalitaet": 0.8188245311749218,
+        "transparenz": 0.7445650651456379,
+        "groove": 0.9,
+        "spatial_depth": 0.75,
+        "timbre_authentizitaet": 0.8877560932930431,
+        "tonal_center": 0.9996261615974917,
+        "micro_dynamics": 1.0,
+        "separation_fidelity": 0.9076800923322641,
+        "artikulation": 0.75,
+        "transient_energie": 1.0
+      }
+    }
+  },
+  "baselines": {
+    "Unbearbeitet (degradiert)": {
+      "mushra_overall": 32.0,
+      "pqs_mos": 2.8,
+      "goal_natuerlichkeit": 0.52
+    },
+    "Simple Wiener (1984-Klasse)": {
+      "mushra_overall": 48.0,
+      "pqs_mos": 3.2,
+      "goal_natuerlichkeit": 0.65
+    },
+    "iZotope RX 11 (commercial)": {
+      "mushra_overall": 71.0,
+      "pqs_mos": 3.9,
+      "goal_natuerlichkeit": 0.8
+    },
+    "iZotope RX 10 (commercial)": {
+      "mushra_overall": 71.0,
+      "pqs_mos": 3.9,
+      "goal_natuerlichkeit": 0.8
+    },
+    "Aurik 10.0.0 (Restoration Mode)": {
+      "mushra_overall": 84.0,
+      "pqs_mos": 4.2,
+      "goal_natuerlichkeit": 0.91
+    },
+    "Aurik 10.0.0 (Studio 2026 Mode)": {
+      "mushra_overall": 88.0,
+      "pqs_mos": 4.5,
+      "goal_natuerlichkeit": 0.93
+    }
+  },
+  "report_sha256": "f0af368d767e3997a0279f14f3e52b9188fb4f18be6e39a00bd6989fd4a6885b"
+}

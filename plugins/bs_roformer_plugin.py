@@ -23,6 +23,7 @@ import math
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -145,6 +146,7 @@ class BSRoFormerPlugin:
 
     def __init__(self) -> None:
         self._session = None  # onnxruntime.InferenceSession
+        self._session_model_path: str | None = None  # §ROCm-Fallback: Pfad für CPU-Rebuild
         self._torch_model = None  # torch.nn.Module (wenn ONNX nicht verfügbar)
         self._model_loaded: bool = False
         self._fallback_active: bool = False
@@ -212,6 +214,7 @@ class BSRoFormerPlugin:
                                 logger.debug("Optional import not available (non-critical): %s", _exc)
                         return
                     self._session = session
+                    self._session_model_path = str(model_path)
                     self._model_loaded = True
                     logger.info("🎵 MelBandRoformer: ONNX-Modell geladen (%s)", model_path)
                     try:
@@ -259,6 +262,18 @@ class BSRoFormerPlugin:
     # ------------------------------------------------------------------
     # Öffentliche API
     # ------------------------------------------------------------------
+
+    def _build_cpu_session(self) -> Any:
+        """ROCm-Fallback: Session CPU-only neu aufbauen (MIOpen-Kernel-Fehler)."""
+        if not self._session_model_path:
+            return None
+        try:
+            import onnxruntime as ort
+
+            return ort.InferenceSession(self._session_model_path, providers=["CPUExecutionProvider"])
+        except Exception as _exc:
+            logger.warning("MelBandRoformer: CPU-Session-Rebuild fehlgeschlagen: %s", _exc)
+            return None
 
     def separate(
         self,
@@ -452,8 +467,7 @@ class BSRoFormerPlugin:
                 del Z_s
                 try:
                     out_raw = session.run(None, {input_name: X_s})
-                    del X_s  # Explicit memory release after successful inference
-                except (MemoryError, Exception) as _oom:
+                except MemoryError as _oom:
                     # X_s released when function returns (every except-path returns)
                     _half = len(seg) // 2
                     if _half < _SR:  # < 1 s — give up
@@ -465,6 +479,16 @@ class BSRoFormerPlugin:
                     if first is None or second is None:
                         return None
                     return np.concatenate([first, second])
+                except Exception as _ort_exc:
+                    # §ROCm-Fallback: Nicht-Memory-Fehler (z. B. MIOpen-Kernel-Build
+                    # "Code object build failed") → CPU-only Session einmalig aufbauen
+                    # und wiederholen. Halbierung hilft hier nicht (kein OOM).
+                    logger.warning("MelBandRoformer: ONNX-Inferenz fehlgeschlagen (%s) — CPU-Retry", _ort_exc)
+                    _cpu_sess = self._build_cpu_session()
+                    if _cpu_sess is None:
+                        return None
+                    out_raw = _cpu_sess.run(None, {input_name: X_s})
+                del X_s  # Explicit memory release after successful inference
                 if not out_raw:
                     return None
                 out_s = np.asarray(out_raw[0])

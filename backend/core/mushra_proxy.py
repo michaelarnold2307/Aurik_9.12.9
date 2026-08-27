@@ -227,6 +227,21 @@ class MushraProxy:
         # Kleine Deltas (<5 Punkte) = natürliche Varianz → neutral bei 50
         return float(np.clip(50.0 + np.sign(_delta) * max(0.0, abs(_delta) - 5.0) * 2.0, 0.0, 100.0))
 
+    @classmethod
+    def _window_slices(cls, audio: np.ndarray, sample_rate: int) -> list[np.ndarray]:
+        """Deterministische 3×30-s-Fenster für MERT-Embeddings (§G5 (copilot-instructions.md), §9)."""
+        arr = np.asarray(audio, dtype=np.float32)
+        if arr.ndim == 2:
+            _axis = 0 if arr.shape[-1] <= 2 else -1
+        else:
+            _axis = 0
+        total = arr.shape[_axis]
+        win = int(30.0 * sample_rate)
+        if total <= win * 3:
+            return [arr]
+        starts = [0, (total - win) // 2, total - win]
+        return [np.take(arr, np.arange(s, s + win), axis=_axis) for s in starts]
+
     # ── MERT-basierte Schätzung ──────────────────────────────────────────
 
     def _estimate_mushra_relative(self, audio: np.ndarray, reference: np.ndarray, sample_rate: int) -> float:
@@ -234,20 +249,31 @@ class MushraProxy:
 
         Berechnet MERT-Embeddings für BEIDE Signale und misst Cosinus-Ähnlichkeit.
         Mapping: cos_sim → MUSHRA 0-100. Keine Session-Referenz nötig.
+        §9 Performance-Budget BUG-FIX 2026-08-22: Bei langen Signalen
+        deterministische 3×30-s-Fenster statt Voll-Längen-Embedding (224 s
+        kosteten 37.3 s pro Aufruf).
         """
         try:
             from backend.core.mert_mushra_proxy import get_proxy_evaluator as _get_mert
 
             _mert = _get_mert()
-            _emb_a = _mert.compute_embedding(audio, sample_rate)
-            _emb_r = _mert.compute_embedding(reference, sample_rate)
-
-            if _emb_a is None or _emb_r is None:
+            _windows_a = self._window_slices(audio, sample_rate)
+            _windows_r = self._window_slices(reference, sample_rate)
+            _sims: list[float] = []
+            for _wa, _wr in zip(_windows_a, _windows_r):
+                _emb_a = _mert.compute_embedding(_wa, sample_rate)
+                _emb_r = _mert.compute_embedding(_wr, sample_rate)
+                if _emb_a is None or _emb_r is None:
+                    continue
+                _sims.append(
+                    float(
+                        np.dot(_emb_a.flatten(), _emb_r.flatten())
+                        / (np.linalg.norm(_emb_a) * np.linalg.norm(_emb_r) + 1e-8)
+                    )
+                )
+            if not _sims:
                 return 50.0
-
-            _cos_sim = float(
-                np.dot(_emb_a.flatten(), _emb_r.flatten()) / (np.linalg.norm(_emb_a) * np.linalg.norm(_emb_r) + 1e-8)
-            )
+            _cos_sim = float(np.mean(_sims))
             # Mapping: cos_sim 1.0 → MUSHRA 100 (identisch),
             #          cos_sim 0.95 → 80 (minimale Änderung),
             #          cos_sim 0.0 → 50 (starke Änderung, neutral)

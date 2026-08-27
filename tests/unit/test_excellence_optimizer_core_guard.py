@@ -30,10 +30,12 @@ class _DummyChecker:
 
 @pytest.mark.unit
 def test_excellence_optimizer_rolls_back_on_core_goal_regression(monkeypatch):
-    # Monkeypatch Goal-Messung, damit wir den Guard deterministisch triggern.
+    # Monkeypatch die get_checker()-FACTORY statt der Klasse: musical_goals_metrics
+    # cached einen Singleton; ein früherer Test mit echter Instanz würde den
+    # Klassen-Patch unwirksam machen (Order-Flaky-Fund, Rev. 2026-08-16).
     monkeypatch.setattr(
-        "backend.core.musical_goals.musical_goals_metrics.MusicalGoalsChecker",
-        _DummyChecker,
+        "backend.core.musical_goals.musical_goals_metrics.get_checker",
+        lambda custom_thresholds=None: _DummyChecker(custom_thresholds),
     )
 
     sr = 48_000

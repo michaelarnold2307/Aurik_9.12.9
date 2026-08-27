@@ -19,12 +19,19 @@ Wohlklang für das menschliche Ohr.
    Wird von CI und Tests geparst.
 2. **`.github/VERBOTEN.md`** — Normative Quelle der Linter-Regeln **V01–V52**
    (Teil A: Grundregeln, Teil B: Anti-Patterns mit Produktions-Evidenz).
-3. **`.github/instructions/`** — Domain-Regeln: `pipeline.instructions.md` (UV3,
+3. **`.github/instructions/hoerordnung.instructions.md`** — Psychoakustische
+   Wahrheits-Ordnung. Normative Spitze für **Hör-Entscheidungen**: Hör-Invarianten
+   → Audibility (Maskierungsschwelle statt Mess-Null) → lexikografische
+   Wohlklang-Ordnung → Einladungs-Gate, plus Konfliktregel (Metriken sind Zeugen,
+   die Hör-Instanz entscheidet — aber nie gegen Ebene 1). Regelt nur den
+   Entscheidungsfluss; die Berechnung der Messgrößen bleibt bei den unten
+   genannten Domain-Regeln.
+4. **`.github/instructions/`** — Domain-Regeln: `pipeline.instructions.md` (UV3,
    größte Datei), `phases.instructions.md`, `dsp.instructions.md`,
    `musical_goals.instructions.md`, `tests.instructions.md`.
-4. **`.github/specs/`** — Nummerierte Specs 01–22 plus versionierte v10.xx
+5. **`.github/specs/`** — Nummerierte Specs 01–22 plus versionierte v10.xx
    (92 Dateien). Änderungen hier lösen den CI-Evidenzblock-Zwang aus (§4).
-5. **`.github/GEBOTE.md`** — Katalog §G1–§G187 (Kategorien I–XXIV und XI-b). Hat
+6. **`.github/GEBOTE.md`** — Katalog §G1–§G187 (Kategorien I–XXIV und XI-b). Hat
    Referenzcharakter: Der Pre-Commit-Verifier prüft nur eine hartkodierte
    Teilmenge. Der Dateikopf beansprucht Vorrang vor Specs — das erzwingt CI
    aber nicht. Bei Konflikten: nicht stillschweigend entscheiden, sondern im
@@ -39,13 +46,16 @@ Die Markdown-Dokumente beschreiben die Regeln; die Gates sind:
   `aurik-bug-prevention` (`.agents/skills/bug-prevention/scan_anti_patterns.py`),
   `aurik-ruff-critical-static-gate` (F821/F601/B009/I001), `aurik-unit-smoke`
   (tests/unit, maxfail=3), `aurik-id-registry` (fail-closed: R1 unbekannte
-  IDs, R2 nackte Ambiguitäts-Zitate) und rund 25 weitere `aurik-*`-Guards.
+  IDs, R2 nackte Ambiguitäts-Zitate), `aurik-file-lifecycle` (Write-Gate:
+  neue Code-Dateien ⇒ Eintrag in `.github/FILE_REGISTRY.md`),
+  `aurik-symbol-duplicates` (`scripts/repo_graph.py --duplicates`) und rund
+  25 weitere `aurik-*`-Guards.
 - **CI** (`.github/workflows/ci-lite.yml`, `nightly-quality.yml`,
   `solo-release-gate.yml`): `scripts/compliance_check.py` (R01–R18),
   `scripts/release_must_coverage_check.py` (jeder `[RELEASE_MUST]`-Header in
   copilot-instructions.md braucht einen Test), `scripts/spec_drift_check.py`
   (Hash-Drift für copilot-instructions.md, Specs 01–08, ID-Registry,
-  Kollisions-Karte, AGENTS.md).
+  FILE_REGISTRY, Kollisions-Karte, AGENTS.md).
 - **Regeländerung ⇒ Skript nachziehen**: `compliance_check.py`,
   `aurik_verboten_linter.py` und `gebote_verifier.py` haben ihre Regeln
   **hartkodiert**; sie parsen die MD-Dateien nicht. Änderst du ein Gebot oder
@@ -59,6 +69,13 @@ Details immer in der normativen Kette (§1) nachlesen.
 - **Bridge-Verbot (§V4)**: UI/Frontend (Aurik10, CLI) importiert `backend/core/`
   nie direkt — nur über `backend/api/bridge.py`. Denker-Schicht (`denker/`)
   ausgenommen.
+- **Neue Datei anlegen (Write-Gate)**: vor dem Anlegen
+  `python scripts/repo_search.py --before-create <pfad>` prüfen (kanonische
+  Alternative? Namens-/Symbol-Ähnlichkeit?); danach Eintrag in
+  `.github/FILE_REGISTRY.md` (Status, Domain, Canonical, Ersetzt, Grund).
+  Ohne Eintrag blockt `aurik-file-lifecycle` den Commit. Task-Ledger:
+  `python scripts/change_ledger.py snapshot` → `TASK_CHANGES.md` (CI
+  erzwingt Abdeckung im PR).
 - **Determinismus (§G5)**: gleicher Input + gleiche Version ⇒ bit-identischer
   Output. Seeds pro Session; kein `time.time()` in Entscheidungslogik.
 - **Dither (§V5)**: bei bit_depth < 32 immer POW-r Type 3 (primär) oder TPDF
@@ -79,9 +96,12 @@ Details immer in der normativen Kette (§1) nachlesen.
 - **GUI/Startup (§VI)**: `t()` für alle benutzersichtbaren Strings;
   Launch-Skripte mit `python3 -B`; GPU-Detection im Hauptthread vor
   `ModernMainWindow`.
-- **Bekannter Ist-Zustand**: V01/V08-Verstöße existieren im Production-Code;
-  der ERROR-Gate-Test ist deshalb skipped. Nicht „nebenbei“ fixen —
-  Maintainer-Sign-off nötig.
+- **Bekannter Ist-Zustand (Rev. 2026-08-16)**: V01/V08-ERROR-Verstöße
+  existieren im Production-Code nicht mehr (gemessen: Linter `--ci
+  --errors-only` auf `backend/` → clean). Der ERROR-Gate-Test
+  (`test_backend_no_error_violations`) läuft wieder unskipped. Vendored-
+  Drittanbieter-Code (`plugins/_vendor_*`) ist im Linter via `SKIP_DIRS`
+  ausgenommen (unverändert kopiert, MIT, LICENSE beiliegend).
 
 ## 4. PR-/CI-Vertrag — ohne den wird nichts gemerged
 
@@ -122,6 +142,8 @@ Kollisions-Karte und Bereinigungsplan `docs/ID_COLLISION_MAP.md`.
 
 ## 7. Aufgabenbezogene Lektüre
 
+- Hör-Entscheidungen & Zielkonflikte: `.github/instructions/hoerordnung.instructions.md`
+  (Rollen-Spitze über den Goal-Regeln)
 - UV3-Pipeline: `.github/instructions/pipeline.instructions.md` +
   `.github/specs/02_pipeline_architecture.md`
 - Phasen: `phases.instructions.md` + `06_phases_system.md`
@@ -132,6 +154,11 @@ Kollisions-Karte und Bereinigungsplan `docs/ID_COLLISION_MAP.md`.
   - §VI der copilot-instructions
 - Neue Spec anlegen: `.github/specs/XX_measure_template.md`
 - Hör-Tests / GO-NO-GO: `docs/guides/GO_NO_GO_DECISION_PROTOCOL.md` (beratend)
+- Repo-Karte & Lifecycle: `.github/FILE_REGISTRY.md` +
+  `scripts/repo_graph.py` (`--write-json` → `.github/repo_graph.json`,
+  `--check`, `--duplicates`)
+- Suche vor Dateianlage: `scripts/repo_search.py --before-create <pfad>`
+- Task-Ledger: `scripts/change_ledger.py snapshot` → `TASK_CHANGES.md`
 
 ## 8. Agent-spezifische Hinweise
 

@@ -90,3 +90,70 @@ class TestSessionManager:
             mgr.acquire(f"b{i}", model_path=f"b{i}.onnx")
         mgr.clear()
         assert mgr.get_active_count() == 0
+
+
+class TestSessionManagerMigraphxSizeGuard:
+    """§v10.40 Compile-Zeit-Regel: Modelle > 200 MB überspringen MIGraphX → ORT.
+
+    Testet das ECHTE _load_session (kein autouse-Stub) mit gemockten
+    Session-Klassen; Sparse-Dateien (truncate) kosten keinen Plattenplatz.
+    """
+
+    def test_large_model_skips_migraphx(self, tmp_path):
+        import os
+
+        from backend.core.ml.session_manager import InferenceSessionManager
+
+        big = tmp_path / "big.onnx"
+        big.touch()
+        os.truncate(big, 201 * 1024 * 1024)  # Sparse — kein echter Plattenverbrauch
+
+        with (
+            patch("backend.core.migraphx_adapter.is_migraphx_available", return_value=True),
+            patch(
+                "backend.core.migraphx_adapter.MIGraphXSession",
+                side_effect=AssertionError("MIGraphX darf für >200 MB nicht aufgerufen werden"),
+            ),
+            patch("onnxruntime.InferenceSession", return_value="ORT-SENTINEL"),
+        ):
+            session, size_mb = InferenceSessionManager._load_session(big)
+        assert session == "ORT-SENTINEL"
+        assert size_mb > 200.0
+
+    def test_small_model_uses_migraphx(self, tmp_path):
+        from backend.core.ml.session_manager import InferenceSessionManager
+
+        small = tmp_path / "small.onnx"
+        small.write_bytes(b"\x00" * 1024)
+
+        with (
+            patch("backend.core.migraphx_adapter.is_migraphx_available", return_value=True),
+            patch("backend.core.migraphx_adapter.MIGraphXSession", return_value="MGX-SENTINEL") as mgx_mock,
+            patch("onnxruntime.InferenceSession", return_value="ORT-SENTINEL") as ort_mock,
+        ):
+            session, _size_mb = InferenceSessionManager._load_session(small)
+        assert session == "MGX-SENTINEL"
+        mgx_mock.assert_called_once()
+        ort_mock.assert_not_called()
+
+    def test_size_helpers(self, tmp_path):
+        import os
+
+        from backend.core.migraphx_adapter import (
+            MIGRAPHX_MAX_MODEL_MB,
+            is_migraphx_size_eligible,
+            migraphx_model_size_mb,
+        )
+
+        assert migraphx_model_size_mb(tmp_path / "missing.onnx") == 0.0
+        assert is_migraphx_size_eligible(tmp_path / "missing.onnx") is True
+
+        ok = tmp_path / "ok.onnx"
+        ok.touch()
+        os.truncate(ok, int(100 * 1024 * 1024))
+        assert is_migraphx_size_eligible(ok) is True
+
+        big = tmp_path / "big.onnx"
+        big.touch()
+        os.truncate(big, int((MIGRAPHX_MAX_MODEL_MB + 1) * 1024 * 1024))
+        assert is_migraphx_size_eligible(big) is False

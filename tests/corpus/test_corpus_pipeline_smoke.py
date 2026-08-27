@@ -71,7 +71,6 @@ def _load_audio(path: Path) -> tuple[np.ndarray, int]:
 
 def _run_mini_pipeline(audio: np.ndarray, sr: int) -> dict:
     """Führt die minimale Aurik-Pipeline aus (mode=smoke) und gibt Metadaten zurück."""
-    from backend.core.audio_utils import normalize_audio  # type: ignore[attr-defined]
     from backend.core.defect_scanner import DefectScanner
     from backend.core.perceptual_quality_scorer import PerceptualQualityScorer
 
@@ -89,7 +88,12 @@ def _run_mini_pipeline(audio: np.ndarray, sr: int) -> dict:
         audio = audio[:target_len].astype(np.float32)
         sr = 48000
 
-    audio = normalize_audio(audio)
+    # Peak-Normalisierung (Inline — backend.core.audio_utils exportiert kein normalize_audio mehr)
+    _peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+    if _peak > 1e-8:
+        audio = (audio.astype(np.float32) / _peak).astype(np.float32)
+    else:
+        audio = np.zeros_like(audio, dtype=np.float32)
 
     # NaN/Inf-Check vor Pipeline
     assert np.isfinite(audio).all(), "Input-Audio enthält NaN/Inf"
@@ -98,8 +102,10 @@ def _run_mini_pipeline(audio: np.ndarray, sr: int) -> dict:
     scanner = DefectScanner()
     try:
         defects = scanner.scan(audio, sr)
+        defects_found = len(defects.get_top_defects(8)) if hasattr(defects, "get_top_defects") else 0
     except Exception:
         defects = []  # type: ignore[assignment]
+        defects_found = 0
 
     # PQS-Score
     pqs = PerceptualQualityScorer()
@@ -109,7 +115,7 @@ def _run_mini_pipeline(audio: np.ndarray, sr: int) -> dict:
         score = 0.0  # type: ignore[assignment]
 
     return {
-        "defects_found": len(defects) if defects else 0,  # type: ignore[arg-type]
+        "defects_found": int(defects_found),
         "pqs_score": float(score),  # type: ignore[arg-type]
         "sample_rate": int(sr),
         "duration_s": len(audio) / sr,

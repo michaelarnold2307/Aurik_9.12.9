@@ -29,8 +29,10 @@ def validate_before_export(audio: np.ndarray, sr: int, is_studio_2026: bool = Fa
         if check.warnings:
             warnings.extend(check.warnings)
 
-        # 2. FallbackAuditor — zu viele Degradationen?
+        # 2. FallbackAuditor — konsolidierter Degradations-Bericht + zu viele Degradationen?
         fa = get_fallback_auditor()
+        if fa.degraded:
+            logger.warning("%s", fa.report())  # §v10.17: sichtbarer Bericht vor jedem Export
         if fa.should_block_pipeline if hasattr(fa, "should_block_pipeline") else False:
             logger.error("PreExportValidator: Ersatzpfad-Kaskadenlimit überschritten — Ausgabe BLOCKIERT")
             return False, warnings + ["fallback_cascade_exceeded"]

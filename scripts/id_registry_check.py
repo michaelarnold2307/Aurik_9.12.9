@@ -216,9 +216,7 @@ def scan(registry: Registry, ziele: list[Path]) -> tuple[int, int]:
                 status, quelle = registry.klassifiziere(zitat)
                 if status is None:
                     warnungen += 1
-                    logger.warning(
-                        "R1 unbekannte ID: %s (%s:%d)", zitat, _kuerze(datei), nr
-                    )
+                    logger.warning("R1 unbekannte ID: %s (%s:%d)", zitat, _kuerze(datei), nr)
                 elif status == "ambig":
                     if not _qualifiziert(zeile):
                         warnungen += 1
@@ -256,24 +254,18 @@ def scan(registry: Registry, ziele: list[Path]) -> tuple[int, int]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Prüft §-Zitate gegen die ID-Registry."
-    )
+    parser = argparse.ArgumentParser(description="Prüft §-Zitate gegen die ID-Registry.")
     parser.add_argument(
         "dateien",
         nargs="*",
-        help="Zu prüfende Dateien; Standard: backend/ denker/ forensics/ "
-        "Aurik10/ tests/ plugins/ scripts/",
+        help="Zu prüfende Dateien; Standard: backend/ denker/ forensics/ Aurik10/ tests/ plugins/ scripts/",
     )
     parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
-    parser.add_argument(
-        "--strict", action="store_true", help="Exit 1, sobald WARNUNGEN auftreten"
-    )
+    parser.add_argument("--strict", action="store_true", help="Exit 1, sobald WARNUNGEN auftreten")
     parser.add_argument(
         "--fix",
         action="store_true",
-        help="Nackte Ambiguitäts-Zitate gemäß Qualifikations-Mapping "
-        "mechanisch qualifizieren (idempotent)",
+        help="Nackte Ambiguitäts-Zitate gemäß Qualifikations-Mapping mechanisch qualifizieren (idempotent)",
     )
     args = parser.parse_args()
 
@@ -292,8 +284,7 @@ def main() -> int:
 
     warnungen, hinweise = scan(registry, ziele)
     logger.info(
-        "ID-Registry-Check abgeschlossen: %d WARNUNG(en), %d HINWEIS(e), "
-        "%d Datei(en) geprüft.",
+        "ID-Registry-Check abgeschlossen: %d WARNUNG(en), %d HINWEIS(e), %d Datei(en) geprüft.",
         warnungen,
         hinweise,
         len(ziele),

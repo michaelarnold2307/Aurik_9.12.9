@@ -1,9 +1,16 @@
-"""Vocoder Chain — BigVGAN-v2 + HiFi-GAN + PGHI-ISTFT Fallback.
+"""Vocoder Chain — Spec-04-[RELEASE_MUST]-Kaskade (Rev. 2026-08-16).
 
 Spec 02 §1.5 Schritt 13. Aktiviert wenn PQS-MOS < 4.3 nach Phase-Pipeline.
 
-Kette: vocos_48khz → BigVGAN-v2 → HiFi-GAN → PGHI-ISTFT (Fallback)
-VERBOTEN: vocos_mel_spec_24khz.onnx als primäres Modell (§4.4 SOTA-Matrix)
+Kaskade (Spec 04 §[RELEASE_MUST] „Neuronale Synthese / Vocoder-Kaskade“):
+    Studio-2026:  Vocos 48 kHz nativ → BigVGAN-v2 → HiFi-GAN → PGHI-ISTFT
+    Restoration:  BigVGAN-v2 → HiFi-GAN → PGHI-ISTFT (Vocos verboten, §1.4)
+
+VERBOTEN (Spec 04):
+    - vocos_mel_spec_24khz.onnx als primäres Modell (SR-Mismatch zu 48 kHz)
+    - Griffin-Lim als Endschritt in Studio-2026
+DiffWave ist kein Vocoder-Tier (Inpainting-Aufgabe, phase_55) und hier bewusst
+nicht verdrahtet.
 """
 
 from __future__ import annotations
@@ -15,13 +22,26 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def activate_vocoder_chain(audio: np.ndarray, sample_rate: int = 48000, pqs_mos: float = 4.5) -> np.ndarray | None:
+def _ok(result) -> bool:
+    """True wenn ein synthetisiertes Audio-Array mit Inhalt vorliegt."""
+    return result is not None and isinstance(result, np.ndarray) and result.size > 0
+
+
+def activate_vocoder_chain(
+    audio: np.ndarray,
+    sample_rate: int = 48000,
+    pqs_mos: float = 4.5,
+    *,
+    studio_mode: bool = False,
+) -> np.ndarray | None:
     """Aktiviert die Vocoder-Kette wenn PQS-MOS unter Schwellwert.
 
     Args:
-        audio: Restauriertes Audio
+        audio:       Restauriertes Audio
         sample_rate: Sample-Rate
-        pqs_mos: Aktueller PQS-MOS-Wert
+        pqs_mos:     Aktueller PQS-MOS-Wert
+        studio_mode: True = Studio-2026-Kaskade inkl. Vocos-Tier-1 (§1.4:
+                     Vocos ist im Restoration-Modus verboten).
 
     Returns:
         Vocoder-verarbeitetes Audio, oder None wenn nicht aktiviert.
@@ -32,37 +52,59 @@ def activate_vocoder_chain(audio: np.ndarray, sample_rate: int = 48000, pqs_mos:
     logger.info("Vocoder-Kette aktiviert (PQS-MOS %.1f < 4.3)", pqs_mos)
     arr = np.asarray(audio, dtype=np.float32)
 
-    # Stufe 1: BigVGAN-v2 (primär)
+    # Stufe 1 (nur Studio-2026): Vocos 48 kHz nativ — Spec 04 [RELEASE_MUST]
+    if studio_mode:
+        try:
+            from plugins.vocos_plugin import get_vocos_plugin
+
+            voc = get_vocos_plugin()
+            res = voc.vocode(arr, sample_rate, mode="studio2026")
+            out = getattr(res, "audio", None)
+            if _ok(out):
+                logger.info("Vocoder-Kette: Vocos 48 kHz erfolgreich")
+                return np.asarray(out, dtype=np.float32)
+        except Exception as e:
+            logger.warning("Vocos 48 kHz fehlgeschlagen: %s — Fallback zu BigVGAN-v2", e)
+
+    # Stufe 2: BigVGAN-v2 (primär im Restoration-Modus)
     try:
         from plugins.bigvgan_v2_plugin import BigVGANv2Plugin
 
-        bigvgan = BigVGANv2Plugin()
-        result = bigvgan.synthesize(arr, sample_rate)
-        if result is not None and isinstance(result, np.ndarray) and result.size > 0:
+        result = BigVGANv2Plugin().synthesize(arr, sample_rate)
+        if _ok(result):
             logger.info("Vocoder-Kette: BigVGAN-v2 erfolgreich")
-            return result.astype(np.float32)
+            return np.asarray(result, dtype=np.float32)
     except Exception as e:
         logger.warning("BigVGAN-v2 fehlgeschlagen: %s — Fallback zu HiFi-GAN", e)
 
-    # Stufe 2: HiFi-GAN (sekundär)
+    # Stufe 3: HiFi-GAN (Tertiär-Notfallstufe, Spec 04)
     try:
         from plugins.hifigan_plugin import HiFiGANPlugin
 
-        hifi = HiFiGANPlugin()
-        result = hifi.synthesize(arr, sample_rate)
-        if result is not None and isinstance(result, np.ndarray) and result.size > 0:
-            logger.info("Vocoder-Kette: HiFi-GAN Fallback erfolgreich")
-            return result.astype(np.float32)
+        result = HiFiGANPlugin().synthesize(arr, sample_rate)
+        if _ok(result):
+            logger.info("Vocoder-Kette: HiFi-GAN Notfallstufe erfolgreich")
+            return np.asarray(result, dtype=np.float32)
     except Exception as e:
         logger.warning("HiFi-GAN fehlgeschlagen: %s — Fallback zu PGHI-ISTFT", e)
 
-    # Stufe 3: PGHI-ISTFT (deterministischer Letzter-Ausweg)
+    # Stufe 4: PGHI (deterministischer DSP-Endfall, Spec 04; §4.5 pghi_reconstruct)
     try:
-        from dsp.pghi import pghi_istft
+        from scipy.signal import stft as scipy_stft
 
-        result = pghi_istft(arr, sample_rate)
-        logger.info("Vocoder-Kette: PGHI-ISTFT Fallback erfolgreich")
-        return result.astype(np.float32)
+        from dsp.pghi import pghi_reconstruct
+
+        _, _, z_stft = scipy_stft(arr, fs=sample_rate, nperseg=2048, noverlap=2048 - 256)
+        mag = np.abs(z_stft).astype(np.float32)
+        result = pghi_reconstruct(mag, sr=sample_rate, win_size=2048, hop=256)
+        out = np.asarray(result, dtype=np.float32)
+        # Längen-Invariante: Resynthese auf Eingangslänge trimmen/paden (§G5)
+        if out.shape[0] < arr.shape[0]:
+            out = np.pad(out, (0, arr.shape[0] - out.shape[0]))
+        else:
+            out = out[: arr.shape[0]]
+        logger.info("Vocoder-Kette: PGHI-DSP-Endfall erfolgreich")
+        return out
     except Exception as e:
         logger.error("Vocoder-Kette: ALLE Stufen fehlgeschlagen — Original zurueck: %s", e)
         return audio

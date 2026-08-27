@@ -777,11 +777,15 @@ def _ola_crossfade_edges(audio: np.ndarray, sample_rate: int) -> tuple[np.ndarra
 
     def _edge_slice(sig: np.ndarray, at_start: bool) -> np.ndarray:
         if at_start:
-            return sig[:xfade_samples] if sig.ndim == 1 else (
-                sig[:xfade_samples, :] if sig.shape[0] > sig.shape[1] else sig[:, :xfade_samples]
+            return (
+                sig[:xfade_samples]
+                if sig.ndim == 1
+                else (sig[:xfade_samples, :] if sig.shape[0] > sig.shape[1] else sig[:, :xfade_samples])
             )
-        return sig[-xfade_samples:] if sig.ndim == 1 else (
-            sig[-xfade_samples:, :] if sig.shape[0] > sig.shape[1] else sig[:, -xfade_samples:]
+        return (
+            sig[-xfade_samples:]
+            if sig.ndim == 1
+            else (sig[-xfade_samples:, :] if sig.shape[0] > sig.shape[1] else sig[:, -xfade_samples:])
         )
 
     _n_xfades = 0

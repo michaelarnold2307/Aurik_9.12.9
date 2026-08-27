@@ -1597,7 +1597,14 @@ class DenoisePhase(PhaseInterface):
                         _sgmse_result.model_used,
                     )
             except Exception as _sgmse_exc:
+                logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
                 logger.debug("SGMSE+ Tier-1 Ersatzpfad nicht verfügbar, weiter mit OMLSA: %s", _sgmse_exc)
+                try:
+                    from backend.core.fallback_auditor import get_fallback_auditor
+
+                    get_fallback_auditor().record("phase_03_denoise", "sgmse_plus", "omlsa_dsp", "sgmse_unavailable")
+                except Exception:
+                    logger.debug("FallbackAuditor nicht verfügbar (unkritisch)", exc_info=True)
             finally:
                 if _plm03_sgmse is not None:
                     try:

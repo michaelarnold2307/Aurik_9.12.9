@@ -1,0 +1,39 @@
+{
+  "round": "vocal_snr_5db",
+  "task": "deterministisches Rauschen, SNR 5.0 dB (Seed 2026+idx)",
+  "incumbent": "MIIPHER-DiT (Flow-Matching, §v10.14)",
+  "candidate": "SGMSE+ (Richter et al. 2022, lokal)",
+  "items": [
+    {
+      "item_id": "vocals_test_01",
+      "task": "/media/michael/Software 4TB/Aurik_Standalone/audit/listening_study/round_2026-08-15/vocal_snr_round/task/vocals_test_01_codec_mp3low_proxy.wav",
+      "snr_db_ist": 0.0,
+      "incumbent": "/media/michael/Software 4TB/Aurik_Standalone/audit/listening_study/round_2026-08-15/vocal_snr_round/incumbent_dit/vocals_test_01_dit.wav",
+      "candidate": null,
+      "problems": [],
+      "incumbent_runtime_s": 5.9,
+      "incumbent_model_used": "miipher_dit"
+    },
+    {
+      "item_id": "vocals_test_02",
+      "task": "/media/michael/Software 4TB/Aurik_Standalone/audit/listening_study/round_2026-08-15/vocal_snr_round/task/vocals_test_02_codec_mp3low_proxy.wav",
+      "snr_db_ist": 0.0,
+      "incumbent": "/media/michael/Software 4TB/Aurik_Standalone/audit/listening_study/round_2026-08-15/vocal_snr_round/incumbent_dit/vocals_test_02_dit.wav",
+      "candidate": null,
+      "problems": [],
+      "incumbent_runtime_s": 7.6,
+      "incumbent_model_used": "miipher_dit"
+    },
+    {
+      "item_id": "vocals_test_03",
+      "task": "/media/michael/Software 4TB/Aurik_Standalone/audit/listening_study/round_2026-08-15/vocal_snr_round/task/vocals_test_03_codec_mp3low_proxy.wav",
+      "snr_db_ist": 0.0,
+      "incumbent": "/media/michael/Software 4TB/Aurik_Standalone/audit/listening_study/round_2026-08-15/vocal_snr_round/incumbent_dit/vocals_test_03_dit.wav",
+      "candidate": null,
+      "problems": [],
+      "incumbent_runtime_s": 15.7,
+      "incumbent_model_used": "miipher_dit"
+    }
+  ],
+  "problems": []
+}

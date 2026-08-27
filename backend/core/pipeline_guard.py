@@ -236,7 +236,9 @@ class PipelineGuard:
 
     # ── Post-Flight ───────────────────────────────────────────────────
 
-    def post_flight(self, final_audio: np.ndarray, sr: int, chain_depth: int = 1) -> dict[str, Any]:
+    def post_flight(
+        self, final_audio: np.ndarray, sr: int, chain_depth: int = 1, restorability: float = 50.0
+    ) -> dict[str, Any]:
         """Nach Pipeline-Ende: Watchdog-Report + Pleasantness-Check."""
         report: dict[str, Any] = {
             "phases_monitored": self._phase_count,
@@ -246,7 +248,9 @@ class PipelineGuard:
 
         # Watchdog post-flight
         try:
-            wd_report = self._wd().post_flight_validity(final_audio, sr, chain_depth=chain_depth)
+            wd_report = self._wd().post_flight_validity(
+                final_audio, sr, chain_depth=chain_depth, restorability=restorability
+            )
             report["watchdog"] = wd_report.to_dict()
             report["all_checks_passed"] = wd_report.all_checks_passed
             if wd_report.criticals:

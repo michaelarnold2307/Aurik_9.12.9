@@ -436,6 +436,13 @@ class WowFlutterFix(PhaseInterface):
 
         _original_audio = np.asarray(audio, dtype=np.float32).copy()
 
+        # §2.51: Stereo-Layout-Normalisierung — akzeptiere (2,N) und (N,2),
+        # verarbeite kanonisch channels-last, stelle am Ausgang wieder her
+        # (Rev. 2026-08-16: test_stereo_axis_matrix[phase_12] schlug fehl, weil
+        # process() channels-first-Input unnormalisiert weitergab).
+        audio, _was_channels_first = to_channels_last(_original_audio)
+        _original_audio = np.asarray(audio, dtype=np.float32).copy()
+
         # §P3 Chunk-Overlap: Wenn ein vorheriger Chunk existiert, prepend den
         # 1s-Überlapp mit Crossfade, um Artefakte an Chunk-Grenzen zu eliminieren.
         _overlap_samples = int(self._chunk_overlap_dur_s * sample_rate)
@@ -557,7 +564,7 @@ class WowFlutterFix(PhaseInterface):
                 passthrough = np.clip(np.nan_to_num(passthrough, nan=0.0, posinf=0.0, neginf=0.0), -1.0, 1.0)
             return PhaseResult(
                 success=True,
-                audio=passthrough,
+                audio=restore_layout(passthrough, _was_channels_first),
                 resolved_defects={},
                 metrics={
                     "wow_flutter_detected": False,
@@ -929,7 +936,7 @@ class WowFlutterFix(PhaseInterface):
                 audio = np.clip(audio, -1.0, 1.0)
                 return PhaseResult(
                     success=True,
-                    audio=audio,
+                    audio=restore_layout(audio, _was_channels_first),
                     metrics={
                         "wow_flutter_detected": False,
                         "max_deviation_percent": 0.0,
@@ -1028,7 +1035,7 @@ class WowFlutterFix(PhaseInterface):
             audio = np.clip(audio, -1.0, 1.0)
             return PhaseResult(
                 success=True,
-                audio=audio,
+                audio=restore_layout(audio, _was_channels_first),
                 metrics={
                     "wow_flutter_detected": False,
                     "max_deviation_percent": max_deviation,
@@ -1070,7 +1077,7 @@ class WowFlutterFix(PhaseInterface):
             processing_time = time.time() - start_time
             return PhaseResult(
                 success=True,
-                audio=restored,
+                audio=restore_layout(restored, _was_channels_first),
                 metrics={
                     "wow_flutter_detected": True,
                     "max_deviation_percent": max_deviation,
@@ -1540,7 +1547,7 @@ class WowFlutterFix(PhaseInterface):
         _report_progress(96.0, "Wow/Flutter: Abschluss-Validierung")
         return PhaseResult(
             success=True,
-            audio=restored,
+            audio=restore_layout(restored, _was_channels_first),
             resolved_defects={
                 "WOW": float(np.clip(residual_deviation / 100.0, 0.0, 0.3)),
                 "FLUTTER": float(np.clip(residual_deviation / 100.0, 0.0, 0.3)),
@@ -3676,6 +3683,8 @@ class WowFlutterFix(PhaseInterface):
             # Sehr konservativer Blend, um Transienten zu schonen.
             blend = 0.18
             result = (1.0 - blend) * audio_f + blend * out
+            result = np.clip(np.nan_to_num(result, nan=0.0, posinf=0.0, neginf=0.0), -1.0, 1.0)
+            return result.astype(audio.dtype, copy=False)  # type: ignore[no-any-return]
         except Exception as _c3_fallback_exc:
             logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
             if "result" in locals():

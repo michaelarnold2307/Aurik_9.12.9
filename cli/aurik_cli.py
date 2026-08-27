@@ -364,15 +364,24 @@ def _export_audio_frontend_parity(
         for warning in eq_warnings:
             logger.warning("Export-Quality: %s", warning)
     if not eq_passed:
-        metadata = getattr(result, "metadata", None)
-        if isinstance(metadata, dict):
-            metadata["export_quality_gate_failed"] = True
-            metadata["export_quality_gate_warnings"] = list(eq_warnings)
-            metadata["export_blocked_by_quality_gate"] = True
-        raise RuntimeError(
-            "Export blockiert: Export-Quality-Gate nicht bestanden"
-            + (f" ({'; '.join(eq_warnings)})" if eq_warnings else "")
-        )
+        # Diagnose-/A-B-Modus: expliziter, dokumentierter Override — das
+        # Schutz-Gate bleibt im Normalbetrieb voll aktiv.
+        if os.getenv("AURIK_EXPORT_OVERRIDE", "0") == "1":
+            logger.warning(
+                "Export-Quality-Gate mit AURIK_EXPORT_OVERRIDE=1 übersprungen "
+                "(Diagnose/A-B-Modus — Ergebnis NICHT für Produktion): %s",
+                "; ".join(eq_warnings) if eq_warnings else "unbekannt",
+            )
+        else:
+            metadata = getattr(result, "metadata", None)
+            if isinstance(metadata, dict):
+                metadata["export_quality_gate_failed"] = True
+                metadata["export_quality_gate_warnings"] = list(eq_warnings)
+                metadata["export_blocked_by_quality_gate"] = True
+            raise RuntimeError(
+                "Export blockiert: Export-Quality-Gate nicht bestanden"
+                + (f" ({'; '.join(eq_warnings)})" if eq_warnings else "")
+            )
 
     export_metadata = {
         "quality_gate_passed": str(bool(eq_payload.get("passed", eq_passed))),

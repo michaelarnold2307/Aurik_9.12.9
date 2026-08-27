@@ -1068,6 +1068,24 @@ class LyricsGuidedEnhancement:
         if not transcription.words:
             return audio
 
+        # §Perf Early-Exit: Kein Wort trifft ein _SEMANTIC_DSP_PARAMS-Keyword →
+        # alle Kurven bleiben 1.0, jede Band-Maske wird via np.allclose übersprungen
+        # und dyn_curve = 1.0 lässt das Signal unverändert. Vorher: ~40 s STFT/
+        # Interpolation für null Effekt. Der Match-Zähler im Log bleibt identisch.
+        _matched_any = any(
+            str(getattr(word, "word", "") or "").lower().strip() in self._SEMANTIC_DSP_PARAMS
+            for word in transcription.words
+        )
+        if not _matched_any:
+            logger.info("§v10.303.52 Semantic-DSP: 0 Wörter mit Keyword-Match verarbeitet")
+            # Identisches End-Transform wie im DSP-Pfad (NaN/Clip/float32) —
+            # für valides Audio ein No-Op, aber bit-kompatibel zum Vollpfad.
+            return np.clip(
+                np.nan_to_num(np.asarray(audio, dtype=np.float32), nan=0.0, posinf=0.0, neginf=0.0),
+                -1.0,
+                1.0,
+            ).astype(np.float32)
+
         out = np.asarray(audio, dtype=np.float32).copy()
         n_samples = out.shape[0]
         is_stereo = out.ndim == 2

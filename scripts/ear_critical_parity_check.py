@@ -10,6 +10,7 @@ Prüft die Registry `.github/EAR_CRITICAL_PARITY.md`:
 
 Exit 0 = OK, 1 = Verstoß.
 """
+
 from __future__ import annotations
 
 import sys

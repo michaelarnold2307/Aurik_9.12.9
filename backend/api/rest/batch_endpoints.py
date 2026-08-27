@@ -83,7 +83,7 @@ def batch_worker(batch_id: str, input_files: list[str]):
                         tmp_path.unlink(missing_ok=True)
 
                 audit_path = out_path.with_suffix(".json")
-                with open(audit_path, "w", encoding="utf-8") as f:
+                with open(str(audit_path), "w", encoding="utf-8") as f:
                     json.dump(
                         {
                             "filename": fname,
@@ -143,8 +143,12 @@ async def start_batch(background_tasks: BackgroundTasks, files: list[UploadFile]
                     _safe_name = Path(upload_file.filename).name
                     if not _safe_name:
                         continue
+                    # Validate safe name to prevent path traversal
+                    if "/" in _safe_name or "\\" in _safe_name or ".." in _safe_name:
+                        logger.warning("Skipping unsafe file name: %s", _safe_name)
+                        continue
                     file_path = AUDIO_IN_DIR / _safe_name
-                    with open(file_path, "wb") as f:
+                    with open(str(file_path), "wb") as f:
                         content = await upload_file.read()
                         f.write(content)
                     input_files.append(_safe_name)
@@ -270,7 +274,7 @@ async def batch_audit(batch_id: str):
         for f in AUDIO_OUT_DIR.iterdir():
             if f.is_file() and f.suffix == ".json" and "_audit" not in f.name:
                 try:
-                    with open(f, encoding="utf-8") as fp:
+                    with open(str(f), encoding="utf-8") as fp:
                         audit_data = json.load(fp)
                         audits.append({"filename": f.name, "data": audit_data})
                 except Exception as e:

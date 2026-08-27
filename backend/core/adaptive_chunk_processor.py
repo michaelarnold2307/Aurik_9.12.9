@@ -364,7 +364,8 @@ def process_in_adaptive_chunks(
         # Align phases between consecutive chunks before crossfading to
         # eliminate comb filtering at low frequencies (30 Hz audible modulation).
         # Skips if ERB masking threshold renders alignment unnecessary.
-        if pos > 0 and not is_stereo and fade_samples < chunk_len and _prev_tail is not None:
+        _this_chunk_len = processed.shape[-1] if is_stereo else len(processed)
+        if pos > 0 and not is_stereo and fade_samples < _this_chunk_len and _prev_tail is not None:
             try:
                 from backend.core.phase_aligned_overlap_add import (
                     compute_optimal_alignment,

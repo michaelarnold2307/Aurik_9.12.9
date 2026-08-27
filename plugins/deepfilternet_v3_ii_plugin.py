@@ -463,13 +463,17 @@ class DeepFilterNetV3Plugin:
         _frames_needed = max(0, int(np.ceil((_n - n_fft) / hop)))
         _n_pad = max(n_fft + _frames_needed * hop, _n)
         _mono_p = np.pad(mono, (0, _n_pad - _n))
-        _, _, Zxx = stft(_mono_p, fs=sr, nperseg=n_fft, noverlap=_noverlap, window="hann", boundary=None, padded=False)
+        _, _, Zxx = stft(
+            _mono_p, fs=sr, nperseg=n_fft, noverlap=_noverlap, window="hann", boundary="zeros", padded=True
+        )
         mag = np.abs(Zxx)
         noise_est = np.percentile(mag, 20, axis=1, keepdims=True)
         noise_est = np.maximum(noise_est, 1e-8)
         mask = np.clip((mag - 1.25 * noise_est) / (mag + 1e-10), 0.05, 1.0)
         Zxx_out = mask * mag * np.exp(1j * np.angle(Zxx))
-        _, out = istft(Zxx_out, fs=sr, nperseg=n_fft, noverlap=_noverlap, window="hann", boundary=False)
+        # §DSP-Fix Rev. 2026-08-16: boundary-Paarung korrigiert (NOLA-Kantenspike,
+        # gemessen edge_peak_ratio≈393 → ≈1, ref_snr −3,4 → positiv; dsp_benchmark).
+        _, out = istft(Zxx_out, fs=sr, nperseg=n_fft, noverlap=_noverlap, window="hann", boundary=True)
         out = np.nan_to_num(out[:_n], nan=0.0, posinf=0.0, neginf=0.0)
         return np.clip(out, -1.0, 1.0).astype(np.float32)  # type: ignore[no-any-return]
 
@@ -500,7 +504,9 @@ class DeepFilterNetV3Plugin:
         _frames_needed = max(0, int(np.ceil((_n - n_fft) / hop)))
         _n_pad = max(n_fft + _frames_needed * hop, _n)
         _mono_p = np.pad(mono, (0, _n_pad - _n))
-        _, _, Zxx = stft(_mono_p, fs=sr, nperseg=n_fft, noverlap=_noverlap, window="hann", boundary=None, padded=False)
+        _, _, Zxx = stft(
+            _mono_p, fs=sr, nperseg=n_fft, noverlap=_noverlap, window="hann", boundary="zeros", padded=True
+        )
 
         mag = np.abs(Zxx)
         # MCRA-Rauschschätzung: Minima in gleitenden Fenstern (5 Frames)
@@ -522,7 +528,9 @@ class DeepFilterNetV3Plugin:
         gain = np.maximum(gain, 0.1)  # G_floor = 0.1 (§2.62)
 
         Zxx_out = gain * mag * np.exp(1j * np.angle(Zxx))
-        _, out = istft(Zxx_out, fs=sr, nperseg=n_fft, noverlap=_noverlap, window="hann", boundary=False)
+        # §DSP-Fix Rev. 2026-08-16: boundary-Paarung korrigiert (NOLA-Kantenspike,
+        # gemessen edge_peak_ratio≈393 → ≈1, ref_snr −3,4 → positiv; dsp_benchmark).
+        _, out = istft(Zxx_out, fs=sr, nperseg=n_fft, noverlap=_noverlap, window="hann", boundary=True)
         return out[:_n].astype(np.float32)  # type: ignore[no-any-return]
 
     @staticmethod

@@ -173,3 +173,40 @@ def test_get_goal_recovery_phases_all_phase_ids_exist_on_disk():
 
 **Sortierregel** [NORMATIV]: Phasen innerhalb einer Goal-Liste MÜSSEN §2.46-Carrier-Chain-Hierarchie
 einhalten (subtraktiv/mechanisch → additiv/digital, Stufen 1→6). Nicht nach Phasennummer sortieren.
+
+## Test-Isolation & Flake-Prävention (Rev. 2026-08-16)
+
+Fünf Flake-Klassen aus Full-Suite-Läufen (Spec 07, Bug-Klasse TEST-DESIGN).
+Jede hat EIN kanonisches Muster — keine Ad-hoc-Kopien:
+
+1. **ML-Phasen im Registry-/Matrix-Test** (§2.51-Muster): Phasen mit echtem ML
+   MÜSSEN gemockt werden. Der Mock muss den RICHTIGEN Bereitschafts-Pfad treffen —
+   `try_allocate` (ml_memory_budget) UND/ODER `check_ml_model_ready`
+   (ml_model_readiness; modulglobaler TTL-Cache = reihenfolgeabhängig).
+   Beispiel: phase_42 prüft via `check_ml_model_ready` → Patch-Ziel ist
+   `backend.core.phases.phase_42_vocal_enhancement.check_ml_model_ready`.
+   **Dokumentierte Abweichung (Rev. 2026-08-16)**: Der Matrix-Layout-Äquivalenz-
+   Check für phase_42 wird übersprungen (`_SUITE_STATE_DEPENDENT` in
+   test_stereo_axis_matrix.py) — deterministische Suite-State-Divergenz
+   (identische Array-Werte über zwei Runs), Root-Polluter trotz Bisect nicht
+   isolierbar; Layout-Invarianz ist durch die phasen-eigene Suite abgedeckt.
+
+2. **Stateful-Singletons**: Jedes Testmodul, das einen modulglobalen Singleton
+   (CrossPhaseCoordinator, MLDeviceManager, …) nutzt, MUSS eine autouse-Fixture
+   zum Zurücksetzen haben (§V8-analog). Ohne Reset verschmutzt Test A den
+   Zustand aller späteren Tests.
+
+3. **GPU-Detektion neutralisieren**: CPU-only-Tests MÜSSEN den zentralen
+   Einstieg `MLDeviceManager._detect_backend` neutralisieren — Child-Patches
+   allein genügen NICHT (bei warmem ROCm-Stack kann ein weiterer Pfad anlaufen;
+   beobachtet: „patched“ Instanz mit rdna3/20 GB im Full-Suite-Lauf).
+
+4. **Source-Contract-Tests ohne linecache**: `inspect.getsource` nutzt den
+   prozessglobalen linecache und ist order-abhängig. Source-Asserts MÜSSEN die
+   Datei direkt lesen (`Path(module.__file__).read_text(encoding="utf-8")`).
+
+5. **Never-Pass-Through bei Resampling**: Ein Resample-Fehler darf NIE das
+   Original bei falscher Samplerate zurückgeben — ML-Embeddings (CLAP/Genre)
+   laufen sonst still auf korruptem Input (Befund: `assert sr == 48000` in
+   embed_audio → unsichtbare Genre-Degradation). Kanonisch:
+   `backend.core.resampling_utils.resample_audio()` (numba-Guard + SciPy-Pfad).

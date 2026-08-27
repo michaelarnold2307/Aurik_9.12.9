@@ -1,9 +1,15 @@
 """
-MIIPHER Plugin — Vocal-SOTA adapter for SNR < 10 dB (v10.0.0)
+MIIPHER Plugin — Vokal-Deep-Noise-Router (Legacy-Adapter, v10.0.0)
 
-§4.4 SOTA-Matrix 2026: MIIPHER (Zhang et al. 2023, Google) ist das SOTA-Modell
-für extrem starke Rauschumgebungen (SNR < 10 dB), Vocal-Restaurierung von
-stark degradiertem Gesangsmaterial. Basiert auf W2v-BERT als Conditioning.
+Das proprietäre Google-MIIPHER ist nicht gebündelt; dieses Modul ist der
+kompatible Router für stark degradierten Gesang (SNR < 10 dB): die Route läuft
+über SGMSE+ → DeepFilterNet v3.II → konservatives DSP mit expliziter
+Route-Metadaten (model_used="miipher_deepfilternet_v3_ii").
+
+Spec 04 Rev. 2026-08-15: Der SNR<10-Vokal-Task gehört SGMSE+ v2; Codec-
+Degradation (mp3_low/streaming/aac/minidisc) trägt der offene DiT
+(plugins/miipher_dit_plugin.py, Gate should_apply). Dieser Router bleibt als
+Legacy-Pfad erhalten.
 
 Model status: Native MIIPHER is not bundled. This module is still productive:
 it routes deep-noise vocal material through the best local open-source chain

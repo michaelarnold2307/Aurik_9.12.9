@@ -6,11 +6,12 @@ RMVPE (Robust Multi-period Vocoder-based Pitch Estimator via Mel spectrogram):
     - ONNX-Modell: models/rmvpe/rmvpe.onnx (~26 MB)
     - Fallback: librosa.pyin() (pYIN, Mauch & Dixon 2014)
 
-Aurik 10.0.0 Pitch-Tracking-Hierarchie (§4.4, Stand März 2026):
+Aurik 10.0.0 Pitch-Tracking-Hierarchie (§4.4, Spec 04 Rev. 2026-08-16):
     Primär:    FCPE ONNX (fcpe_plugin)
-    Fallback1: CREPE full ONNX (crepe_plugin)
-    Fallback2: RMVPE ONNX (dieser Plugin — nur wenn stabil verifiziert)
+    Fallback:  RMVPE ONNX (dieser Plugin)
     DSP:       PESTO → pYIN via librosa
+    Legacy:    CREPE nur noch intern im FCPE-Plugin als Delegate — als
+               eigenständiger Produktions-Tier VERBOTEN (Spec 04, Zeile 1129)
 
 Referenz:
     Wei et al. "RMVPE: A Robust Model for Vocal Pitch Estimation
@@ -196,9 +197,33 @@ class RmvpePlugin:
         mono = audio if audio.ndim == 1 else audio.mean(axis=-1)
         mono = np.clip(mono, -1.0, 1.0)
 
-        if self._session is not None:
-            return self._analyze_onnx(mono, sr, voiced_threshold)
+        self._ensure_session()
+        # Lokale Referenz statt self._session: Der PLM-unload_fn setzt nur
+        # self._session = None — eine evictierte Session kann so die laufende
+        # Inferenz nicht mehr annullieren (Race-Fund Rev. 2026-08-16).
+        session = self._session
+        if session is not None:
+            return self._analyze_onnx(mono, sr, voiced_threshold, session=session)
         return self._analyze_pyin(mono, sr)
+
+    # ------------------------------------------------------------------
+    # Session-Selbstheilung (§v10.40, Rev. 2026-08-16)
+    # ------------------------------------------------------------------
+
+    def _ensure_session(self) -> None:
+        """Stellt eine gültige ONNX-Session sicher.
+
+        Der PluginLifecycleManager kann die Session unter RAM-Druck entladen
+        (unload_fn setzt `_session = None`). Ohne Reload degradiert der
+        §4.4-Pitch-Tracker danach still auf PESTO/pYIN (§V6-Fund, Benchmark:
+        14/15 Läufe im DSP-Fallback). Hier: einmaliges transparentes Re-Load,
+        wenn die Gewichte lokal vorhanden sind und das ML-Budget es zulässt.
+        """
+        if self._session is not None or self._model_loaded:
+            return
+        if not _ONNX_PATH.exists():
+            return
+        self._try_load()
 
     # ------------------------------------------------------------------
     # ONNX Inference
@@ -242,9 +267,17 @@ class RmvpePlugin:
         mel_log = np.log(np.maximum(mel, 1e-8)).astype(np.float32)
         return np.nan_to_num(mel_log, nan=0.0, posinf=0.0, neginf=-18.4).T  # type: ignore[no-any-return]  # [T, n_mels]
 
-    def _analyze_onnx(self, mono_48k: np.ndarray, sr: int, voiced_threshold: float) -> RmvpeResult:
+    def _analyze_onnx(
+        self,
+        mono_48k: np.ndarray,
+        sr: int,
+        voiced_threshold: float,
+        *,
+        session: object | None = None,
+    ) -> RmvpeResult:
         """RMVPE ONNX-Inferenz: Mel → Salience-Map → F0."""
-        assert self._session is not None
+        session = session if session is not None else self._session
+        assert session is not None
         from math import gcd
 
         from scipy.signal import resample_poly
@@ -273,10 +306,10 @@ class RmvpePlugin:
                 mel = np.pad(mel, ((0, pad_t), (0, 0)), mode="edge")
             # RMVPE ONNX expects rank-3 input with mel channels first: [B, 128, T]
             inp = mel.T[np.newaxis]  # [1, 128, T]
-            inp_name = self._session.get_inputs()[0].name
+            inp_name = session.get_inputs()[0].name
             # §ml-plugin-SKILL: Fixed-Shape-Input defensive guard.
             # If the ONNX model was exported with a fixed T dim (not dynamic), adjust.
-            _inp_meta = self._session.get_inputs()[0]
+            _inp_meta = session.get_inputs()[0]
             _t_meta_dim = _inp_meta.shape[2] if len(_inp_meta.shape) >= 3 else None
             if isinstance(_t_meta_dim, int) and _t_meta_dim > 0 and inp.shape[2] != _t_meta_dim:
                 _t_fixed = int(_t_meta_dim)
@@ -286,7 +319,7 @@ class RmvpePlugin:
                 else:
                     inp = inp[:, :, :_t_fixed]
                 logger.debug("RMVPE ONNX: fixed T=%d detected — input adjusted from %d", _t_fixed, inp.shape[2])
-            ort_out = self._session.run(None, {inp_name: inp.astype(np.float32)})
+            ort_out = session.run(None, {inp_name: inp.astype(np.float32)})
             salience = np.asarray(ort_out[0], dtype=np.float32)  # [1, T, 360]
             if salience.ndim == 3:
                 salience = salience[0]  # [T, 360]

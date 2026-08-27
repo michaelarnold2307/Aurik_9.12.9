@@ -32,6 +32,32 @@ def _get_manager_module():
     return importlib.import_module("backend.core.ml_device_manager")
 
 
+@pytest.fixture(autouse=True)
+def _neutralize_detection():
+    """§V8-analog (Spec 07, Bug-Klasse TEST-DESIGN): GPU-Detektion vollständig neutralisieren.
+
+    Alle Tests dieser Datei setzen den GPU-Zustand nach der Konstruktion
+    explizit (Simulation) oder erwarten CPU-only. Ein im Suite-Kontext warmer
+    ROCm-Stack führte zu order-abhängigen Flakes, weil trotz Child-Patches ein
+    weiterer Detektionspfad anlaufen konnte (rdna3/20 GB in „patched“ Instanzen).
+    `_detect_backend` als zentraler Einstieg wird deshalb komplett stumm
+    geschaltet — deterministisch unabhängig vom Host-Zustand.
+    """
+    with patch("backend.core.ml_device_manager.MLDeviceManager._detect_backend"):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _reset_manager_singleton():
+    """§V8-analog: Prozess-Singleton pro Test zurücksetzen (Suite-Isolation)."""
+    import backend.core.ml_device_manager as _mod
+
+    _original = _mod._instance
+    _mod._instance = None
+    yield
+    _mod._instance = _original
+
+
 # ---------------------------------------------------------------------------
 # _HEAVY_ML_PLUGINS / _FP16_ELIGIBLE_PLUGINS contract
 # ---------------------------------------------------------------------------
@@ -423,6 +449,7 @@ class TestTierBasedExclusion:
         with (
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_cuda_or_rocm"),
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_directml"),
+            patch("backend.core.ml_device_manager.MLDeviceManager._detect_migraphx_bridge"),
         ):
             mgr = MLDeviceManager()
         mgr._gpu_available = True
@@ -495,6 +522,7 @@ class TestAutoFp16:
         with (
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_cuda_or_rocm"),
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_directml"),
+            patch("backend.core.ml_device_manager.MLDeviceManager._detect_migraphx_bridge"),
         ):
             mgr = MLDeviceManager()
         mgr._gpu_available = True
@@ -546,6 +574,7 @@ class TestAutoFp16:
         with (
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_cuda_or_rocm"),
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_directml"),
+            patch("backend.core.ml_device_manager.MLDeviceManager._detect_migraphx_bridge"),
         ):
             mgr = MLDeviceManager()
         assert mgr.get_ort_providers("BSRoFormer") == ["CPUExecutionProvider"]
@@ -567,6 +596,7 @@ class TestGpuStatusSummaryExtended:
         with (
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_cuda_or_rocm"),
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_directml"),
+            patch("backend.core.ml_device_manager.MLDeviceManager._detect_migraphx_bridge"),
         ):
             mgr = MLDeviceManager()
         summary = mgr.gpu_status_summary()
@@ -589,6 +619,7 @@ class TestGpuStatusSummaryExtended:
         with (
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_cuda_or_rocm"),
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_directml"),
+            patch("backend.core.ml_device_manager.MLDeviceManager._detect_migraphx_bridge"),
         ):
             mgr = MLDeviceManager()
         mgr._gpu_available = True
@@ -617,6 +648,7 @@ class TestManagerProperties:
         with (
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_cuda_or_rocm"),
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_directml"),
+            patch("backend.core.ml_device_manager.MLDeviceManager._detect_migraphx_bridge"),
         ):
             mgr = MLDeviceManager()
         assert mgr.gpu_architecture == AMDArchitecture.UNKNOWN
@@ -838,6 +870,7 @@ class TestDirectMlArchTierDetection:
         with (
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_cuda_or_rocm"),
             patch("backend.core.ml_device_manager.MLDeviceManager._detect_directml"),
+            patch("backend.core.ml_device_manager.MLDeviceManager._detect_migraphx_bridge"),
         ):
             mgr = MLDeviceManager()
 
@@ -888,3 +921,41 @@ class TestDirectMlArchTierDetection:
         assert s["gpu_architecture"] == "rdna3"
         assert s["gpu_tier"] == "TIER_2"
         assert s["gpu_name"] == "AMD Radeon RX 7600"
+
+
+# ---------------------------------------------------------------------------
+# MIGraphX-Bridge-Detection (Rev. 2026-08-16 — Bridge gegen ROCm 7.2.4 gebaut)
+# ---------------------------------------------------------------------------
+
+
+def _migraphx_bridge_available() -> bool:
+    """True, wenn libmigraphx_bridge.so auf dieser Maschine ladbar ist."""
+    try:
+        from backend.core.migraphx_adapter import is_migraphx_available
+
+        return is_migraphx_available()
+    except Exception:
+        return False
+
+
+class TestMigraphxDetection:
+    """Echter MIGraphX-Pfad — nur aktiv, wenn die Bridge ladbar ist."""
+
+    @pytest.mark.skipif(
+        not _migraphx_bridge_available(),
+        reason="libmigraphx_bridge.so nicht ladbar (kein MIGraphX oder falscher Build)",
+    )
+    def test_bridge_detection_sets_rocm_enum(self) -> None:
+        """Ohne torch-ROCm gewinnt die MIGraphX-Bridge: ROCM + Enum-Architektur."""
+        from backend.core.ml_device_manager import AMDArchitecture, GPUBackend, MLDeviceManager
+
+        mgr = MLDeviceManager()
+        if mgr._backend != GPUBackend.ROCM:
+            pytest.skip("ROCm bereits über torch erkannt — MIGraphX-Zweig nicht erreicht")
+        assert mgr._gpu_available is True
+        assert "MIGraphXExecutionProvider" in mgr._ort_gpu_providers
+        # Enum-Fix (Rev. 2026-08-16): kein String mehr — gpu_status_summary() darf nicht werfen
+        assert isinstance(mgr._gpu_architecture, AMDArchitecture)
+        s = mgr.gpu_status_summary()
+        assert s["gpu_architecture"] in {"rdna3", "unknown"}
+        assert "gpu_errors" in s

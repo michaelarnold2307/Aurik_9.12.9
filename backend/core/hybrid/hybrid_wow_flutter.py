@@ -259,8 +259,20 @@ class PolyphonicSpeedCurveEstimator:
         deviation_cents = np.clip(deviation_cents, -500.0, 500.0)
 
         # Step 4: confidence-weighted median per frame
+        # §Spec 24 Root-Fix (2026-08-17): Degradationsstufen statt Alles-oder-Nichts.
+        # Befund: „consensus NEVER reached (0/8184 frames)“ bei realen Songs —
+        # BasicPitch liefert pro Frame oft nur EINE dominante Stimme; _MIN_VOICES=2
+        # machte den polyphonen Pfad wertlos (pYIN-Ersatz lief immer, das geladene
+        # BasicPitch-Modell wurde nie genutzt).
+        #   Stufe 1: ≥2 Stimmen → confidence-weighted median (unverändert).
+        #   Stufe 2: exakt 1 Stimme mit Konfidenz ≥ 0.50 → Single-Voice-Kurve
+        #     (strengeres Gate; Konfidenz 0.60 statt 0.85 — downstream bleibt
+        #     dadurch vorsichtiger).
+        #   Stufe 3: keine stimmhaften Frames → pYIN-Ersatzpfad.
         speed_curve = np.full(T, np.nan, dtype=np.float32)
         consensus_conf = np.zeros(T, dtype=np.float32)
+        n_multi = 0
+        n_single = 0
         for t in range(T):
             active = np.where(voiced_mask[t])[0]
             if len(active) >= self._MIN_VOICES:
@@ -269,22 +281,31 @@ class PolyphonicSpeedCurveEstimator:
                 wgts = wgts / (wgts.sum() + 1e-10)
                 speed_curve[t] = self._weighted_median(devs, wgts)
                 consensus_conf[t] = 1.0
+                n_multi += 1
+            elif len(active) == 1 and float(confidences[t, active[0]]) >= 0.50:
+                speed_curve[t] = float(deviation_cents[t, active[0]])
+                consensus_conf[t] = 0.60
+                n_single += 1
 
         # Step 5: fill NaN gaps
         nan_mask = np.isnan(speed_curve)
         if nan_mask.all():
-            # §Fix: zero real per-frame consensus was EVER achieved (e.g. all
-            # voices share an identical, non-octave-related deviation so the
-            # Step-3b inter-voice fold-check excludes every voice at every
-            # frame). _fill_gaps() would zero-fill this as "0 cents deviation"
-            # — a false-plausible reading that silently defeats the Step-6b
-            # implausibility guard below. A curve with NO real data point is
-            # definitionally untrustworthy — route straight to pYIN fallback.
+            # §Fix: zero real per-frame consensus was EVER achieved — weder
+            # multi- noch single-voice (Stufe 1+2 leer). _fill_gaps() würde
+            # zero-fillen („0 cents deviation“) — eine falsch-plausible Lesart,
+            # die den Step-6b-Guard unterläuft. Ohne echten Datenpunkt ist die
+            # Kurve definitiongemäß unvertrauenswürdig → pYIN-Fallback.
             logger.info(
-                "PolyphonicSpeedCurveEstimator: consensus NEVER reached (0/%d frames) — pYIN-Ersatzpfad",
+                "PolyphonicSpeedCurveEstimator: keine stimmhaften Frames (multi=0, single=0 von %d) — pYIN-Ersatzpfad",
                 T,
             )
             return self._pyin_fallback(audio, sr)
+        if n_multi == 0 and n_single > 0:
+            logger.info(
+                "PolyphonicSpeedCurveEstimator: multi-Voice-Konsens nicht erreichbar — Single-Voice-Speed-Curve (%d/%d Frames, Stufe 2)",
+                n_single,
+                T,
+            )
         if nan_mask.any():
             speed_curve = self._fill_gaps(speed_curve, result.frame_times_s)
 
@@ -317,7 +338,9 @@ class PolyphonicSpeedCurveEstimator:
         virtual_pitch = np.clip(virtual_pitch, self._MIN_HZ, 4000.0)
 
         if final_conf is None:
-            final_conf = np.where(consensus_conf > 0.0, 0.85, 0.30).astype(np.float32)
+            # multi-Voice-Konsens: 0.85; Single-Voice (Stufe 2): 0.60; unvoiced: 0.30
+            final_conf = np.where(consensus_conf >= 1.0, 0.85, 0.60).astype(np.float32)
+            final_conf[consensus_conf <= 0.0] = 0.30
             final_conf[nan_mask] *= 0.5
 
         logger.info(
@@ -411,7 +434,8 @@ class HybridWowFlutter:
         """Initialisiert pitch plugin: FCPE -> RMVPE -> PESTO -> pYIN (§4.4 Spec).
 
         Order: Tier-1 FCPE, Tier-2 RMVPE (Wei et al. ICASSP 2023, ~30 % lower pitch
-        error for vocals), Tier-3 PESTO, Tier-4 CREPE legacy fallback.
+        error for vocals), Tier-3 PESTO, Tier-4 pYIN (DSP-Endfall, §4.4).
+        CREPE als Produktions-Tier VERBOTEN (Spec 04, Z. 1129) — Rev. 2026-08-16.
         VERBOTEN: FCPE -> CREPE -> RMVPE (RMVPE muss vor CREPE stehen — §4.4).
         """
         try:
@@ -439,16 +463,17 @@ class HybridWowFlutter:
             logger.info("PESTO plugin geladen für wow/flutter-Detektion (§4.4 Tier-3)")
             return
         except Exception as e:
-            logger.debug("PESTO nicht verfügbar (%s) — CREPE-Ersatzpfad (§4.4 Tier-4)", e)
-        # Tier-4: CREPE (legacy — only if PESTO unavailable)
+            logger.debug("PESTO nicht verfügbar (%s) — pYIN-DSP-Ersatzpfad (§4.4 Tier-4)", e)
+        # Tier-4: pYIN (DSP-Endfall, §4.4). CREPE als Produktions-Tier VERBOTEN
+        # (Spec 04, Z. 1129) — Rev. 2026-08-16.
+        logger.warning("Kein Pitch-ML-Plugin verfügbar — pYIN-DSP-Ersatzpfad (§V6)")
         try:
-            from plugins.crepe_plugin import get_crepe_plugin
+            from backend.core.fallback_auditor import get_fallback_auditor
 
-            self.crepe = get_crepe_plugin()  # type: ignore[assignment]
-            logger.info("CREPE plugin geladen für wow/flutter-Detektion (§4.4 Tier-4 legacy)")
-        except Exception as e:
-            logger.warning("Kein Pitch-ML-Plugin verfügbar (%s) — pYIN-Ersatzpfad", e)
-            self.crepe = None
+            get_fallback_auditor().record("PitchDetection", "fcpe_rmvpe_pesto", "pyin_dsp", "all_ml_unavailable")
+        except Exception:
+            logger.debug("FallbackAuditor nicht verfügbar (unkritisch)", exc_info=True)
+        self.crepe = None
 
     def detect_pitch(self, audio: np.ndarray, sample_rate: int = 48000) -> WowFlutterResult:
         """

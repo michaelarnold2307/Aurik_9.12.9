@@ -973,6 +973,15 @@ class SpecConstitution:
             _af_min = 0.80
         elif chain_depth == 2:
             _af_min = 0.88
+        # §v10.119: Material-Adaptivität — schwer restaurierbares Quellmaterial
+        # (schmale Bandbreite, starke Vorbelastung) ist physikalisch auf niedrigere
+        # artifact_freedom limitiert. Der Parameter existierte, wurde aber nie
+        # ausgewertet (Befund 2026-08-16). Greift erst UNTER „fair“ (rs<50),
+        # damit die depth-Schwellen bei unklarem Material unverändert bleiben.
+        if restorability < 35:
+            _af_min = max(0.65, _af_min - 0.10)
+        elif restorability < 50:
+            _af_min = max(0.65, _af_min - 0.05)
         if artifact_freedom < _af_min:
             issues.append(
                 f"§0h VETO: artifact_freedom={artifact_freedom:.3f} < "
@@ -1223,11 +1232,18 @@ class SpecConstitution:
     def get_shield_thresholds(self) -> dict[str, float]:
         return dict(self._shield)
 
-    def is_export_blocked(self, artifact_freedom: float, hpi: float, chain_depth: int = 1) -> tuple[bool, str]:
+    def is_export_blocked(
+        self,
+        artifact_freedom: float,
+        hpi: float,
+        chain_depth: int = 1,
+        restorability: float = 50.0,
+    ) -> tuple[bool, str]:
         """Prüft ob der Export durch §0h blockiert wird.
 
         §v10.119: chain_depth relaxes the artifact_freedom threshold
         for deep transfer chains (cassette=4 → 0.70 statt 0.95).
+        restorability moduliert zusätzlich material-adaptiv.
         """
         _af_min = self._shield["artifact_freedom_min"]
         if chain_depth >= 4:
@@ -1236,6 +1252,11 @@ class SpecConstitution:
             _af_min = 0.80
         elif chain_depth == 2:
             _af_min = 0.88
+        # §v10.119: Material-Adaptivität (identisch zu check_paragraph_zero)
+        if restorability < 35:
+            _af_min = max(0.65, _af_min - 0.10)
+        elif restorability < 50:
+            _af_min = max(0.65, _af_min - 0.05)
         if artifact_freedom < _af_min:
             return True, f"§0h: artifact_freedom={artifact_freedom:.3f} < {_af_min} (depth={chain_depth})"
         if hpi <= 0:

@@ -68,7 +68,7 @@ Aurik beschleunigt rechenintensive Phasen optional über GPU:
 
 | Plattform | GPU-API | Treiber |
 | --- | --- | --- |
-| **Linux** | AMD ROCm 6.x (PyTorch ROCm) | `amdgpu` + ROCm Runtime |
+| **Linux** | AMD ROCm 7.2.4 (PyTorch ROCm) | `amdgpu` + ROCm Runtime |
 | **Windows 10/11** | AMD DirectML (ONNX Runtime) | Aktueller Adrenalin-Treiber |
 
 GPU-Beschleunigung ist **optional** — CPU-Betrieb jederzeit möglich. Speedup: 2×–8× (phase-abhängig).

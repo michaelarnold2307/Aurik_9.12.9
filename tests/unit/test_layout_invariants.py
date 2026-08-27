@@ -72,7 +72,7 @@ class TestPipelineConsumers:
         assert r_sf.n_onsets == r_cf.n_onsets
 
     def test_02_rlp_shelf(self):
-        from backend.core.reflective_listening_pass import RLPIssue, ReflectiveListeningPass
+        from backend.core.reflective_listening_pass import ReflectiveListeningPass, RLPIssue
 
         rlp = ReflectiveListeningPass()
         issue = RLPIssue(

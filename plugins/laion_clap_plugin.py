@@ -569,9 +569,7 @@ class LAIONCLAPPlugin:
                     # §ROCm-Fallback: MIOpen-Kernel-Fehler (Code object build failed)
                     # auf GPU → Session CPU-only neu aufbauen und EINMAL wiederholen.
                     # Kein Qualitätsverlust, nur Laufzeit (CPU-Inferenz).
-                    logger.warning(
-                        "LAION-CLAP: ONNX-Inferenz fehlgeschlagen (%s) — CPU-Fallback-Retry", _ort_exc
-                    )
+                    logger.warning("LAION-CLAP: ONNX-Inferenz fehlgeschlagen (%s) — CPU-Fallback-Retry", _ort_exc)
                     _cpu_session = self._build_cpu_audio_session()
                     if _cpu_session is None:
                         raise

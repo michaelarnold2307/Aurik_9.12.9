@@ -37,6 +37,23 @@ def _known_phase_ids():
     ]
 
 
+@pytest.fixture(autouse=True)
+def _reset_cpc_singleton():
+    """§V8 (copilot-instructions.md) analog: Stateful-Singleton pro Test zurücksetzen.
+
+    Der CrossPhaseCoordinator hält modulglobalen Zustand (_SINGLETON mit
+    _last_result). Ohne Reset verschmutzt ein früherer Test den Singleton
+    aller späteren Tests — z. B.
+    test_unified_restorer_stability_guard.py::test_explicit_strength_not_overridden_by_corridor
+    (siehe auch Spec 07, Bug-Klasse TEST-DESIGN).
+    """
+    from denker.cross_phase_coordinator import _SINGLETON
+
+    _SINGLETON["instance"] = None
+    yield
+    _SINGLETON["instance"] = None
+
+
 # ── Overlap-Matrix Tests ──────────────────────────────────────────────
 
 
