@@ -290,7 +290,11 @@ class TestEraAdaptiveFusion:
 # 4. Phase-03 Denoise: Material profiles + smooth decade modulation
 # ═══════════════════════════════════════════════════════════════════════════════
 
-from backend.core.phases.phase_03_denoise import DenoisePhase
+from backend.core.phases.phase_03_denoise import (
+    ERA_DECADE_KNOTS,
+    DenoisePhase,
+    decade_strength_multiplier,
+)
 
 
 class TestDenoiseProfiles:
@@ -362,31 +366,25 @@ class TestDenoiseProfiles:
 
     def test_decade_interpolation_1960_is_neutral(self):
         """Decade 1960 should give multiplier ≈ 1.0 (neutral baseline)."""
-        phase = DenoisePhase()
-        np.random.seed(42)
-        audio = (np.random.randn(SR * 3) * 0.3).astype(np.float32)
-        # Process with decade=1960 and check that no error occurs
-        result = phase.process(audio, material_type="unknown", decade=1960, sample_rate=SR)
-        assert result is not None
+        mult = decade_strength_multiplier(1960)
+        assert abs(mult - 1.0) < 1e-6, f"1960 muss neutral sein, war {mult}"
 
     def test_decade_interpolation_smooth(self):
         """Decade strength multipliers should vary smoothly (no jumps)."""
-        # This tests the interpolation table indirectly
-        _era_knots = [
-            (1890, 1.15),
-            (1930, 1.15),
-            (1940, 1.10),
-            (1950, 1.05),
-            (1960, 1.00),
-            (1970, 0.95),
-            (1980, 0.90),
-            (1990, 0.80),
-            (2025, 0.80),
-        ]
-        decades = [k[0] for k in _era_knots]
-        mults = [k[1] for k in _era_knots]
+        # Prüft die PRODUKTIONS-Knotentabelle (keine Test-Kopie), damit
+        # Tabellenänderungen hier sofort auffallen.
+        decades = [k[0] for k in ERA_DECADE_KNOTS]
+        mults = [k[1] for k in ERA_DECADE_KNOTS]
         # Check monotonically non-increasing from earliest to latest
         for i in range(len(mults) - 1):
             assert mults[i] >= mults[i + 1] - 0.001, (
                 f"Decade {decades[i]}: {mults[i]} > {decades[i + 1]}: {mults[i + 1]}"
             )
+
+    def test_decade_strength_multiplier_clamps_and_interpolates(self):
+        """Interpolation über die Produktions-Knoten: Ränder klemmen, Mitte interpoliert."""
+        # Unterhalb/oberhalb der Knoten: Randwerte
+        assert decade_strength_multiplier(1850) == decade_strength_multiplier(1890)
+        assert decade_strength_multiplier(2050) == decade_strength_multiplier(2025)
+        # Zwischen 1950 (1.05) und 1960 (1.00): linearer Verlauf
+        assert abs(decade_strength_multiplier(1955) - 1.025) < 1e-6

@@ -114,6 +114,40 @@ _ERA_EARLY_ELECTRIC_CUTOFF = 1945  # Shellac electrical: restricted DFN only
 _MIIPHER_SNR_CUTOFF_DB = 10.0  # MIIPHER primary when SNR below this threshold
 _MIIPHER_SINGING_MIN = 0.35  # Minimum PANNs confidence for MIIPHER activation
 
+# §2.14+ Era-adaptive NR: piecewise-linear era→strength multiplier (kalibriert):
+#   1890–1930: ×1.15 (aggressiv — hohes intrinsisches Rauschen)
+#   1940:      ×1.10 (frühe elektrische Ära)
+#   1950:      ×1.05 (verbessertes Tape/Vinyl)
+#   1960:      ×1.00 (neutrale Baseline)
+#   1970:      ×0.95 (bessere Produktion)
+#   1980:      ×0.90 (digitale Transition)
+#   1990+:     ×0.80 (saubere digitale Quellen)
+ERA_DECADE_KNOTS: tuple[tuple[int, float], ...] = (
+    (1890, 1.15),
+    (1930, 1.15),
+    (1940, 1.10),
+    (1950, 1.05),
+    (1960, 1.00),
+    (1970, 0.95),
+    (1980, 0.90),
+    (1990, 0.80),
+    (2025, 0.80),
+)
+_ERA_DECADE_MIN = ERA_DECADE_KNOTS[0][0]
+_ERA_DECADE_MAX = ERA_DECADE_KNOTS[-1][0]
+
+
+def decade_strength_multiplier(decade: int) -> float:
+    """Stärke-Multiplikator für eine Aufnahme-Dekade (§2.14+ Era-adaptive NR).
+
+    Piecewise-lineare Interpolation über ``ERA_DECADE_KNOTS``; außerhalb des
+    Knotenbereichs wird auf den Randwert geklemmt (1890/2025).
+    """
+    _dec = float(max(_ERA_DECADE_MIN, min(_ERA_DECADE_MAX, int(decade))))
+    _era_decades = [k[0] for k in ERA_DECADE_KNOTS]
+    _era_mults = [k[1] for k in ERA_DECADE_KNOTS]
+    return float(np.interp(_dec, _era_decades, _era_mults))
+
 
 def _determine_era_nr_routing(
     era_decade: int,
@@ -547,29 +581,7 @@ class DenoisePhase(PhaseInterface):
         # interpolation avoids abrupt strength jumps at decade boundaries.
         decade = kwargs.get("decade")
         if decade is not None and "strength" not in kwargs:
-            # Piecewise-linear era→strength multiplier (calibrated):
-            #   1890–1930: ×1.15 (aggressive — high intrinsic noise)
-            #   1940:      ×1.10 (early electronic era)
-            #   1950:      ×1.05 (improved tape/vinyl)
-            #   1960:      ×1.00 (neutral baseline)
-            #   1970:      ×0.95 (better production)
-            #   1980:      ×0.90 (digital transition)
-            #   1990+:     ×0.80 (clean digital sources)
-            _era_knots = [
-                (1890, 1.15),
-                (1930, 1.15),
-                (1940, 1.10),
-                (1950, 1.05),
-                (1960, 1.00),
-                (1970, 0.95),
-                (1980, 0.90),
-                (1990, 0.80),
-                (2025, 0.80),
-            ]
-            _dec = float(max(1890, min(2025, decade)))
-            _era_decades = [k[0] for k in _era_knots]
-            _era_mults = [k[1] for k in _era_knots]
-            era_mult = float(np.interp(_dec, _era_decades, _era_mults))
+            era_mult = decade_strength_multiplier(int(decade))
             effective_strength = max(0.01, min(1.0, effective_strength * era_mult))
 
         # §2.20 Genre-adaptive NR: classical/opera preserve hall ambience,
@@ -1506,7 +1518,7 @@ class DenoisePhase(PhaseInterface):
                     _sota_result.processing_time,
                 )
             except Exception as e:
-                logger.debug("SOTA 4-Layer not available, falling back to DFN: %s", e)
+                logger.debug("SOTA 4-Layer nicht verfügbar, Rückfall auf DFN: %s", e)
 
         _sgmse_eligible = (
             quality_mode in ("quality", "maximum")

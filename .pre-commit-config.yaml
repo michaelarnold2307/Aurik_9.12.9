@@ -42,7 +42,7 @@ repos:
     hooks:
       - id: snyk-guard
         name: Snyk Security Guard
-        entry: python scripts/snyk_guard.py
+        entry: .venv_aurik/bin/python scripts/snyk_guard.py
         language: system
         types: [python]
         pass_filenames: false
@@ -285,7 +285,7 @@ repos:
       # inkrementelle Abarbeitung statt Dauer-Rot (Ratchet-Gate).
       - id: aurik-code-weakness
         name: "Code-Schwachstellen-Scan — CRITICAL blockiert (Report: audit/code_weakness_report.*)"
-        entry: .venv_aurik/bin/python audit/code_weakness_scanner.py --workspace . --fail-on critical --max-findings 200
+        entry: .venv_aurik/bin/python audit/code_weakness_scanner.py --workspace . --fail-on critical --max-findings 200 --json-out /tmp/aurik_code_weakness_report.json --md-out /tmp/aurik_code_weakness_report.md
         language: system
         pass_filenames: false
         always_run: true
@@ -293,9 +293,10 @@ repos:
       # Spec-Integrations-Scan: vollständige Integration aller Vorgaben und
       # Specs (GEBOTE/VERBOTEN-Matrix, Spec-Index, normative Doku-Kette,
       # Enforce-Gates). Fehlende Punkte → Fehlerprotokoll + Blockade (error).
+      # Reports nach /tmp: Pre-Commit darf das Repo nie verändern.
       - id: aurik-spec-integration
         name: "Spec-Integrations-Scan — ERROR blockiert (Report: audit/spec_integration_report.*)"
-        entry: .venv_aurik/bin/python audit/spec_integration_scanner.py --workspace . --fail-on error
+        entry: .venv_aurik/bin/python audit/spec_integration_scanner.py --workspace . --fail-on error --json-out /tmp/aurik_spec_integration_report.json --md-out /tmp/aurik_spec_integration_report.md
         language: system
         pass_filenames: false
         always_run: true

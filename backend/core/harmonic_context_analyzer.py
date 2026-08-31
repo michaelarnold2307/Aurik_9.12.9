@@ -287,9 +287,7 @@ class HarmonicContextAnalyzer:
         chroma_n = chroma / col_norm  # (12, T)
         # Cosine similarity: (24, T)
         similarity = _CHORD_TEMPLATES @ chroma_n  # (24, T)
-        chord_ids = similarity.argmax(axis=0).astype(
-            np.int32
-        )  # (T,)  # type: ignore[arg-type]  # §V5 (copilot-instructions.md) Dither applied at export level
+        chord_ids = similarity.argmax(axis=0).astype(np.int32)  # type: ignore[arg-type]  # (T,)  # §V5 (copilot-instructions.md) Dither applied at export level
         chord_conf = similarity.max(axis=0).astype(np.float32)
         chord_conf = np.clip(chord_conf, 0.0, 1.0)
         return chord_ids, chord_conf

@@ -1,7 +1,7 @@
 # Code-Schwachstellen-Report (Watchdog)
 
-- Erzeugt: 2026-08-31T06:42:37.328290
-- Geprüfte Dateien: 1530 (Dauer: 12.196s)
+- Erzeugt: 2026-08-31T09:20:19.014184
+- Geprüfte Dateien: 1530 (Dauer: 12.296s)
 - Befunde gesamt: **172**
   - critical: 0
   - high: 143
@@ -589,77 +589,77 @@
 ## MEDIUM (18)
 
 - `backend/carrier_ml_classifier.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/dsp/bark_lufs_util.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/exception_forensics.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/module_communication_bus.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/musical_goals/adaptive_goal_resolver.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/optimization/priority3_oversampling.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/optimization/priority4_phase.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/optimization/priority5_bass.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/processing_logger.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/real_audio_execution_golden_gate.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/regulator/mastering.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/scripts/lint_peak_guard_conformity.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/segment_adaptive_processor.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/core/watchdog_correctness.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/health_api.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/ml/safety_wrappers/context_aware_deesser_safety.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/ml/safety_wrappers/generic_safety_wrapper.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 - `backend/ml/safety_wrappers/generic_safety_wrapper_extended.py:1` — **module_logger_missing** (Logger-Pflicht (§III DSP, AGENTS.md §3))
-  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(__name__))
+  - Modul mit Fehlerpfaden hat keinen Logger (logging.getLogger(**name**))
   - Evidenz: `Modul enthält Fehlerpfade, aber kein logging.getLogger()`
-  - Empfehlung: logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein.
+  - Empfehlung: logger = logging.getLogger(**name**) ergänzen; Fehlerpfade müssen logbar sein.
 
 ## LOW (11)
 

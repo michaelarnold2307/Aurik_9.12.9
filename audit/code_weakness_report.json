@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-08-31T06:42:37.324406",
+  "generated_at": "2026-08-31T09:20:19.009873",
   "files_scanned": 1530,
-  "duration_s": 12.196,
+  "duration_s": 12.296,
   "per_rule_counts": {
     "determinism_time_usage": 10,
     "dither_missing_int_conversion": 1,
