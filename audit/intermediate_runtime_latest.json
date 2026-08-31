@@ -1,39 +1,49 @@
 {
-  "event_id": "run_warning",
-  "event_index": 45,
-  "log_line": "[2026-05-24 18:53:25,446] WARNING backend.core.plugin_lifecycle_manager: PLM: Swap-Druck kritisch (85 %) \u2014 erzwinge Eviction inaktiver Plugins (RAM=58 %, frei=13611 MB)",
+  "timestamp": "2026-08-31T05:42:19.966016",
+  "event_index": 2,
+  "event_id": "run_end",
+  "severity": "info",
+  "log_line": "AurikDenker.denke() abgeschlossen",
   "runtime": {
-    "compliance_ok": false,
     "exit_code": 1,
-    "required_passed": 7,
-    "required_total": 13,
+    "stdout": "Runtime-Spec-Report: /media/michael/Software 4TB/Aurik_Standalone/audit/runtime_spec_report_live.json\nRequired checks: 10/13 | compliance_ok=False\n[REQ][PASS] entry_denker: AurikDenker.denke() gestartet gefunden\n[REQ][FAIL] run_completed: Kein AurikDenker-Abschluss im Run-Window\n[REQ][FAIL] mode_contract: Kein erlaubter mode=... Eintrag\n[REQ][PASS] preanalysis_handover: Cached Defect/PreAnalysis im Lauf genutzt\n[REQ][PASS] medium_detect_single: 🔍 MediumDetector fresh_count=0 (cached ignoriert)\n[REQ][PASS] artifact_gate: artifact_freedom=1.000\n[REQ][PASS] hpi_gate: HPI-Eintrag vorhanden\n[REQ][PASS] exp_joy_runtime: Joy-Index-Signal gefunden\n[REQ][PASS] exp_auto_improve: Auto-Improve-Signal gefunden\n[REQ][PASS] exp_cluster_policy: cluster_policy gefunden\n[REQ][FAIL] dag_final_clean: Finale DAG-Validierung fehlt\n[REQ][PASS] phase12_effective_when_started: Phase 12 nicht im Laufplan\n[REQ][PASS] material_specificity_guard: Kein cassette→tape Downcast im Lauf\n[OPT][FAIL] exzellenz_api_contract: Kein expliziter Exzellenz-API-Hinweis im Log (inconclusive)",
     "stderr": "",
-    "stdout": "Runtime-Spec-Report: /media/michael/Software 4TB/Aurik_Standalone/audit/runtime_spec_report_live.json\nRequired checks: 7/13 | compliance_ok=False\n[REQ][PASS] entry_denker: AurikDenker.denke() gestartet gefunden\n[REQ][FAIL] run_completed: Kein AurikDenker-Abschluss im Run-Window\n[REQ][PASS] mode_contract: mode=restoration/studio_2026 vorhanden\n[REQ][PASS] preanalysis_handover: Cached Defect/PreAnalysis im Lauf genutzt\n[REQ][PASS] medium_detect_single: \ud83d\udd0d MediumDetector fresh_count=0 (cached ignoriert)\n[REQ][FAIL] artifact_gate: Kein Final-AFG-Eintrag\n[REQ][FAIL] hpi_gate: Kein HPI-Eintrag im Lauf\n[REQ][FAIL] exp_joy_runtime: Kein joy_runtime_index/Freude-Signal im Log\n[REQ][FAIL] exp_auto_improve: Kein auto_improvement_recommendations-Signal im Log\n[REQ][FAIL] exp_cluster_policy: Kein cluster_policy-Signal im Log\n[REQ][PASS] dag_final_clean: Finale DAG-Validierung vorhanden, keine HARD_BEFORE-Verletzung\n[REQ][PASS] phase12_effective_when_started: Phase 12 ohne low-confidence Skip ausgef\u00fchrt\n[REQ][PASS] material_specificity_guard: Kein cassette\u2192tape Downcast im Lauf\n[OPT][FAIL] exzellenz_api_contract: Kein expliziter Exzellenz-API-Hinweis im Log (inconclusive)"
+    "required_passed": 10,
+    "required_total": 13,
+    "compliance_ok": false
   },
-  "severity": "warning",
-  "spec_gaps": [
-    {
-      "evidence": "[2026-05-24 18:53:25,446] WARNING backend.core.plugin_lifecycle_manager: PLM: Swap-Druck kritisch (85 %) \u2014 erzwinge Eviction inaktiver Plugins (RAM=58 %, frei=13611 MB)",
-      "gap_id": "micro_delta_warning",
-      "recommended_action": "Mikro-Delta sofort analysieren und run-lokal korrigieren (keine Warnung unbehandelt lassen).",
-      "severity": "high"
-    }
-  ],
-  "timestamp": "2026-05-24T18:53:25.701534",
+  "spec_gaps": [],
   "worldclass_trend": {
     "critical_gap_count": 0,
-    "high_gap_count": 1,
-    "on_worldclass_path": false,
+    "high_gap_count": 0,
     "runtime_compliance_ok": false,
+    "on_worldclass_path": false,
     "trajectory": {
-      "intervention_rejected_count": 0,
-      "intervention_rejected_rate": 0.0,
-      "phases_ok": 17,
-      "phases_started": 18,
+      "status": "on_track",
+      "phases_started": 0,
+      "phases_ok": 0,
       "pmmg_regressive_count": 0,
-      "pmmg_regressive_rate": 0.0,
       "pmmg_total_count": 0,
-      "status": "at_risk"
+      "pmmg_regressive_rate": 0.0,
+      "intervention_rejected_count": 0,
+      "intervention_rejected_rate": 0.0
     }
+  },
+  "final": {
+    "release_exit_code": 1,
+    "release_stdout": "Release-Report generiert: /media/michael/Software 4TB/Aurik_Standalone/audit/release_report_live.json\nRelease-Score: 0.00/10\nWARNUNG: Release nicht freigegeben. Bitte Änderungen prüfen.\n- Quality-Gate 'features.quality_gates::lufs' nicht bestanden.\n- Quality-Gate 'release_result::status' nicht bestanden.\n- Quality-Gate 'scores.quality_gates::lufs' nicht bestanden.\n- Quality-Gate 'vocal_quality::authentizität' nicht bestanden.\n- Quality-Gate 'vocal_quality::emotionalität' nicht bestanden.\n- Quality-Gate 'vocal_quality::expressivität' nicht bestanden.\n- Quality-Gate 'vocal_quality::klarheit' nicht bestanden.\n- Quality-Gate 'vocal_quality::transparenz' nicht bestanden.\n- Voice-First-Blocker fehlen fuer vokalrelevante Runs: formant, micro_dynamics, vibrato, vqi (runs=71).",
+    "release_stderr": "",
+    "consolidated_exit_code": 1,
+    "consolidated_stdout": "Consolidated status: final_ready=False | release_ready=False | runtime_compliance_ok=False | coverage_drift_ok=True\nReasons:\n- release_not_ready\n- runtime_compliance_failed\n- runtime_required_failed:10/13",
+    "consolidated_stderr": "",
+    "final_ready": false,
+    "runtime_compliance_ok": false,
+    "required_passed": 10,
+    "required_total": 13,
+    "reasons": [
+      "release_not_ready",
+      "runtime_compliance_failed",
+      "runtime_required_failed:10/13"
+    ]
   }
 }

@@ -32,6 +32,9 @@
 | scripts/change_ledger.py | ACTIVE | tooling/ci | ja | — | TASK_CHANGES.md (snapshot/check); CI-Abdeckungs-Gate |
 | scripts/repo_search.py | ACTIVE | tooling/agents | ja | — | BM25-Suche mit Status-Gewichtung; `--before-create` vor Dateianlage |
 | scripts/hor_pass_check.py | ACTIVE | tooling/ci | ja | — | Hör-Pass-Log-Check: prüft Lauf-Logs gegen Fix-Marker und Regressions-Signaturen (GO/NO-GO-Ergänzung) |
+| backend/core/inviting_sound_gate.py | ACTIVE | backend/core | ja | — | Hörordnung Ebene 4: Einladungs-Gate (Roughness/Sharpness-Fenster + Ermüdungs-Abbruch); nutzt zwicker_metrics; Sharpness (Bismarck-Näherung) hier implementiert (2026-08-23) |
+| backend/core/residuum_masking.py | ACTIVE | backend/core | ja | — | Hörordnung Ebene 2: Residuum-basiertes Bark-Masking (Defekt-Anteil vs. maskierender Inhalt, ISO 11172-3 Spread); 3. Term im Salience-Blend (2026-08-23) |
+| scripts/horordnung_calibration.py | ACTIVE | tooling/agents | ja | — | Kalibrierungs-Harness: psychoakustische Invarianten der Hörordnungs-Module gegen synthetische Referenz-Signale (Vorstufe Panel-Tests, 2026-08-23) |
 | backend/core/librosa_bootstrap.py | ACTIVE | backend/core | nein | — | Vor-Gate-Bestand: bei Write-Gate-Einführung bereits gestaged (2026-08-22) |
 | plugins/aero_plugin.py | ACTIVE | plugins/aero | nein | — | Vor-Gate-Bestand (2026-08-22) |
 | scripts/corpus_fetcher.py | ACTIVE | tooling/corpus | nein | — | Vor-Gate-Bestand (2026-08-22) |

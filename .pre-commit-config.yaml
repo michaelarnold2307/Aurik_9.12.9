@@ -280,6 +280,25 @@ repos:
         pass_filenames: false
         files: ^backend/core/.*\.py$
 
+      # Statischer Code-Schwachstellen-Scan (Watchdog): neue CRITICALs blockieren.
+      # Bekannte Nicht-CRITICALs bleiben im Report sichtbar; die Schwelle erlaubt
+      # inkrementelle Abarbeitung statt Dauer-Rot (Ratchet-Gate).
+      - id: aurik-code-weakness
+        name: "Code-Schwachstellen-Scan — CRITICAL blockiert (Report: audit/code_weakness_report.*)"
+        entry: .venv_aurik/bin/python audit/code_weakness_scanner.py --workspace . --fail-on critical --max-findings 200
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      # Hörordnung §8a: Psychoakustische Kalibrierungs-Invarianten
+      # (Roughness/Sharpness/Residuum-Monotonie, Maskierungs-Richtung, Hörstufen)
+      - id: aurik-horordnung-calibration
+        name: "Hörordnungs-Kalibrierung (psychoakustische Invarianten, Hörordnung §8a)"
+        entry: .venv_aurik/bin/python scripts/horordnung_calibration.py
+        language: system
+        pass_filenames: false
+        files: ^(backend/core/(inviting_sound_gate|residuum_masking|perceptual_salience)\.py|scripts/horordnung_calibration\.py)$
+
       # Crossfire-Guard (phase_21/35/42 nie in CAUSE_TO_PHASES)
       - id: aurik-crossfire-guard
         name: "Crossfire-Guard (phase_21/35/42 nie in CAUSE_TO_PHASES)"

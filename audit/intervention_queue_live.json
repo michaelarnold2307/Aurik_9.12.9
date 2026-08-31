@@ -1,17 +1,8 @@
 {
+  "timestamp": "2026-08-31T05:42:19.966016",
+  "event_index": 2,
+  "event_id": "run_end",
   "critical_open": 0,
-  "event_id": "run_warning",
-  "event_index": 45,
-  "high_open": 1,
-  "items": [
-    {
-      "evidence": "[2026-05-24 18:53:25,446] WARNING backend.core.plugin_lifecycle_manager: PLM: Swap-Druck kritisch (85 %) \u2014 erzwinge Eviction inaktiver Plugins (RAM=58 %, frei=13611 MB)",
-      "gap_id": "micro_delta_warning",
-      "recommended_action": "Mikro-Delta sofort analysieren und run-lokal korrigieren (keine Warnung unbehandelt lassen).",
-      "severity": "high",
-      "severity_rank": 2,
-      "status": "open"
-    }
-  ],
-  "timestamp": "2026-05-24T18:53:25.701534"
+  "high_open": 0,
+  "items": []
 }

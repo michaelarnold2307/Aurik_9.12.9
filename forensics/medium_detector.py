@@ -2779,9 +2779,37 @@ class MediumDetector:
         chain = _normalized_chain
         chain_confidences = _normalized_confidences
 
+        # ── Lacquer-Disc-Inference (§v10.712) ─────────────────────
+        # Historisch korrekte Kette: reel_tape → lacquer_disc → vinyl.
+        # Wenn reel_tape + vinyl erkannt wurden, aber lacquer_disc fehlt,
+        # wird die Lackfolie als Zwischenträger inferiert — sie ist der
+        # physische Schnittweg zwischen Studio-Master-Tape und Press-Tooling.
+        if "reel_tape" in chain and "vinyl" in chain and "lacquer_disc" not in chain:
+            _tape_conf = float(chain_confidences[chain.index("reel_tape")]) if "reel_tape" in chain else 0.0
+            _vinyl_conf = float(chain_confidences[chain.index("vinyl")]) if "vinyl" in chain else 0.0
+            # Inferenz nur bei beiderseitiger Mindestevidenz:
+            if _tape_conf >= self._SECONDARY_ANALOG_MIN and _vinyl_conf >= self._ANALOG_POSTERIOR_MIN:
+                _lacquer_conf = float(np.clip(0.5 * (_tape_conf + _vinyl_conf) + 0.15, 0.25, 0.65))
+                # lacquer_disc zwischen reel_tape (order=5) und vinyl (order=7) einfügen
+                _insert_pos = chain.index("reel_tape") + 1
+                # Prüfen ob bereits etwas dazwischen steht
+                if _insert_pos >= len(chain) or self._MEDIUM_ORDER.get(chain[_insert_pos], 99) > self._MEDIUM_ORDER.get(
+                    "lacquer_disc", 99
+                ):
+                    chain.insert(_insert_pos, "lacquer_disc")
+                    chain_confidences.insert(_insert_pos, _lacquer_conf)
+                    evidence.append(
+                        f"Lacquer-Disc-Inference (§v10.712): reel_tape → lacquer_disc → vinyl "
+                        f"(conf={_lacquer_conf:.3f})"
+                    )
+                    logger.info(
+                        "MediumDetector: Lacquer-Disc-Inference aktiv — Kette: %s",
+                        " → ".join(chain),
+                    )
+
         # ── Chronological sort ────────────────────────────────────
         # Ensure chain respects technology timeline, not detection order.
-        # reel_tape (1930s) → vinyl (1950s) → cassette (1960s) → mp3 (1990s)
+        # reel_tape (1930s) → lacquer_disc (1940s) → vinyl (1950s) → cassette (1960s) → mp3 (1990s)
         if len(chain) > 1:
             _sorted_chain = sorted(chain, key=lambda m: self._MEDIUM_ORDER.get(m, 99))
             if _sorted_chain != chain:
@@ -2825,12 +2853,28 @@ class MediumDetector:
                 chain.insert(0, primary)
                 logger.debug("MediumDetector: §2.46a Disc-Primary carrier-first: %s", " → ".join(chain))
         is_multi = len(chain) > 1
-        # Confidence wird aus Minimum, Mittelwert und Primärposterior geblendet:
-        # der schwächste Link bleibt wichtig, aber solide Mehrfach-Evidenz darf
-        # die Kette sichtbar stärken.
-        _chain_min = float(min(chain_confidences) if chain_confidences else 0.0)
-        _chain_mean = float(np.mean(chain_confidences)) if chain_confidences else 0.0
-        _chain_max = float(max(chain_confidences)) if chain_confidences else 0.0
+        # Confidence wird aus Minimum, Mittelwert und Primärposterior geblendet.
+        # §v10.712 FIX: Codec-Konfidenz darf analoge Kettenstatistiken NICHT drücken.
+        # MP3-Artefakte (BW-Beschneidung, Blocking) sind eine EIGENE Degradationsquelle
+        # und gehören nicht in die Bewertung der analogen Trägerkette.
+        # → chain_min/mean/max nur aus ANALOGEN Stufen berechnen; Codec separat.
+        _analog_confs = [
+            c for m, c in zip(chain, chain_confidences) if m not in self._CODEC_MATERIALS and m != "cd_digital"
+        ]
+        _codec_confs = [c for m, c in zip(chain, chain_confidences) if m in self._CODEC_MATERIALS]
+        # Fallback: wenn keine analogen Stufen, alles verwenden
+        _source_confs = _analog_confs if _analog_confs else list(chain_confidences)
+        _chain_min = float(min(_source_confs) if _source_confs else 0.0)
+        _chain_mean = float(np.mean(_source_confs)) if _source_confs else 0.0
+        _chain_max = float(max(_source_confs) if _source_confs else 0.0)
+        # Codec-Term: bei vorhandener Codec-Stufe als separater, positiver Beitrag
+        # (nicht als schwächster Link — Codec-Erkennung ist heuristisch und systematisch
+        # niedriger als physikalische Analog-Evidenz).
+        _codec_term = 0.0
+        if _codec_confs:
+            _codec_mean = float(np.mean(_codec_confs))
+            # Codec-Präsenz bestätigt die Kette, aber drückt sie nicht unter den analogen Boden.
+            _codec_term = float(np.clip(0.10 * min(_codec_mean / 0.40, 1.0), 0.0, 0.10))
         _primary_post = float(posteriors.get(primary, _chain_mean)) if isinstance(posteriors, dict) else _chain_mean
         # Codec-Primaries haben im analog-zentrierten Bayesian-Modell keinen
         # Posterior (≈ 0.0) — der Posterior-Term darf direkte Codec-Evidenz

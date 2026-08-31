@@ -1,0 +1,1568 @@
+{
+  "generated_at": "2026-08-31T05:50:15.135165",
+  "files_scanned": 1528,
+  "duration_s": 11.914,
+  "per_rule_counts": {
+    "determinism_time_usage": 10,
+    "dither_missing_int_conversion": 1,
+    "module_logger_missing": 18,
+    "print_in_production": 1,
+    "silent_fallback_no_log": 142
+  },
+  "suppressed": {
+    "determinism_time_usage": 364,
+    "print_in_production": 12,
+    "silent_fallback_no_log": 34
+  },
+  "total_findings": 172,
+  "findings": [
+    {
+      "rule_id": "dither_missing_int_conversion",
+      "severity": "high",
+      "file": "backend/core/dsp/powr_dither.py",
+      "line": 198,
+      "evidence": "return np.clip(audio * max_val, -max_val, max_val).astype(np.int16)",
+      "spec_ref": "§V5 (copilot-instructions.md)",
+      "recommendation": "POW-r Type 3 (primär) oder TPDF (Fallback) vor der Konversion anwenden; kein nacktes astype(np.int16). (§V5 Truncation-ohne-Dither-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/__init__.py",
+      "line": 123,
+      "evidence": "except ValueError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/api/bridge.py",
+      "line": 404,
+      "evidence": "except OSError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/api/bridge.py",
+      "line": 426,
+      "evidence": "except OSError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/api/bridge.py",
+      "line": 852,
+      "evidence": "except ImportError as exc:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/api/debug_api.py",
+      "line": 137,
+      "evidence": "except Exception as e:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/api/debug_api.py",
+      "line": 155,
+      "evidence": "except Exception as e:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/api/debug_api.py",
+      "line": 176,
+      "evidence": "except Exception as e:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/aurik_restore.py",
+      "line": 64,
+      "evidence": "except (TypeError, ValueError):",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/aurik_restore.py",
+      "line": 73,
+      "evidence": "except (TypeError, ValueError):",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/carrier_ml_classifier.py",
+      "line": 78,
+      "evidence": "except Exception as exc:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/adaptive_plugins.py",
+      "line": 152,
+      "evidence": "except Exception:  # pragma: no cover",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/adaptive_plugins.py",
+      "line": 174,
+      "evidence": "except Exception:  # pragma: no cover",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/adaptive_resource_manager.py",
+      "line": 109,
+      "evidence": "except AttributeError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/adaptive_resource_manager.py",
+      "line": 119,
+      "evidence": "except AttributeError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/adaptive_strength_optimizer.py",
+      "line": 153,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/ast_audio_set_classifier.py",
+      "line": 509,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/ast_audio_set_classifier.py",
+      "line": 547,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/audio_exporter.py",
+      "line": 782,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/audio_utils.py",
+      "line": 182,
+      "evidence": "except ValueError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/audio_utils.py",
+      "line": 214,
+      "evidence": "except ValueError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/audio_utils.py",
+      "line": 380,
+      "evidence": "except ValueError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/aurik_orchestrator.py",
+      "line": 359,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/autonomous_restoration_engine.py",
+      "line": 901,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/batch_orchestrator.py",
+      "line": 372,
+      "evidence": "except OSError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/closed_loop_calibrator.py",
+      "line": 82,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/coordinated_repair.py",
+      "line": 156,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/coordinated_repair.py",
+      "line": 207,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/coordinated_repair.py",
+      "line": 243,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/crash_reporter.py",
+      "line": 144,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/defect_consensus_pipeline.py",
+      "line": 653,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/defect_consensus_pipeline.py",
+      "line": 681,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/defect_scanner.py",
+      "line": 3937,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/donation_reminder.py",
+      "line": 81,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/donation_reminder.py",
+      "line": 177,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/dsp/bandwidth_extender.py",
+      "line": 94,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/dsp/hallucination_guard.py",
+      "line": 61,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/dsp/model_capability_gate.py",
+      "line": 120,
+      "evidence": "except Exception:  # pylint: disable=broad-except",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/dsp/model_capability_gate.py",
+      "line": 228,
+      "evidence": "except Exception:  # pylint: disable=broad-except",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/dsp/model_capability_gate.py",
+      "line": 248,
+      "evidence": "except Exception:  # pylint: disable=broad-except",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/dsp/sbr_extend.py",
+      "line": 149,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/dsp/sbr_extend.py",
+      "line": 166,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/dsp/segment_probe_calibrator.py",
+      "line": 275,
+      "evidence": "except Exception as _imp_err:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/dsp/sota_vocal_model_router.py",
+      "line": 241,
+      "evidence": "except Exception:  # pylint: disable=broad-except",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/dsp/sota_vocal_model_router.py",
+      "line": 700,
+      "evidence": "except Exception:  # pylint: disable=broad-except",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/dsp/stem_level_restorer.py",
+      "line": 351,
+      "evidence": "except Exception:  # pylint: disable=broad-except",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/dsp/stem_level_restorer.py",
+      "line": 496,
+      "evidence": "except Exception:  # pylint: disable=broad-except",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/enhanced_metrics.py",
+      "line": 231,
+      "evidence": "except Exception as e:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/era_authentic_completion.py",
+      "line": 87,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/era_authentic_completion.py",
+      "line": 289,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/era_authentic_completion.py",
+      "line": 322,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/excellence_optimizer.py",
+      "line": 358,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/exception_forensics.py",
+      "line": 349,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/fletcher_munson_curves.py",
+      "line": 504,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/gap_reconstructor.py",
+      "line": 217,
+      "evidence": "except (np.linalg.LinAlgError, ValueError):",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/gp_parameter_optimizer.py",
+      "line": 301,
+      "evidence": "except ValueError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/harmonic_context_analyzer.py",
+      "line": 383,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/holistic_perceptual_gate.py",
+      "line": 759,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/inviting_sound_gate.py",
+      "line": 169,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/klang_guards.py",
+      "line": 627,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/listening_mode_eq.py",
+      "line": 335,
+      "evidence": "except AttributeError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/lyrics_guided_enhancement.py",
+      "line": 1906,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/lyrics_guided_enhancement.py",
+      "line": 1948,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/metadata_preserver.py",
+      "line": 414,
+      "evidence": "except OSError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/micro_dynamics_envelope_morphing.py",
+      "line": 36,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/migraphx_adapter.py",
+      "line": 73,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/migraphx_adapter.py",
+      "line": 175,
+      "evidence": "except (RuntimeError, OSError):",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/migraphx_adapter.py",
+      "line": 188,
+      "evidence": "except OSError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/ml/backend_router.py",
+      "line": 110,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/ml/backend_router.py",
+      "line": 195,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/ml/backend_router.py",
+      "line": 211,
+      "evidence": "except (AttributeError, NotImplementedError):",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/ml_device_manager.py",
+      "line": 1334,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/ml_model_readiness.py",
+      "line": 146,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/ml_model_readiness.py",
+      "line": 148,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/ml_model_readiness.py",
+      "line": 168,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/ml_parameter_inference.py",
+      "line": 48,
+      "evidence": "except KeyError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/model_downloader.py",
+      "line": 591,
+      "evidence": "except (json.JSONDecodeError, OSError, AttributeError):",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/mushra_evaluator.py",
+      "line": 500,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/mushra_proxy.py",
+      "line": 281,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/musical_goals/perceptual_validator.py",
+      "line": 54,
+      "evidence": "except (ImportError, OSError, Warning):",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/musical_goals/semantic_goals.py",
+      "line": 43,
+      "evidence": "except (ImportError, Warning):",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/musikalischer_globalplan.py",
+      "line": 470,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/musikalischer_globalplan.py",
+      "line": 508,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/musikalischer_globalplan.py",
+      "line": 639,
+      "evidence": "except AttributeError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/naturalness_optimizer.py",
+      "line": 1045,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/naturalness_optimizer.py",
+      "line": 1080,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/naturalness_optimizer.py",
+      "line": 1101,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/orchestrator_params.py",
+      "line": 356,
+      "evidence": "except Exception as e:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/orchestrator_params.py",
+      "line": 375,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/parallel/batch_parallel.py",
+      "line": 389,
+      "evidence": "except Exception as e:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/perceptual_reference_validator.py",
+      "line": 140,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/perceptual_reference_validator.py",
+      "line": 218,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phase_aligned_overlap_add.py",
+      "line": 211,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phase_fingerprint.py",
+      "line": 90,
+      "evidence": "except ValueError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phase_names.py",
+      "line": 26,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phase_names.py",
+      "line": 36,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phases/phase_01_click_removal.py",
+      "line": 1541,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phases/phase_01_click_removal.py",
+      "line": 1604,
+      "evidence": "except np.linalg.LinAlgError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phases/phase_20_reverb_reduction.py",
+      "line": 126,
+      "evidence": "except ImportError:  # pragma: no cover",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phases/phase_23_spectral_repair.py",
+      "line": 436,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phases/phase_24_dropout_repair.py",
+      "line": 1438,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phases/phase_29_tape_hiss_reduction.py",
+      "line": 60,
+      "evidence": "except ImportError:  # pragma: no cover",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phases/phase_43_ml_deesser.py",
+      "line": 337,
+      "evidence": "except ValueError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phases/phase_49_advanced_dereverb.py",
+      "line": 1481,
+      "evidence": "except np.linalg.LinAlgError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phases/phase_55_diffusion_inpainting.py",
+      "line": 166,
+      "evidence": "except np.linalg.LinAlgError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/phases/phase_55_diffusion_inpainting.py",
+      "line": 608,
+      "evidence": "except (ImportError, ModuleNotFoundError):",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/pipeline_cumulative_guards.py",
+      "line": 119,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/pipeline_cumulative_guards.py",
+      "line": 385,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/pipeline_guard.py",
+      "line": 447,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/pipeline_guard.py",
+      "line": 460,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/pleasantness_first_gate.py",
+      "line": 139,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/plugin_registry.py",
+      "line": 91,
+      "evidence": "except (json.JSONDecodeError, OSError) as e:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/post_processing_gate.py",
+      "line": 302,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/preflight_audio_classifier.py",
+      "line": 79,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/preservation_metrics.py",
+      "line": 445,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/quality_gate.py",
+      "line": 319,
+      "evidence": "except (TypeError, ValueError):",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/real_audio_execution_golden_gate.py",
+      "line": 200,
+      "evidence": "except RuntimeError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/real_audio_execution_golden_gate.py",
+      "line": 266,
+      "evidence": "except Exception as exc:  # pragma: no cover - optional metric stack can be unavailable in slim envs",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/runtime_env_selector.py",
+      "line": 118,
+      "evidence": "except json.JSONDecodeError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/scripts/lint_peak_guard_conformity.py",
+      "line": 143,
+      "evidence": "except Exception as e:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/signal_flow_tracer.py",
+      "line": 576,
+      "evidence": "except Exception as exc:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/sota_denoise_pipeline.py",
+      "line": 459,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/sota_improvements.py",
+      "line": 648,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/spectrogram_snapshot.py",
+      "line": 63,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/spectrogram_snapshot.py",
+      "line": 85,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/spectrogram_snapshot.py",
+      "line": 106,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/stem_remix_balancer.py",
+      "line": 146,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/streaming_preview.py",
+      "line": 120,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/unified_restorer_v3.py",
+      "line": 1682,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/unified_restorer_v3.py",
+      "line": 22923,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/unified_restorer_v3.py",
+      "line": 44149,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/core/watchdog_correctness.py",
+      "line": 29,
+      "evidence": "except Exception as e:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/file_import.py",
+      "line": 499,
+      "evidence": "except Exception as _e2:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/file_import.py",
+      "line": 532,
+      "evidence": "except Exception as _e3:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/ml/safety_wrappers/context_aware_deesser_safety.py",
+      "line": 56,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/ml/safety_wrappers/context_aware_deesser_safety.py",
+      "line": 165,
+      "evidence": "except Exception:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/ml/safety_wrappers/safety_wrapper_template.py",
+      "line": 235,
+      "evidence": "except Exception as e:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/ml/vocal_analysis/intelligibility_scorer.py",
+      "line": 303,
+      "evidence": "except np.linalg.LinAlgError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "backend/ml/vocal_analysis/intelligibility_scorer.py",
+      "line": 313,
+      "evidence": "except (np.linalg.LinAlgError, ValueError):",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "denker/aurik_denker.py",
+      "line": 1418,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "denker/phase_interaction_denker.py",
+      "line": 1404,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "denker/phase_interaction_denker.py",
+      "line": 1570,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "silent_fallback_no_log",
+      "severity": "high",
+      "file": "denker/phase_interaction_denker.py",
+      "line": 1592,
+      "evidence": "except ImportError:",
+      "spec_ref": "§V6 (copilot-instructions.md)",
+      "recommendation": "logger.warning() + Begründung ergänzen, damit ML→DSP-Fallbacks nie stumm bleiben. (§V6 Silent-Failure-Verbot)"
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/carrier_ml_classifier.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/dsp/bark_lufs_util.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/exception_forensics.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/module_communication_bus.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/musical_goals/adaptive_goal_resolver.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/optimization/priority3_oversampling.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/optimization/priority4_phase.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/optimization/priority5_bass.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/processing_logger.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/real_audio_execution_golden_gate.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/regulator/mastering.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/scripts/lint_peak_guard_conformity.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/segment_adaptive_processor.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/core/watchdog_correctness.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/health_api.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/ml/safety_wrappers/context_aware_deesser_safety.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/ml/safety_wrappers/generic_safety_wrapper.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "module_logger_missing",
+      "severity": "medium",
+      "file": "backend/ml/safety_wrappers/generic_safety_wrapper_extended.py",
+      "line": 1,
+      "evidence": "Modul enthält Fehlerpfade, aber kein logging.getLogger()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "logger = logging.getLogger(__name__) ergänzen; Fehlerpfade müssen logbar sein."
+    },
+    {
+      "rule_id": "determinism_time_usage",
+      "severity": "low",
+      "file": "backend/core/artist_fingerprint.py",
+      "line": 1,
+      "evidence": "8 Vorkommen von time.time()",
+      "spec_ref": "§G5 (AGENTS.md §3 / copilot-instructions.md)",
+      "recommendation": "Prüfen, ob Wall-Clock-Zeit in Entscheidungslogik einfließt; für Messungen time.monotonic()/perf_counter() verwenden. (§G5 Determinism)"
+    },
+    {
+      "rule_id": "determinism_time_usage",
+      "severity": "low",
+      "file": "backend/core/forensics/training/train_models.py",
+      "line": 1,
+      "evidence": "9 Vorkommen von time.time()",
+      "spec_ref": "§G5 (AGENTS.md §3 / copilot-instructions.md)",
+      "recommendation": "Prüfen, ob Wall-Clock-Zeit in Entscheidungslogik einfließt; für Messungen time.monotonic()/perf_counter() verwenden. (§G5 Determinism)"
+    },
+    {
+      "rule_id": "determinism_time_usage",
+      "severity": "low",
+      "file": "backend/core/parallel/module_parallel.py",
+      "line": 1,
+      "evidence": "7 Vorkommen von time.time()",
+      "spec_ref": "§G5 (AGENTS.md §3 / copilot-instructions.md)",
+      "recommendation": "Prüfen, ob Wall-Clock-Zeit in Entscheidungslogik einfließt; für Messungen time.monotonic()/perf_counter() verwenden. (§G5 Determinism)"
+    },
+    {
+      "rule_id": "determinism_time_usage",
+      "severity": "low",
+      "file": "backend/core/phases/phase_01_click_removal.py",
+      "line": 1,
+      "evidence": "18 Vorkommen von time.time()",
+      "spec_ref": "§G5 (AGENTS.md §3 / copilot-instructions.md)",
+      "recommendation": "Prüfen, ob Wall-Clock-Zeit in Entscheidungslogik einfließt; für Messungen time.monotonic()/perf_counter() verwenden. (§G5 Determinism)"
+    },
+    {
+      "rule_id": "determinism_time_usage",
+      "severity": "low",
+      "file": "backend/core/phases/phase_12_wow_flutter_fix.py",
+      "line": 1,
+      "evidence": "7 Vorkommen von time.time()",
+      "spec_ref": "§G5 (AGENTS.md §3 / copilot-instructions.md)",
+      "recommendation": "Prüfen, ob Wall-Clock-Zeit in Entscheidungslogik einfließt; für Messungen time.monotonic()/perf_counter() verwenden. (§G5 Determinism)"
+    },
+    {
+      "rule_id": "determinism_time_usage",
+      "severity": "low",
+      "file": "backend/core/phases/phase_19_de_esser.py",
+      "line": 1,
+      "evidence": "9 Vorkommen von time.time()",
+      "spec_ref": "§G5 (AGENTS.md §3 / copilot-instructions.md)",
+      "recommendation": "Prüfen, ob Wall-Clock-Zeit in Entscheidungslogik einfließt; für Messungen time.monotonic()/perf_counter() verwenden. (§G5 Determinism)"
+    },
+    {
+      "rule_id": "determinism_time_usage",
+      "severity": "low",
+      "file": "backend/core/phases/phase_20_reverb_reduction.py",
+      "line": 1,
+      "evidence": "7 Vorkommen von time.time()",
+      "spec_ref": "§G5 (AGENTS.md §3 / copilot-instructions.md)",
+      "recommendation": "Prüfen, ob Wall-Clock-Zeit in Entscheidungslogik einfließt; für Messungen time.monotonic()/perf_counter() verwenden. (§G5 Determinism)"
+    },
+    {
+      "rule_id": "determinism_time_usage",
+      "severity": "low",
+      "file": "backend/core/phases/phase_29_tape_hiss_reduction.py",
+      "line": 1,
+      "evidence": "8 Vorkommen von time.time()",
+      "spec_ref": "§G5 (AGENTS.md §3 / copilot-instructions.md)",
+      "recommendation": "Prüfen, ob Wall-Clock-Zeit in Entscheidungslogik einfließt; für Messungen time.monotonic()/perf_counter() verwenden. (§G5 Determinism)"
+    },
+    {
+      "rule_id": "determinism_time_usage",
+      "severity": "low",
+      "file": "backend/core/phases/phase_31_speed_pitch_correction.py",
+      "line": 1,
+      "evidence": "7 Vorkommen von time.time()",
+      "spec_ref": "§G5 (AGENTS.md §3 / copilot-instructions.md)",
+      "recommendation": "Prüfen, ob Wall-Clock-Zeit in Entscheidungslogik einfließt; für Messungen time.monotonic()/perf_counter() verwenden. (§G5 Determinism)"
+    },
+    {
+      "rule_id": "determinism_time_usage",
+      "severity": "low",
+      "file": "backend/core/unified_restorer_v3.py",
+      "line": 1,
+      "evidence": "16 Vorkommen von time.time()",
+      "spec_ref": "§G5 (AGENTS.md §3 / copilot-instructions.md)",
+      "recommendation": "Prüfen, ob Wall-Clock-Zeit in Entscheidungslogik einfließt; für Messungen time.monotonic()/perf_counter() verwenden. (§G5 Determinism)"
+    },
+    {
+      "rule_id": "print_in_production",
+      "severity": "low",
+      "file": "backend/core/scripts/lint_peak_guard_conformity.py",
+      "line": 1,
+      "evidence": "7 Vorkommen von print()",
+      "spec_ref": "Logger-Pflicht (§III DSP, AGENTS.md §3)",
+      "recommendation": "Ausgaben über logging umleiten (Logger-Pflicht)."
+    }
+  ]
+}

@@ -1,6 +1,25 @@
 {
+  "timestamp": "2026-08-31T05:42:19.966016",
+  "token": "2:run_end",
   "active": false,
-  "reason": "monitor_restart_after_fixes",
-  "timestamp": "2026-05-24T17:14:45+02:00",
-  "token": "reset:restart"
+  "reason": "cleared",
+  "event_id": "run_end",
+  "severity": "info",
+  "worldclass_trend": {
+    "critical_gap_count": 0,
+    "high_gap_count": 0,
+    "runtime_compliance_ok": false,
+    "on_worldclass_path": false,
+    "trajectory": {
+      "status": "on_track",
+      "phases_started": 0,
+      "phases_ok": 0,
+      "pmmg_regressive_count": 0,
+      "pmmg_total_count": 0,
+      "pmmg_regressive_rate": 0.0,
+      "intervention_rejected_count": 0,
+      "intervention_rejected_rate": 0.0
+    }
+  },
+  "spec_gaps": []
 }

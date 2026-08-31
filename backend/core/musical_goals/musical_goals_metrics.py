@@ -4319,6 +4319,29 @@ class MusicalGoalsChecker:
         elif reference is not None and reference.ndim == 2 and reference.shape[0] == 1:
             reference = reference[0]
 
+        # §v10.303 Length-Plausibilitäts-Guard (Messketten-Eingang):
+        # Degenerierte Signale (z.B. 2-Sample-Kollaps eines Post-Processors) dürfen
+        # die Messkette nicht vergiften — statt n_fft-Warnungs-Kaskade + 0.000-Score-
+        # Orgie neutral messen und CRITICAL warnen. Die Ursache wird am Entstehungsort
+        # behoben (Rollback-Guard in der Pipeline); hier ist die letzte Verteidigungslinie.
+        _audio_len_guard = int(max(audio.shape)) if audio.ndim >= 2 else int(len(audio))
+        if reference is not None:
+            _ref_len_guard = int(max(reference.shape)) if reference.ndim >= 2 else int(len(reference))
+        else:
+            _ref_len_guard = 0
+        _min_measurable_guard = max(1024, int(0.05 * sr))  # ≥ 50 ms bzw. ein STFT-Fenster
+        if (_audio_len_guard <= 2) or (
+            _audio_len_guard < _min_measurable_guard and _ref_len_guard > _min_measurable_guard
+        ):
+            logger.critical(
+                "measure_all: Signal degeneriert (%d Samples, Referenz %d) — "
+                "Messung übersprungen, neutrale Scores statt 0.000-Kaskade. "
+                "Ursache vor der Messkette beheben (§v10.303 Length-Guard).",
+                _audio_len_guard,
+                _ref_len_guard,
+            )
+            return dict.fromkeys(self.metrics, 0.5)
+
         # §v10.98 Cache: measure_all ist deterministisch. Wenn das Audio
         # unverändert ist (selber Hash), liefere das gecachte Ergebnis.
         # Spart 6s pro Aufruf — 11× measure_all = 66s Ersparnis.

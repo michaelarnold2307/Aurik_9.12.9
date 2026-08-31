@@ -13944,8 +13944,27 @@ class UnifiedRestorerV3:
                     mode="hybrid",
                 )
                 if _restored_phase_fixed is not None:
-                    restored_audio = _restored_phase_fixed
-                    logger.debug("§v10.303 PhaseCoherentSTFT: Phasenkohärenz wiederhergestellt")
+                    # §v10.303 Length-Integrity-Guard: Degeneration des Ausgangssignals
+                    # (z.B. 2-Sample-Kollaps) abfangen und auf das Pre-PCS-Signal
+                    # zurückrollen, statt die Folgekette (STCG/FC/Messungen) zu vergiften.
+                    _pcs_in_len = (
+                        restored_audio.shape[-1] if getattr(restored_audio, "ndim", 0) else len(restored_audio)
+                    )
+                    _pcs_out_len = (
+                        _restored_phase_fixed.shape[-1]
+                        if getattr(_restored_phase_fixed, "ndim", 0)
+                        else len(_restored_phase_fixed)
+                    )
+                    if _pcs_out_len <= 2 or (_pcs_in_len > 0 and _pcs_out_len < _pcs_in_len // 2):
+                        logger.critical(
+                            "§v10.303 PhaseCoherentSTFT: Längen-Kollaps %d → %d Samples — "
+                            "Rollback auf Pre-PCS-Signal (Ursache beheben, kein Symptom-Workaround)",
+                            _pcs_in_len,
+                            _pcs_out_len,
+                        )
+                    else:
+                        restored_audio = _restored_phase_fixed
+                        logger.debug("§v10.303 PhaseCoherentSTFT: Phasenkohärenz wiederhergestellt")
             except Exception as _pcs_exc:
                 logger.debug("§v10.303 PhaseCoherentSTFT (nicht blockierend): %s", _pcs_exc)
 
@@ -17584,6 +17603,57 @@ class UnifiedRestorerV3:
         except Exception as _fcd_exc:
             logger.debug("FrissonCandidateDetector nicht verfügbar (nicht blockierend): %s", _fcd_exc)
 
+        # Hörordnung Ebene 4 (hoerordnung.instructions.md §6): Einladungs-Gate —
+        # positiver psychoakustischer Nachweis (Roughness-Spitzen, Sharpness-
+        # Sprünge, Ermüdung). Advisory-first: loggt + markiert, kein harter
+        # Export-Stopp; fatigue_abort beendet Optimierungsschleifen.
+        try:
+            from backend.core.inviting_sound_gate import check_inviting_gate as _check_inviting
+
+            _fatigue_idx = 0.0
+            try:
+                from backend.core.experience_runtime import get_experience_runtime as _get_xprt
+
+                _fatigue_idx = float(getattr(_get_xprt(), "fatigue_index", 0.0) or 0.0)
+            except Exception:
+                pass
+            _inviting_res = _check_inviting(
+                restored_audio,
+                sample_rate,
+                singing_mask=(getattr(self, "_restoration_context", None) or {}).get("singing_mask"),
+                fatigue_index=_fatigue_idx,
+            )
+            if isinstance(getattr(self, "_restoration_context", None), dict):
+                self._restoration_context["inviting_gate"] = {
+                    "passed": bool(_inviting_res.passed),
+                    "max_asper_in_voice": round(float(_inviting_res.max_asper_in_voice), 4),
+                    "sharpness_jump_max": round(float(_inviting_res.sharpness_jump_max), 4),
+                    "fatigue_abort": bool(_inviting_res.fatigue_abort),
+                    "n_windows": int(_inviting_res.n_windows),
+                }
+            if _inviting_res.passed:
+                logger.info(
+                    "🎧 Einladungs-Gate: BESTANDEN (max_asper=%.3f, sharpness_sprung=%.3f, fenster=%d)",
+                    _inviting_res.max_asper_in_voice,
+                    _inviting_res.sharpness_jump_max,
+                    _inviting_res.n_windows,
+                )
+            else:
+                logger.warning(
+                    "🎧 Einladungs-Gate: NICHT BESTANDEN — %s (max_asper=%.3f, sharpness_sprung=%.3f)",
+                    ", ".join(_inviting_res.details.get("failures", []) or ["unbekannt"]),
+                    _inviting_res.max_asper_in_voice,
+                    _inviting_res.sharpness_jump_max,
+                )
+            if _inviting_res.fatigue_abort:
+                logger.warning(
+                    "🎧 Einladungs-Gate: Ermüdungsindex %.2f > %.2f — Optimierungsschleifen beendet (Hörordnung §6)",
+                    _fatigue_idx,
+                    0.40,
+                )
+        except Exception as _inviting_exc:
+            logger.debug("Einladungs-Gate nicht verfügbar (nicht blockierend): %s", _inviting_exc)
+
         # §Bug2-Fix: phase_12 wow/flutter and phase_31 speed/pitch can change audio length
         # by ~108 samples (2.25 ms @ 48 kHz).  A length mismatch causes MDEM, correct_arc
         # and WPG to fail with broadcast errors or produce silent output.  Align once here
@@ -18343,11 +18413,18 @@ class UnifiedRestorerV3:
                     _post_sev = float(getattr(_post_entry, "severity", 0.0) or 0.0) if _post_entry is not None else 0.0
                     _reduction = max(0.0, _pre_sev - _post_sev)
                     if _pre_sev > 0.01 or _post_sev > 0.01:
+                        _masked_ev = 0
+                        try:
+                            _post_md = getattr(_post_entry, "metadata", {}) or {}
+                            _masked_ev = int(_post_md.get("n_masked_events", 0) or 0)
+                        except Exception:
+                            _masked_ev = 0
                         _defect_reduction_per_type[dt.value] = {
                             "pre": round(_pre_sev, 4),
                             "post": round(_post_sev, 4),
                             "reduction": round(_reduction, 4),
                             "reduction_pct": round(_reduction / max(_pre_sev, 0.001) * 100, 1),
+                            "masked_events": _masked_ev,
                         }
                 self._defect_reduction_per_type = _defect_reduction_per_type
                 # ── §v10.703 Step 1: Defekt-Countdown für GUI ──
@@ -18394,6 +18471,14 @@ class UnifiedRestorerV3:
                     for v in _defect_reduction_per_type.values()
                     if v["reduction"] > 0.01 and v["post"] >= _AUDIBLE_THRESHOLD
                 )
+                # Hörordnung Ebene 2 (hoerordnung.instructions.md §4), Stufe A:
+                # Bericht weist zusätzlich aus, wie viele über-Schwelle-Typen
+                # per ERB-Modell (ganz oder teilweise) maskierte Events haben.
+                _defects_masked_any = sum(
+                    1
+                    for v in _defect_reduction_per_type.values()
+                    if v["post"] >= _AUDIBLE_THRESHOLD and v.get("masked_events", 0) > 0
+                )
                 self._defect_countdown = {
                     "total_detected": _defects_total,
                     "audible_before": _defects_audible_pre,
@@ -18404,11 +18489,12 @@ class UnifiedRestorerV3:
                     "threshold": _AUDIBLE_THRESHOLD,
                 }
                 logger.info(
-                    "§v10.703 Defekt-Countdown: %d gefunden → %d über Hörbarkeits-Schwelle → %d behoben → %d über Schwelle verbleibend → %s",
+                    "§v10.703 Defekt-Countdown: %d gefunden → %d über Hörbarkeits-Schwelle → %d behoben → %d über Schwelle verbleibend (%d Typen mit ERB-maskierten Events) → %s",
                     _defects_total,
                     _defects_audible_pre,
                     _defects_resolved,
                     _defects_audible_post,
+                    _defects_masked_any,
                     "✅ KEINE ÜBER-SCHWELLE-DEFEKTE"
                     if _defects_audible_post == 0
                     else f"⚠️ {_defects_audible_post} Defekte über Hörbarkeits-Schwelle",
@@ -19295,6 +19381,10 @@ class UnifiedRestorerV3:
                     # §v10.200 Depth-adaptive: tiefere Ketten haben niedrigere erreichbare VQI
                     _td_vqi = max(1, int(getattr(self, "_transfer_chain_depth", 1)))
                     _vqi_threshold = 0.55 if _td_vqi >= 4 else 0.65 if _td_vqi >= 3 else 0.72
+                    # Hörordnung Ebene 1 (hoerordnung.instructions.md §3): Bei
+                    # Verletzung einer Hör-Invariante gilt Phasen-Rücknahme vor
+                    # Recovery-Kaskade. Flag dokumentiert, ob die Rücknahme griff.
+                    _vqi_retreated_ok = False
                     if _vqi_score < _vqi_threshold:
                         # §v10.14: _best_post_processing_checkpoint zuerst — bewahrt
                         # MDEM/HPG/HarmonicLattice/EmotionalArc. Fällt zurück auf
@@ -19312,6 +19402,11 @@ class UnifiedRestorerV3:
                             # das Rollback-ZIEL (VQI) tatsächlich verbessern;
                             # sonst bleibt der aktuelle Stand erhalten.
                             _rb_vqi = _vqi_score
+                            _invariant_better = False  # Hörordnung Ebene 1: sichere Defaults
+                            _cur_cc = 1.0
+                            _cur_vp = 1.0
+                            _rb_cc = 1.0
+                            _rb_vp = 1.0
                             try:
                                 _rb_result = _compute_vqi(
                                     audio_orig=_vqi_orig,
@@ -19326,9 +19421,20 @@ class UnifiedRestorerV3:
                                     ).get_era_vocal_profile(int(self._restoration_context.get("decade", 1975) or 1975)),
                                 )
                                 _rb_vqi = float(_rb_result.get("vqi", _vqi_score))
+                                # Hörordnung Ebene 1 (hoerordnung.instructions.md §3):
+                                # Der Rollback wird auch akzeptiert, wenn er eine
+                                # VERLETZTE Hör-Invariante verbessert (Konsonanten-
+                                # /Vibrato-Erhalt), selbst bei minimal niedrigerem VQI.
+                                _cur_cc = float((_vqi_result or {}).get("consonant_clarity", 1.0) or 1.0)
+                                _cur_vp = float((_vqi_result or {}).get("vibrato_precision", 1.0) or 1.0)
+                                _rb_cc = float(_rb_result.get("consonant_clarity", _cur_cc) or _cur_cc)
+                                _rb_vp = float(_rb_result.get("vibrato_precision", _cur_vp) or _cur_vp)
+                                _invariant_better = (_cur_cc < 0.85 and _rb_cc > _cur_cc + 0.01) or (
+                                    _cur_vp < 0.85 and _rb_vp > _cur_vp + 0.01
+                                )
                             except Exception as _rb_vqi_exc:
                                 logger.debug("VQI-Rollback-Verifikation nicht verfügbar: %s", _rb_vqi_exc)
-                            if _rb_vqi > _vqi_score:
+                            if _rb_vqi > _vqi_score or _invariant_better:
                                 restored_audio = _vqi_rb
                                 logger.warning(
                                     "§0p VQI-Rollback: vqi=%.3f < %.2f → Checkpoint (checkpoint_vqi=%.3f, besser)",
@@ -19336,6 +19442,16 @@ class UnifiedRestorerV3:
                                     _vqi_threshold,
                                     _rb_vqi,
                                 )
+                                _vqi_retreated_ok = True
+                                # Hörordnung Ebene 1 (hoerordnung.instructions.md §3):
+                                # Phasen-Rücknahme hat stattgefunden — die Recovery-
+                                # Kaskade (Phase_65) läuft NICHT zusätzlich.
+                                if isinstance(getattr(self, "_restoration_context", None), dict):
+                                    self._restoration_context["hearing_invariant_violation"] = {
+                                        "invariant": "vocal_quality",
+                                        "phase_retreat": "carrier_checkpoint",
+                                        "resolved": True,
+                                    }
                             else:
                                 logger.warning(
                                     "§0p VQI-Rollback verworfen: Checkpoint-VQI %.3f ≤ aktuell %.3f — "
@@ -19343,6 +19459,15 @@ class UnifiedRestorerV3:
                                     _rb_vqi,
                                     _vqi_score,
                                 )
+                                # Hörordnung Ebene 1: Invariante verletzt, Rücknahme
+                                # erfolglos — Recovery-Kaskade nur als Fallback.
+                                if isinstance(getattr(self, "_restoration_context", None), dict):
+                                    self._restoration_context["hearing_invariant_violation"] = {
+                                        "invariant": "vocal_quality",
+                                        "phase_retreat": "carrier_checkpoint",
+                                        "resolved": False,
+                                        "recovery_fallback": True,
+                                    }
 
                 # §0a [RELEASE_MUST] Phase_65 VQI-Korrektiv-Recovery (v10.0.0)
                 # VQI < 0.74 oder unter Maximum-Alignment + panns_singing ≥ 0.25 + Restoration-Modus
@@ -19355,6 +19480,7 @@ class UnifiedRestorerV3:
                     (_vqi_score < 0.74 or not _vqi_max_alignment_ok)
                     and _p65_panns >= 0.25
                     and not self.is_studio_mode()
+                    and not _vqi_retreated_ok
                 ):
                     try:
                         from backend.core.phases.phase_65_vocal_naturalness_restoration import (
@@ -22679,14 +22805,24 @@ class UnifiedRestorerV3:
         _wm_mcd_db = float(_wm_details.get("mcd_db", 999.0) or 999.0)
         _wm_lufs_d = float(_wm_details.get("lufs_diff_lu", 0.0) or 0.0)
         _wm_alignment_suspect = _wm_nsim < 0.10 and (_wm_mcd_db < 1.0 or abs(_wm_lufs_d) > 20.0)
-        if _wm_alignment_suspect and _wm_mushra > 0:
+        # §v10.303 Härtung: Längen-Plausibilität direkt am Signal — greift auch,
+        # wenn die MUSHRA-Meta-Signatur (nsim/mcd/lufs) fehlt oder defaulte.
+        # Ein Re-Run auf ein degeneriertes Ausgangssignal reproduziert denselben
+        # Kollaps deterministisch → Endlosschleifen-Gefahr (Befund 2026-08-23).
+        _wm_len_in = int(max(audio.shape)) if getattr(audio, "ndim", 0) >= 2 else int(len(audio))
+        _wm_len_out = int(max(result.audio.shape)) if getattr(result.audio, "ndim", 0) >= 2 else int(len(result.audio))
+        _wm_len_suspect = (_wm_len_out <= 2) or (_wm_len_in > 1024 and _wm_len_out < _wm_len_in // 2)
+        _wm_artefact_guard = _wm_alignment_suspect or _wm_len_suspect
+        if _wm_artefact_guard and _wm_mushra > 0:
             logger.warning(
                 "⚡ Wohlklang-Garantie: MUSHRA %.1f als Messartefakt eingestuft "
-                "(nsim=%.3f, mcd=%.1f dB, lufs_delta=%.1f LU) — kein automatischer Re-Run",
+                "(nsim=%.3f, mcd=%.1f dB, lufs_delta=%.1f LU, len=%d→%d) — kein automatischer Re-Run",
                 _wm_mushra,
                 _wm_nsim,
                 _wm_mcd_db,
                 _wm_lufs_d,
+                _wm_len_in,
+                _wm_len_out,
             )
         _MATERIAL_MUSHRA_MIN: dict[str, float] = {
             "cd": 75.0,
@@ -22723,7 +22859,7 @@ class UnifiedRestorerV3:
             and _wm_mushra < _wm_threshold
             and self._wohlklang_retry_count < 1
             and self._wohlklang_strength_multiplier > 0.9
-            and not _wm_alignment_suspect
+            and not _wm_artefact_guard
         ):
             self._wohlklang_best_mushra = _wm_mushra
             self._wohlklang_best_audio = result.audio.copy()
@@ -34119,6 +34255,38 @@ class UnifiedRestorerV3:
             except Exception as _v25_exc:
                 logger.debug("§V25 WBG nicht blockierend: %s", _v25_exc)
 
+            # Hörordnung Ebene 1 (hoerordnung.instructions.md §3): §SCK-R/§WBG-R —
+            # harte Phasen-Rücknahme bei Invarianten-Verletzung statt nur Blend.
+            # SCK-R: Spektralfarben-Korrelation < 0.60 (extreme Verletzung) →
+            # Phase vollständig zurücknehmen.
+            # WBG-R: Einzelphasen-Wärmeband-Verlust > 3 dB (Restoration) →
+            # Phase zurücknehmen statt End-Gate-Kompensation; kumulativer
+            # Tracker wird zurückgedreht (die Phase hat nicht stattgefunden).
+            try:
+                _ho_retreat_reason = None
+                _ho_meta = getattr(result, "metadata", {}) or {}
+                _sc_corr = float(_ho_meta.get("spectral_color_correlation", 1.0) or 1.0)
+                if _ho_meta.get("spectral_color_ok") is False and _sc_corr < 0.60:
+                    _ho_retreat_reason = f"Spektralfarben-Verletzung (corr={_sc_corr:.3f})"
+                _wbg_loss_ho = float(_ho_meta.get("warmth_band_loss_db", 0.0) or 0.0)
+                if _wbg_loss_ho > 3.0 and not self.is_studio_mode():
+                    _ho_retreat_reason = f"Wärmeband-Verlust {_wbg_loss_ho:.2f} dB"
+                    _rctx_ho = getattr(self, "_restoration_context", None)
+                    if isinstance(_rctx_ho, dict):
+                        _cum_ho = float(_rctx_ho.get("warmth_band_loss_db", 0.0) or 0.0)
+                        _rctx_ho["warmth_band_loss_db"] = float(max(0.0, _cum_ho - _wbg_loss_ho))
+                if _ho_retreat_reason is not None:
+                    result.audio = np.asarray(audio, dtype=np.float32)
+                    logger.warning(
+                        "🎧 §SCK-R/§WBG-R: Phase %s zurückgenommen (%s) — Hörordnung Ebene 1",
+                        _pid_guards,
+                        _ho_retreat_reason,
+                    )
+                    if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+                        result.metadata["hearing_invariant_retreat"] = _ho_retreat_reason
+            except Exception as _ho_retreat_exc:
+                logger.debug("§SCK-R/§WBG-R Eskalation nicht blockierend: %s", _ho_retreat_exc)
+
             # §P4 MIIPHER-Aktivierungs-Telemetrie: Akkumuliert aus phase_03-Ergebnis-Metadaten.
             # Sichtbar in Analyse-JSON als 'miipher_tier0_applied' für Diagnose ob SOTA-Modell aktiv war.
             try:
@@ -38160,6 +38328,18 @@ class UnifiedRestorerV3:
                     )
                     skipped.append(phase_id)
                     _record_oom_probe("phase_skip_not_loaded", phase_id)
+                    continue
+                # §v10.24: Skip phase if all primary defects already resolved
+                if self._should_skip_masked_phase(phase_id):
+                    _k_step, _n_step = self._next_step()
+                    logger.info(
+                        "⏭️ %s uebersprungen (%d/%d) — Defekte vollständig maskiert (ERB) — Hörordnung Ebene 2",
+                        phase_id,
+                        _k_step,
+                        _n_step,
+                    )
+                    skipped.append(phase_id)
+                    _record_oom_probe("phase_skip_erb_masked", phase_id)
                     continue
                 # §v10.24: Skip phase if all primary defects already resolved
                 if self._should_skip_resolved_phase(phase_id):
@@ -42859,6 +43039,72 @@ class UnifiedRestorerV3:
                     all_resolved = False
                     break
             return all_resolved
+        except Exception:
+            return False
+
+    def _should_skip_masked_phase(self, phase_id: str) -> bool:
+        """Hörordnung Ebene 2 (hoerordnung.instructions.md §4), Stufe B:
+        Reparatur-Entscheidungen sind audibility-getrieben. Sind ALLE von dieser
+        Phase adressierten Defekte per ERB-Modell vollständig maskiert
+        (perceptual_salience < 0.30), ist kein hörbarer Eingriff nötig → Skip.
+
+        Sicherheitsregeln:
+        - Nur wenn die Salience-Messung tatsächlich maskiert hat. Wirkt der
+          Filter als Pass-Through (pass_through_detected), ist der Wert auf
+          1.0 neutralisiert → kein Skip (siehe perceptual_salience.py).
+        - Phase 06 (frequency_restoration) für analoge Medien nie überspringen.
+        - Enhancement-Phasen ohne Defekt-Mapping nie überspringen.
+        - Defekte unter severity 0.03 zählen nicht (nicht vorhanden).
+        """
+        if phase_id == "phase_06_frequency_restoration":
+            _rctx = getattr(self, "_restoration_context", None) or {}
+            _mat = str(_rctx.get("material_key", "")).lower()
+            if _mat in {
+                "shellac",
+                "vinyl",
+                "tape",
+                "cassette",
+                "reel_tape",
+                "wax_cylinder",
+                "wire_recording",
+                "lacquer_disc",
+                "lp",
+            }:
+                return False
+        try:
+            from backend.core.defect_phase_mapper import get_reverse_phase_map
+
+            rmap = get_reverse_phase_map()
+            target_defects = rmap.get(phase_id)
+            if not target_defects:
+                return False  # Enhancement-Phase: immer ausführen
+            _defect_scores = getattr(self, "_defect_result_scores", None)
+            if not _defect_scores:
+                return False
+            all_masked = True
+            any_measured = False
+            for dt in target_defects:
+                _score_obj = _defect_scores.get(dt)
+                if _score_obj is None and hasattr(dt, "value"):
+                    _score_obj = _defect_scores.get(dt.value)
+                if _score_obj is None:
+                    continue
+                _sev = float(getattr(_score_obj, "severity", 0.0) or 0.0)
+                if _sev < 0.03:
+                    continue  # nicht im Signal vorhanden → nicht maskierbar
+                any_measured = True
+                _md = getattr(_score_obj, "metadata", {}) or {}
+                _sal = float(_md.get("perceptual_salience", 1.0) or 1.0)
+                if _sal >= 0.30:
+                    all_masked = False
+                    break
+            if any_measured and all_masked:
+                logger.info(
+                    "🎭 %s uebersprungen: Defekte vollständig maskiert (ERB) — Hörordnung Ebene 2: kein hörbarer Eingriff nötig",
+                    phase_id,
+                )
+                return True
+            return False
         except Exception:
             return False
 

@@ -1,11 +1,103 @@
 {
+  "timestamp": "2026-08-31T05:42:20.006876",
+  "compliance_ok": false,
+  "release_ready": false,
+  "score": 0.0,
+  "score_max": 10.0,
+  "changes": [
+    "Quality-Gate 'features.quality_gates::lufs' nicht bestanden.",
+    "Quality-Gate 'release_result::status' nicht bestanden.",
+    "Quality-Gate 'scores.quality_gates::lufs' nicht bestanden.",
+    "Quality-Gate 'vocal_quality::authentizität' nicht bestanden.",
+    "Quality-Gate 'vocal_quality::emotionalität' nicht bestanden.",
+    "Quality-Gate 'vocal_quality::expressivität' nicht bestanden.",
+    "Quality-Gate 'vocal_quality::klarheit' nicht bestanden.",
+    "Quality-Gate 'vocal_quality::transparenz' nicht bestanden.",
+    "Voice-First-Blocker fehlen fuer vokalrelevante Runs: formant, micro_dynamics, vibrato, vqi (runs=71)."
+  ],
   "audit_summary": [
     {
-      "chain_authenticity": {
-        "authentic": false,
-        "chain_mismatch": true
+      "timestamp": "2026-03-20T10:02:35.205288",
+      "features": {
+        "f0_median": 0.0,
+        "f0_mean": 0.0,
+        "f0_std": 0.0,
+        "chroma_mean": 0.0,
+        "chroma_std": 0.0,
+        "key_chroma_cqt_mean": 0.0,
+        "tempo_bpm": 0.0,
+        "beat_count": 0,
+        "mfcc_mean": -56.568542494923804,
+        "mfcc_std": 246.57656011875906,
+        "Singing voice": 0.0017618238925933838,
+        "Vocals": 0.0017618238925933838,
+        "Speech": 0.01704201102256775,
+        "Guitar": 0.0014227628707885742,
+        "Electric guitar": 0.00037744641304016113,
+        "Bass guitar": 0.00033915042877197266,
+        "Piano": 0.0005951225757598877,
+        "Keyboard (musical)": 0.003238767385482788,
+        "Brass instrument": 0.001005619764328003,
+        "Trumpet": 0.000164031982421875,
+        "Saxophone": 0.00013121962547302246,
+        "Drum": 0.0058807432651519775,
+        "Percussion": 0.0015527307987213135,
+        "Bowed string instrument": 0.001172184944152832,
+        "Accordion": 4.1484832763671875e-05,
+        "Music": 0.07031074166297913,
+        "Classical music": 0.00029462575912475586,
+        "Jazz": 0.00011262297630310059,
+        "Rock music": 0.0039892494678497314,
+        "Electronic music": 0.0020240843296051025,
+        "rms": 0.0,
+        "zcr": 0.0,
+        "spectral_centroid": 0.0,
+        "spectral_rolloff": 0.0,
+        "spectral_flatness": 0.9999999999999997,
+        "spectral_contrast": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "crest_factor": 0.0,
+        "lufs": -100.691,
+        "quality_gates": {
+          "lufs": false
+        },
+        "click_density": 0.0,
+        "click_count": 0,
+        "crackle_density": 0.0,
+        "clipping_percentage": 0.0,
+        "is_clipped": false,
+        "dropout_regions": [],
+        "dropout_count": 0,
+        "wow_score": 0.0,
+        "flutter_score": 0.0,
+        "hum_score": 0.0,
+        "user_score": 5.0,
+        "user_comment": "Sehr musikalisch",
+        "media_characteristics": {
+          "vocal": true,
+          "chain": true,
+          "music": true,
+          "creative_dsp_chain": [
+            "HarmonicExciter",
+            "StereoWidener"
+          ]
+        },
+        "vocal_scores": {
+          "authentizität": 0.89,
+          "klarheit": 0.91,
+          "expressivität": 0.88
+        },
+        "feedback_data": {
+          "expert": "Sehr natürlich",
+          "user": "Klang exzellent"
+        }
       },
-      "detected_media": "unbekannt ('MediaForensicsEngine' object has no attribute 'detect')",
       "dsp_chain": [
         "WowFlutterRemover",
         "ZeroCrossingRate",
@@ -31,119 +123,44 @@
         "Dither",
         "EnvelopeMatcher"
       ],
-      "features": {
-        "Accordion": 4.1484832763671875e-05,
-        "Bass guitar": 0.00033915042877197266,
-        "Bowed string instrument": 0.001172184944152832,
-        "Brass instrument": 0.001005619764328003,
-        "Classical music": 0.00029462575912475586,
-        "Drum": 0.0058807432651519775,
-        "Electric guitar": 0.00037744641304016113,
-        "Electronic music": 0.0020240843296051025,
-        "Guitar": 0.0014227628707885742,
-        "Jazz": 0.00011262297630310059,
-        "Keyboard (musical)": 0.003238767385482788,
-        "Music": 0.07031074166297913,
-        "Percussion": 0.0015527307987213135,
-        "Piano": 0.0005951225757598877,
-        "Rock music": 0.0039892494678497314,
-        "Saxophone": 0.00013121962547302246,
-        "Singing voice": 0.0017618238925933838,
-        "Speech": 0.01704201102256775,
-        "Trumpet": 0.000164031982421875,
-        "Vocals": 0.0017618238925933838,
-        "beat_count": 0,
-        "chroma_mean": 0.0,
-        "chroma_std": 0.0,
-        "click_count": 0,
-        "click_density": 0.0,
-        "clipping_percentage": 0.0,
-        "crackle_density": 0.0,
-        "crest_factor": 0.0,
-        "dropout_count": 0,
-        "dropout_regions": [],
-        "f0_mean": 0.0,
-        "f0_median": 0.0,
-        "f0_std": 0.0,
-        "feedback_data": {
-          "expert": "Sehr nat\u00fcrlich",
-          "user": "Klang exzellent"
-        },
-        "flutter_score": 0.0,
-        "hum_score": 0.0,
-        "is_clipped": false,
-        "key_chroma_cqt_mean": 0.0,
-        "lufs": -100.691,
-        "media_characteristics": {
-          "chain": true,
-          "creative_dsp_chain": [
-            "HarmonicExciter",
-            "StereoWidener"
-          ],
-          "music": true,
-          "vocal": true
-        },
-        "mfcc_mean": -56.568542494923804,
-        "mfcc_std": 246.57656011875906,
-        "quality_gates": {
-          "lufs": false
-        },
-        "rms": 0.0,
-        "spectral_centroid": 0.0,
-        "spectral_contrast": [
-          0.0,
-          0.0,
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "spectral_flatness": 0.9999999999999997,
-        "spectral_rolloff": 0.0,
-        "tempo_bpm": 0.0,
-        "user_comment": "Sehr musikalisch",
-        "user_score": 5.0,
-        "vocal_scores": {
-          "authentizit\u00e4t": 0.89,
-          "expressivit\u00e4t": 0.88,
-          "klarheit": 0.91
-        },
-        "wow_score": 0.0,
-        "zcr": 0.0
-      },
-      "feedback_result": {
-        "status": "feedback_optimizer_not_available"
-      },
-      "klang_aesthetik": {},
       "quality_results": {
         "error": "No module named 'validate_musical_goals'"
+      },
+      "klang_aesthetik": {},
+      "feedback_result": {
+        "status": "feedback_optimizer_not_available"
       },
       "regression_result": {
         "status": "regression_monitor_not_available"
       },
       "release_result": {
-        "changes": [],
+        "status": "release_ready",
         "release_ready": true,
         "score": 10.0,
         "score_max": 10.0,
-        "status": "release_ready"
+        "changes": []
       },
-      "timestamp": "2026-03-20T10:02:35.205288",
       "user_feedback_result": {
         "Verbesserungspotenzial": [
           ""
         ]
       },
+      "chain_authenticity": {
+        "chain_mismatch": true,
+        "authentic": false
+      },
       "vocal_quality": {
-        "authentizit\u00e4t": true,
-        "expressivit\u00e4t": true,
-        "klarheit": true
-      }
+        "authentizität": true,
+        "klarheit": true,
+        "expressivität": true
+      },
+      "detected_media": "unbekannt ('MediaForensicsEngine' object has no attribute 'detect')"
     },
     {
+      "timestamp": "2026-03-20T10:02:37.492017",
       "chain_check": {
-        "authentic": false,
-        "chain_mismatch": true
+        "chain_mismatch": true,
+        "authentic": false
       },
       "dsp_chain": [
         "WowFlutterRemover",
@@ -175,69 +192,51 @@
           "Limiter",
           "StereoWidener"
         ]
-      },
-      "timestamp": "2026-03-20T10:02:37.492017"
+      }
     },
     {
+      "timestamp": "2026-03-20T10:02:37.513225",
+      "vocal_quality_check": {
+        "authentizität": true,
+        "klarheit": true,
+        "expressivität": true
+      },
       "scores": {
-        "Accordion": 4.1484832763671875e-05,
-        "Bass guitar": 0.00033915042877197266,
-        "Bowed string instrument": 0.001172184944152832,
-        "Brass instrument": 0.001005619764328003,
-        "Classical music": 0.00029462575912475586,
-        "Drum": 0.0058807432651519775,
-        "Electric guitar": 0.00037744641304016113,
-        "Electronic music": 0.0020240843296051025,
-        "Guitar": 0.0014227628707885742,
-        "Jazz": 0.00011262297630310059,
-        "Keyboard (musical)": 0.003238767385482788,
-        "Music": 0.07031074166297913,
-        "Percussion": 0.0015527307987213135,
-        "Piano": 0.0005951225757598877,
-        "Rock music": 0.0039892494678497314,
-        "Saxophone": 0.00013121962547302246,
-        "Singing voice": 0.0017618238925933838,
-        "Speech": 0.01704201102256775,
-        "Trumpet": 0.000164031982421875,
-        "Vocals": 0.0017618238925933838,
-        "beat_count": 0,
+        "f0_median": 0.0,
+        "f0_mean": 0.0,
+        "f0_std": 0.0,
         "chroma_mean": 0.0,
         "chroma_std": 0.0,
-        "click_count": 0,
-        "click_density": 0.0,
-        "clipping_percentage": 0.0,
-        "crackle_density": 0.0,
-        "crest_factor": 0.0,
-        "dropout_count": 0,
-        "dropout_regions": [],
-        "f0_mean": 0.0,
-        "f0_median": 0.0,
-        "f0_std": 0.0,
-        "feedback_data": {
-          "expert": "Sehr nat\u00fcrlich",
-          "user": "Klang exzellent"
-        },
-        "flutter_score": 0.0,
-        "hum_score": 0.0,
-        "is_clipped": false,
         "key_chroma_cqt_mean": 0.0,
-        "lufs": -100.691,
-        "media_characteristics": {
-          "chain": true,
-          "creative_dsp_chain": [
-            "HarmonicExciter",
-            "StereoWidener"
-          ],
-          "music": true,
-          "vocal": true
-        },
+        "tempo_bpm": 0.0,
+        "beat_count": 0,
         "mfcc_mean": -56.568542494923804,
         "mfcc_std": 246.57656011875906,
-        "quality_gates": {
-          "lufs": false
-        },
+        "Singing voice": 0.0017618238925933838,
+        "Vocals": 0.0017618238925933838,
+        "Speech": 0.01704201102256775,
+        "Guitar": 0.0014227628707885742,
+        "Electric guitar": 0.00037744641304016113,
+        "Bass guitar": 0.00033915042877197266,
+        "Piano": 0.0005951225757598877,
+        "Keyboard (musical)": 0.003238767385482788,
+        "Brass instrument": 0.001005619764328003,
+        "Trumpet": 0.000164031982421875,
+        "Saxophone": 0.00013121962547302246,
+        "Drum": 0.0058807432651519775,
+        "Percussion": 0.0015527307987213135,
+        "Bowed string instrument": 0.001172184944152832,
+        "Accordion": 4.1484832763671875e-05,
+        "Music": 0.07031074166297913,
+        "Classical music": 0.00029462575912475586,
+        "Jazz": 0.00011262297630310059,
+        "Rock music": 0.0039892494678497314,
+        "Electronic music": 0.0020240843296051025,
         "rms": 0.0,
+        "zcr": 0.0,
         "spectral_centroid": 0.0,
+        "spectral_rolloff": 0.0,
+        "spectral_flatness": 0.9999999999999997,
         "spectral_contrast": [
           0.0,
           0.0,
@@ -246,32 +245,125 @@
           0.0,
           0.0
         ],
-        "spectral_flatness": 0.9999999999999997,
-        "spectral_rolloff": 0.0,
-        "tempo_bpm": 0.0,
-        "user_comment": "Sehr musikalisch",
-        "user_score": 5.0,
-        "vocal_scores": {
-          "authentizit\u00e4t": 0.89,
-          "expressivit\u00e4t": 0.88,
-          "klarheit": 0.91
+        "crest_factor": 0.0,
+        "lufs": -100.691,
+        "quality_gates": {
+          "lufs": false
         },
+        "click_density": 0.0,
+        "click_count": 0,
+        "crackle_density": 0.0,
+        "clipping_percentage": 0.0,
+        "is_clipped": false,
+        "dropout_regions": [],
+        "dropout_count": 0,
         "wow_score": 0.0,
-        "zcr": 0.0
-      },
-      "timestamp": "2026-03-20T10:02:37.513225",
-      "vocal_quality_check": {
-        "authentizit\u00e4t": true,
-        "expressivit\u00e4t": true,
-        "klarheit": true
+        "flutter_score": 0.0,
+        "hum_score": 0.0,
+        "user_score": 5.0,
+        "user_comment": "Sehr musikalisch",
+        "media_characteristics": {
+          "vocal": true,
+          "chain": true,
+          "music": true,
+          "creative_dsp_chain": [
+            "HarmonicExciter",
+            "StereoWidener"
+          ]
+        },
+        "vocal_scores": {
+          "authentizität": 0.89,
+          "klarheit": 0.91,
+          "expressivität": 0.88
+        },
+        "feedback_data": {
+          "expert": "Sehr natürlich",
+          "user": "Klang exzellent"
+        }
       }
     },
     {
-      "chain_authenticity": {
-        "authentic": false,
-        "chain_mismatch": true
+      "timestamp": "2026-03-20T10:02:37.534655",
+      "features": {
+        "f0_median": 0.0,
+        "f0_mean": 0.0,
+        "f0_std": 0.0,
+        "chroma_mean": 0.0,
+        "chroma_std": 0.0,
+        "key_chroma_cqt_mean": 0.0,
+        "tempo_bpm": 0.0,
+        "beat_count": 0,
+        "mfcc_mean": -56.568542494923804,
+        "mfcc_std": 246.57656011875906,
+        "Singing voice": 0.0017618238925933838,
+        "Vocals": 0.0017618238925933838,
+        "Speech": 0.01704201102256775,
+        "Guitar": 0.0014227628707885742,
+        "Electric guitar": 0.00037744641304016113,
+        "Bass guitar": 0.00033915042877197266,
+        "Piano": 0.0005951225757598877,
+        "Keyboard (musical)": 0.003238767385482788,
+        "Brass instrument": 0.001005619764328003,
+        "Trumpet": 0.000164031982421875,
+        "Saxophone": 0.00013121962547302246,
+        "Drum": 0.0058807432651519775,
+        "Percussion": 0.0015527307987213135,
+        "Bowed string instrument": 0.001172184944152832,
+        "Accordion": 4.1484832763671875e-05,
+        "Music": 0.07031074166297913,
+        "Classical music": 0.00029462575912475586,
+        "Jazz": 0.00011262297630310059,
+        "Rock music": 0.0039892494678497314,
+        "Electronic music": 0.0020240843296051025,
+        "rms": 0.0,
+        "zcr": 0.0,
+        "spectral_centroid": 0.0,
+        "spectral_rolloff": 0.0,
+        "spectral_flatness": 0.9999999999999997,
+        "spectral_contrast": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "crest_factor": 0.0,
+        "lufs": -100.691,
+        "quality_gates": {
+          "lufs": false
+        },
+        "click_density": 0.0,
+        "click_count": 0,
+        "crackle_density": 0.0,
+        "clipping_percentage": 0.0,
+        "is_clipped": false,
+        "dropout_regions": [],
+        "dropout_count": 0,
+        "wow_score": 0.0,
+        "flutter_score": 0.0,
+        "hum_score": 0.0,
+        "user_score": 5.0,
+        "user_comment": "Sehr musikalisch",
+        "media_characteristics": {
+          "vocal": true,
+          "chain": true,
+          "music": true,
+          "creative_dsp_chain": [
+            "HarmonicExciter",
+            "StereoWidener"
+          ]
+        },
+        "vocal_scores": {
+          "authentizität": 0.89,
+          "klarheit": 0.91,
+          "expressivität": 0.88
+        },
+        "feedback_data": {
+          "expert": "Sehr natürlich",
+          "user": "Klang exzellent"
+        }
       },
-      "detected_media": "unbekannt ('MediaForensicsEngine' object has no attribute 'detect')",
       "dsp_chain": [
         "WowFlutterRemover",
         "ZeroCrossingRate",
@@ -297,153 +389,61 @@
         "Dither",
         "EnvelopeMatcher"
       ],
-      "features": {
-        "Accordion": 4.1484832763671875e-05,
-        "Bass guitar": 0.00033915042877197266,
-        "Bowed string instrument": 0.001172184944152832,
-        "Brass instrument": 0.001005619764328003,
-        "Classical music": 0.00029462575912475586,
-        "Drum": 0.0058807432651519775,
-        "Electric guitar": 0.00037744641304016113,
-        "Electronic music": 0.0020240843296051025,
-        "Guitar": 0.0014227628707885742,
-        "Jazz": 0.00011262297630310059,
-        "Keyboard (musical)": 0.003238767385482788,
-        "Music": 0.07031074166297913,
-        "Percussion": 0.0015527307987213135,
-        "Piano": 0.0005951225757598877,
-        "Rock music": 0.0039892494678497314,
-        "Saxophone": 0.00013121962547302246,
-        "Singing voice": 0.0017618238925933838,
-        "Speech": 0.01704201102256775,
-        "Trumpet": 0.000164031982421875,
-        "Vocals": 0.0017618238925933838,
-        "beat_count": 0,
-        "chroma_mean": 0.0,
-        "chroma_std": 0.0,
-        "click_count": 0,
-        "click_density": 0.0,
-        "clipping_percentage": 0.0,
-        "crackle_density": 0.0,
-        "crest_factor": 0.0,
-        "dropout_count": 0,
-        "dropout_regions": [],
-        "f0_mean": 0.0,
-        "f0_median": 0.0,
-        "f0_std": 0.0,
-        "feedback_data": {
-          "expert": "Sehr nat\u00fcrlich",
-          "user": "Klang exzellent"
-        },
-        "flutter_score": 0.0,
-        "hum_score": 0.0,
-        "is_clipped": false,
-        "key_chroma_cqt_mean": 0.0,
-        "lufs": -100.691,
-        "media_characteristics": {
-          "chain": true,
-          "creative_dsp_chain": [
-            "HarmonicExciter",
-            "StereoWidener"
-          ],
-          "music": true,
-          "vocal": true
-        },
-        "mfcc_mean": -56.568542494923804,
-        "mfcc_std": 246.57656011875906,
-        "quality_gates": {
-          "lufs": false
-        },
-        "rms": 0.0,
-        "spectral_centroid": 0.0,
-        "spectral_contrast": [
-          0.0,
-          0.0,
-          0.0,
-          0.0,
-          0.0,
-          0.0
-        ],
-        "spectral_flatness": 0.9999999999999997,
-        "spectral_rolloff": 0.0,
-        "tempo_bpm": 0.0,
-        "user_comment": "Sehr musikalisch",
-        "user_score": 5.0,
-        "vocal_scores": {
-          "authentizit\u00e4t": 0.89,
-          "expressivit\u00e4t": 0.88,
-          "klarheit": 0.91
-        },
-        "wow_score": 0.0,
-        "zcr": 0.0
-      },
-      "feedback_result": {
-        "status": "feedback_optimizer_not_available"
-      },
-      "klang_aesthetik": {},
       "quality_results": {
         "error": "No module named 'validate_musical_goals'"
+      },
+      "klang_aesthetik": {},
+      "feedback_result": {
+        "status": "feedback_optimizer_not_available"
       },
       "regression_result": {
         "status": "regression_monitor_not_available"
       },
       "release_result": {
-        "changes": [],
+        "status": "release_ready",
         "release_ready": true,
         "score": 10.0,
         "score_max": 10.0,
-        "status": "release_ready"
+        "changes": []
       },
-      "timestamp": "2026-03-20T10:02:37.534655",
       "user_feedback_result": {
         "Verbesserungspotenzial": [
           ""
         ]
       },
+      "chain_authenticity": {
+        "chain_mismatch": true,
+        "authentic": false
+      },
       "vocal_quality": {
-        "authentizit\u00e4t": true,
-        "expressivit\u00e4t": true,
-        "klarheit": true
-      }
+        "authentizität": true,
+        "klarheit": true,
+        "expressivität": true
+      },
+      "detected_media": "unbekannt ('MediaForensicsEngine' object has no attribute 'detect')"
     },
     {
+      "timestamp": "2026-03-20T10:02:37.776998",
+      "vocal_quality_check": {
+        "authentizität": true,
+        "klarheit": true,
+        "expressivität": true
+      },
       "scores": {
         "media_characteristics": {
           "vocal": true
         },
         "vocal_scores": {
-          "authentizit\u00e4t": 0.89,
-          "expressivit\u00e4t": 0.88,
-          "klarheit": 0.91
+          "authentizität": 0.89,
+          "klarheit": 0.91,
+          "expressivität": 0.88
         }
-      },
-      "timestamp": "2026-03-20T10:02:37.776998",
-      "vocal_quality_check": {
-        "authentizit\u00e4t": true,
-        "expressivit\u00e4t": true,
-        "klarheit": true
       }
     }
   ],
-  "changes": [
-    "Quality-Gate 'features.quality_gates::lufs' nicht bestanden.",
-    "Quality-Gate 'release_result::status' nicht bestanden.",
-    "Quality-Gate 'scores.quality_gates::lufs' nicht bestanden.",
-    "Quality-Gate 'vocal_quality::authentizit\u00e4t' nicht bestanden.",
-    "Quality-Gate 'vocal_quality::emotionalit\u00e4t' nicht bestanden.",
-    "Quality-Gate 'vocal_quality::expressivit\u00e4t' nicht bestanden.",
-    "Quality-Gate 'vocal_quality::klarheit' nicht bestanden.",
-    "Quality-Gate 'vocal_quality::transparenz' nicht bestanden.",
-    "Voice-First-Blocker fehlen fuer vokalrelevante Runs: formant, micro_dynamics, vibrato, vqi (runs=71)."
-  ],
-  "compliance_ok": false,
   "gate_stats": {
-    "diagnostic_gates_included": true,
+    "total": 551,
     "passed": 43,
-    "total": 551
-  },
-  "release_ready": false,
-  "score": 0.0,
-  "score_max": 10.0,
-  "timestamp": "2026-05-24T15:46:54.596480"
+    "diagnostic_gates_included": true
+  }
 }

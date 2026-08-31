@@ -40,6 +40,12 @@ POSITIVE_MARKERS: list[tuple[str, str]] = [
     ("pre_Analyse: vollstaendig", "Pre-Analyse abgeschlossen"),
     ("PIM-first: Intensitäts-Map", "PIM-first aktiv"),
     ("Material-Konsens final — primary=", "Konsens-Write-back aktiv"),
+    # Hörordnung (2026-08-23): erwartbare Marker der verdrahteten Ebenen
+    ("Hörordnung Ebene 2: PerceptualSalience wirkt als Pass-Through", "Salience-Pass-Through erkannt (Ebene 2)"),
+    ("Einladungs-Gate:", "Einladungs-Gate gelaufen (Ebene 4)"),
+    ("maskiert (ERB)", "ERB-Maskierungs-Skip möglich (Ebene 2, Stufe B)"),
+    ("Messartefakt-Verdacht", "Konfliktregel-Kennzeichnung aktiv (Hörordnung §7)"),
+    ("Restoration vollstaendig", "Restoration abgeschlossen"),
 ]
 
 # Mengen-Prüfungen (Warnung, kein Fehlschlag — Fallback-Pfade sind spezifiziert).

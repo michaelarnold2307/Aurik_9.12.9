@@ -156,6 +156,37 @@ def format_full_report(result: Any) -> str:
         return f"(format_full_report fehlgeschlagen: {e})"
 
 
+def build_from_result(result: Any) -> Any:
+    """Baut den RestoreTrace aus einem RestorationResult.
+
+    §V4-konformer Zugang: CLI/UI importiert pipeline_trace nie direkt,
+    sondern nur über die backend.api-Schicht.
+    """
+    from backend.core.pipeline_trace import build_from_result as _build
+
+    return _build(result)
+
+
+def format_goal_deltas(trace: Any) -> str:
+    """Goal-Deltas als Text (Trace-basiert, wie pipeline_trace)."""
+    try:
+        from backend.core.pipeline_trace import format_goal_deltas as _fmt
+
+        return _fmt(trace)  # type: ignore[no-any-return]
+    except Exception as e:
+        return f"(format_goal_deltas fehlgeschlagen: {e})"
+
+
+def format_phase_decisions(trace: Any) -> str:
+    """Phasen-Entscheidungen als Text (Trace-basiert, wie pipeline_trace)."""
+    try:
+        from backend.core.pipeline_trace import format_phase_decisions as _fmt
+
+        return _fmt(trace)  # type: ignore[no-any-return]
+    except Exception as e:
+        return f"(format_phase_decisions fehlgeschlagen: {e})"
+
+
 def save_trace_json(result: Any, path: str) -> bool:
     """
     Speichert den vollständigen Trace als JSON-Datei.

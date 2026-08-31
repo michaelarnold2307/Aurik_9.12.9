@@ -272,14 +272,23 @@ class PerceptualSalienceEstimator:
                 _ERB_PER_TYPE = 20
                 all_anns = salience_result.annotations
                 if len(all_anns) > _ERB_MAX_ANNOTATIONS:
-                    # Tier 1: top-N per defect type
+                    # Tier 1: pro Defekttyp die Salience-Verteilung an BEIDEN Enden
+                    # abdecken — die lautesten (exponierten) UND die leisesten
+                    # (potentiell maskierbaren) Events. Vorher wurden nur die
+                    # top-salienten gezogen → die Stichprobe war systematisch
+                    # verzerrt Richtung „alles salient“ (Befund 2026-08-23:
+                    # 13695/13695 salient trotz ERB+Residuum-Blend).
                     _by_type: dict = {}
                     for _a in all_anns:
                         _by_type.setdefault(_a.defect_type, []).append(_a)
                     _selected: list = []
+                    _half = max(1, _ERB_PER_TYPE // 2)
                     for _type_anns in _by_type.values():
                         _type_anns_sorted = sorted(_type_anns, key=lambda a: a.salience, reverse=True)
-                        _selected.extend(_type_anns_sorted[:_ERB_PER_TYPE])
+                        _picked = _type_anns_sorted[:_half]
+                        if len(_type_anns_sorted) > _half:
+                            _picked = _picked + _type_anns_sorted[-_half:]
+                        _selected.extend(_picked)
                     # Tier 2: fill remaining budget from all annotations not yet selected
                     _selected_set = {id(a) for a in _selected}
                     _remaining = sorted(
@@ -309,6 +318,26 @@ class PerceptualSalienceEstimator:
                     )
                     # Blend: 70% ERB model (frequency-aware) + 30% broadband (robust)
                     blended = 0.7 * erb_result.salience + 0.3 * ann.salience
+                    # Hörordnung Ebene 2: Residuum-Bark-Masking (Defekt-Anteil vs.
+                    # maskierender Inhalt) als dritter Term — unter demselben
+                    # Budget-Cap wie ERB (keine Zusatzkosten bei großen Scans).
+                    try:
+                        from backend.core.residuum_masking import estimate_residuum_salience as _residuum_sal
+
+                        _rs = _residuum_sal(mono, sr, ann.location[0], ann.location[1])
+                        # Diskrepanz-Regel (Hörordnung Ebene 2): Sagt das Residuum-
+                        # Modell „maskiert“ (Defekt hebt sich nicht vom Kontext ab),
+                        # während Broadband/ERB „exponiert“ melden, ist das Residuum
+                        # die richtige Autorität — der Defekt-Anteil über dem
+                        # maskierenden Inhalt IST die Hörbarkeits-Frage. Sonst
+                        # überstimmen die Spitzen-basierten Terme die Maskierung
+                        # (Befund 2026-08-23: Blend lieferte 1.0 trotz Residuum≈0).
+                        if _rs.salience < 0.30 and ann.salience >= 0.90:
+                            blended = 0.20 * erb_result.salience + 0.10 * ann.salience + 0.70 * _rs.salience
+                        else:
+                            blended = 0.5 * erb_result.salience + 0.3 * ann.salience + 0.2 * _rs.salience
+                    except Exception as _rs_exc:
+                        logger.debug("Residuum-Masking nicht verfügbar (ERB-Blend aktiv): %s", _rs_exc)
                     ann.salience = float(np.clip(blended, 0.0, 1.0))
                     erb_saliences[(ann.defect_type, ann.location)] = erb_result.salience
 
@@ -316,6 +345,30 @@ class PerceptualSalienceEstimator:
                     "ERB masking model verbessert %d salience annotations",
                     len(erb_saliences),
                 )
+                # Hörordnung Ebene 2: Post-Blend-Auswertung — die ehrliche Frage
+                # ist, ob NACH ERB+Residuum weiterhin alles salient ist. Erst dann
+                # ist die Pass-Through-Warnung entscheidungsrelevant (die
+                # estimate()-Warnung prüft nur den Broadband-Vorzustand).
+                _post_salient = sum(1 for _a in salience_result.annotations if _a.salience >= 0.5)
+                _post_masked = sum(1 for _a in salience_result.annotations if _a.salience < 0.3)
+                _post_n = len(salience_result.annotations)
+                if _post_n >= 50 and _post_masked == 0 and _post_salient >= _post_n * 0.99:
+                    logger.warning(
+                        "Hörordnung Ebene 2: auch nach ERB+Residuum-Blend Pass-Through "
+                        "(%d/%d salient, 0 maskiert) — Audibility bleibt eingeschränkt; "
+                        "Wurzel: Residuum-Modell auf %d/%d Events begrenzt (Budget-Cap)",
+                        _post_salient,
+                        _post_n,
+                        len(erb_saliences),
+                        _post_n,
+                    )
+                elif _post_masked > 0:
+                    logger.info(
+                        "Hörordnung Ebene 2: ERB+Residuum maskiert %d/%d Events (%d über Cap verfeinert)",
+                        _post_masked,
+                        _post_n,
+                        len(erb_saliences),
+                    )
             except ImportError:
                 logger.debug("ERB masking model not verfuegbar, using broadband only")
 
@@ -330,10 +383,11 @@ class PerceptualSalienceEstimator:
             ds = defect_result.scores[dt]
             mean_sal = float(np.mean([a.salience for a in type_annotations]))
             mean_sal = float(np.nan_to_num(mean_sal, nan=0.5))
-            # Hörordnung Ebene 2 (hoerordnung.instructions.md §4): Wirkt der Filter als
-            # Pass-Through (maskiert nichts), darf er keine Audibility-Entscheidung
-            # tragen — Severity-Skalierung neutral halten statt pauschal abzusenken.
-            if getattr(salience_result, "pass_through_detected", False):
+            # Hörordnung Ebene 2: Neutralisierung nur, wenn der Filter auch NACH
+            # ERB+Residuum-Blend nichts maskiert hat. Hat der Blend real maskiert,
+            # ist die Salience informativ und wird NICHT neutralisiert.
+            _type_masked_ho = sum(1 for a in type_annotations if a.salience < 0.3)
+            if getattr(salience_result, "pass_through_detected", False) and _type_masked_ho == 0:
                 mean_sal = 1.0
             ds.metadata["perceptual_salience"] = round(mean_sal, 3)
             ds.metadata["n_salient_events"] = sum(1 for a in type_annotations if a.salience >= 0.5)

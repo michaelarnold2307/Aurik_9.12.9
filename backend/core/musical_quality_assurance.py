@@ -1306,6 +1306,27 @@ class MusicalQualityAssurance:
         if _no_processing:
             musical_improvement = 0.0
 
+        # §v10.303 Messketten-Artefakt-Erkennung (Hörordnung §7 Konfliktregel, P1):
+        # Wenn das verarbeitete Signal gegenüber dem Original degeneriert ist
+        # (Längen-Kollaps), sind Gate-/MUSHRA-Messungen auf diesem Signal
+        # ungültige Zeugen — das Verdict darf dann nicht als Qualitäts-Fakt
+        # „QUALITY GATES FAILED“ lauten, sondern als Messartefakt-Verdacht.
+        _proc_len_ma = (
+            int(max(processed_audio.shape)) if getattr(processed_audio, "ndim", 0) >= 2 else int(len(processed_audio))
+        )
+        _orig_len_ma = (
+            int(max(original_audio.shape)) if getattr(original_audio, "ndim", 0) >= 2 else int(len(original_audio))
+        )
+        _min_ma = max(1024, int(0.05 * sample_rate))
+        _measurement_artefact = (_proc_len_ma <= 2) or (_proc_len_ma < _min_ma and _orig_len_ma > _min_ma)
+        if _measurement_artefact:
+            logger.critical(
+                "MQA: Messketten-Artefakt — processed %d Samples vs. original %d. "
+                "Gate-/MUSHRA-Ergebnisse auf diesem Signal sind ungültige Zeugen (§v10.303).",
+                _proc_len_ma,
+                _orig_len_ma,
+            )
+
         # Generate verdict
         # §v10.704 S4 Quality-Entscheidungs-Narrativ (§G155):
         # Jedes Verdict MUSS erklären WARUM — mit Bezug auf die Metrik-Hierarchie.
@@ -1341,8 +1362,23 @@ class MusicalQualityAssurance:
             # (≥70) bei gleichzeitigem quantitativem Gate-Fail (z. B. SNR-Ziel) →
             # das simulierte menschliche Ohr hat Vorrang; das Gate wird zur
             # WARNUNG degradiert statt das Verdikt zu kippen (MetricArbiter-Logik).
+            # Hörordnung §7 (hoerordnung.instructions.md): Hält die Hör-Instanz
+            # (MUSHRA), ist die widersprechende Einzelmetrik (z. B. authenticity
+            # knapp unter Schwelle) als Messartefakt-Verdacht zu kennzeichnen —
+            # nicht als „character lost“-Fakt.
+            _ho_label = ""
+            if "Authenticity" in str(gate_reason):
+                _ho_label = " — Messartefakt-Verdacht (Hörordnung §7: Hör-Instanz hält)"
+            verdict = f"⚠️ PERCEPTUAL PASS — quantitatives Gate degradiert zu WARNUNG: {gate_reason} (MUSHRA={_mushra:.0f} ✅){_ho_label}"
+        elif not gate_passed and _measurement_artefact:
+            # §v10.303 P1 (Hörordnung §7 Konfliktregel auf MQA/MUSHRA-Pfad):
+            # Die Messung selbst ist der Konflikt — nicht „FAILED“ als Fakt
+            # behaupten, sondern Messartefakt-Verdacht markieren. Die Ursache
+            # wird am Entstehungsort behoben (Rollback-Guard der Pipeline).
             verdict = (
-                f"⚠️ PERCEPTUAL PASS — quantitatives Gate degradiert zu WARNUNG: {gate_reason} (MUSHRA={_mushra:.0f} ✅)"
+                f"⚠️ MESSARTEFAKT-VERDACHT — Gate-/MUSHRA-Messung auf degeneriertem Signal "
+                f"({_proc_len_ma} Samples) ungültig: {gate_reason} "
+                f"(Hörordnung §7: Zeugenaussage invalidiert, Hör-Instanz hält)"
             )
         elif not gate_passed:
             verdict = f"❌ QUALITY GATES FAILED - {gate_reason}"

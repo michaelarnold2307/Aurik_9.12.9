@@ -3,10 +3,9 @@
 """
 aurik_debug.py — Standalone Debug-CLI für die Aurik-Pipeline.
 
-LEGACY_NON_RELEASE: Dieser Debug-CLI nutzt absichtlich einen direkten UV3-Bypass
-(`UnifiedRestorerV3.restore(...)`) für Telemetrie-Diagnosen. Er ist kein
-Desktop-Release-Einstieg und darf den Canonical Contract der Release-Pfade
-nicht ersetzen.
+LEGACY_NON_RELEASE: Dieser Debug-CLI ist kein Desktop-Release-Einstieg und darf
+den Canonical Contract der Release-Pfade nicht ersetzen. Zugriff auf die
+Pipeline erfolgt §V4-konform ausschließlich über backend.api.bridge/debug_api.
 
 Läuft die vollständige Restaurierungs-Pipeline mit aktiviertem Debug-Trace
 und gibt einen strukturierten Bericht aus — ohne Raten, ohne Suchen in Logs.
@@ -90,7 +89,9 @@ def _load_audio(path: str) -> tuple[Any, int]:
 def _run_restore(audio: Any, sr: int, mode: str, verbose: bool) -> Any:
     """Führt Pipeline mit aktiviertem Debug-Trace aus."""
     try:
-        from backend.core.unified_restorer_v3 import UnifiedRestorerV3
+        from backend.api.bridge import get_restorer_classes
+
+        _, UnifiedRestorerV3 = get_restorer_classes()
     except ImportError as e:
         logger.error("UV3 Import fehlgeschlagen: %s", e)
         raise
@@ -305,20 +306,14 @@ Exit-Codes: 0=OK, 1=Goal-Fails, 2=Pipeline-Fehler, 3=Import-Fehler
     # --- Debug-Importe ---
     try:
         from backend.api.debug_api import (
+            build_from_result,
+            format_full_report,
+            format_goal_deltas,
+            format_goals_table,
+            format_phase_decisions,
             get_debug_summary,
             get_goal_fails,
             get_worst_phases,
-        )
-        from backend.core.pipeline_trace import (
-            build_from_result,
-            format_goal_deltas,
-            format_phase_decisions,
-        )
-        from backend.core.pipeline_trace import (
-            format_full_report as _fmt_full,
-        )
-        from backend.core.pipeline_trace import (
-            format_goals_table as _fmt_goals,
         )
     except ImportError as e:
         print(f"\n✗ Debug-API Import fehlgeschlagen: {e}", file=sys.stderr)
@@ -349,7 +344,7 @@ Exit-Codes: 0=OK, 1=Goal-Fails, 2=Pipeline-Fehler, 3=Import-Fehler
 
     # --- Ausgabe wählen ---
     if args.goals_only:
-        print(_fmt_goals(trace))
+        print(format_goals_table(result))
     elif args.decisions_only:
         print(format_phase_decisions(trace))
     elif args.deltas_only:
@@ -364,7 +359,7 @@ Exit-Codes: 0=OK, 1=Goal-Fails, 2=Pipeline-Fehler, 3=Import-Fehler
                 print(f"       {g}: {v:+.4f}")
     else:
         # Vollständiger Bericht
-        print(_fmt_full(trace))
+        print(format_full_report(result))
 
     # --- Goal-Fails prüfen (Exit-Code) ---
     goal_fails = get_goal_fails(result, goal_gate_mode)

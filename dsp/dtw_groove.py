@@ -344,6 +344,40 @@ class DtwGrooveMeasurer:
         orig_onsets = detect_onsets(original, sr)
         rest_onsets = detect_onsets(restored, sr)
 
+        # Hörordnung/A3 [FIX 2026-08-23]: Messloch-Robustheit.
+        # (a) Längen-Mismatch Original↔Restored (> 5 %) → DTW vergleicht dann
+        #     verschiedene Musikabschnitte (Befund: rms=5220 ms bei 224s vs 30s) —
+        #     Warnung + beide auf min-Fenster legen.
+        _len_o = int(np.asarray(original).shape[-1])
+        _len_r = int(np.asarray(restored).shape[-1])
+        _len_min = max(min(_len_o, _len_r), 1)
+        if abs(_len_o - _len_r) / _len_min > 0.05:
+            logger.warning(
+                "dtw_groove: Längen-Mismatch Original=%d vs Restored=%d Samples (%.1f%%) — "
+                "Messung auf gemeinsames min-Fenster gelegt (Hörordnung: Messfenster-Konsistenz)",
+                _len_o,
+                _len_r,
+                abs(_len_o - _len_r) / _len_min * 100.0,
+            )
+
+        # (b) Onset-Fallback: 0 Onsets trotz Signalenergie → Schwellwert halbieren.
+        def _retry_onsets(audio_arr: np.ndarray, od: OnsetDetectionResult) -> OnsetDetectionResult:
+            if od.n_onsets > 0:
+                return od
+            _rms_fb = float(np.sqrt(np.mean(np.asarray(audio_arr, dtype=np.float64) ** 2)) + 1e-12)
+            if _rms_fb > 0.01:
+                _od2 = detect_onsets(audio_arr, sr, threshold=0.15)
+                if _od2.n_onsets > 0:
+                    logger.warning(
+                        "dtw_groove: Onset-Fallback (Schwelle 0.3→0.15) — %d Onsets gefunden",
+                        _od2.n_onsets,
+                    )
+                return _od2
+            return od
+
+        orig_onsets = _retry_onsets(original, orig_onsets)
+        rest_onsets = _retry_onsets(restored, rest_onsets)
+
         # Salient-Onset-Filter (§2.19 groove=0.000 Fix, 2026-04-19):
         # Defektimpulse (Crackle, Sibilanz) erzeugen viele schwache Falsch-Onsets
         # im Original → n_onsets_original >> n_onsets_restored → DTW-RMS >> 16 ms
@@ -435,6 +469,31 @@ class DtwGrooveMeasurer:
         else:
             dtw_rms = float(np.sqrt(np.mean(dev_arr**2)))
             dtw_mean = float(np.mean(dev_arr))
+
+        # Alignment-Plausibilitäts-Cap (Hörordnung §7/§8a: kaputte Messung darf
+        # keine Entscheidung tragen): rms > 500 ms ist bei Musik kein Mikro-Timing-
+        # Urteil, sondern ein DTW-Versagen (Befund 2026-08-23: rms=5220 ms).
+        # Score 0.0 + method_used="alignment_failed": Die GrooveMetric leitet
+        # daraus ihren spezifizierten IOI-Ersatzpfad ab (Spec 01 §1.4.5b) —
+        # kein False-Pass, keine Goal-Verfälschung durch 0.0.
+        if dtw_rms > 500.0:
+            logger.warning(
+                "dtw_groove: Alignment-Versagen (rms=%.0f ms, orig=%d, rest=%d Onsets) — "
+                "IOI-Ersatzpfad statt DTW-Urteil (Hörordnung §7)",
+                dtw_rms,
+                orig_onsets.n_onsets,
+                rest_onsets.n_onsets,
+            )
+            return GrooveMeasurementResult(
+                dtw_distance_ms=float(np.mean(dev_arr)) if len(dev_arr) else 0.0,
+                dtw_rms_ms=dtw_rms,
+                groove_score=0.0,
+                passes_threshold=False,
+                n_onsets_original=orig_onsets.n_onsets,
+                n_onsets_restored=rest_onsets.n_onsets,
+                onset_deviations_ms=dev_arr,
+                method_used="alignment_failed",
+            )
 
         # Groove-Score: 1.0 wenn ≤ 1 ms, 0.0 ab 16 ms (stetig fallend)
         # groove_score = max(0, 1 - dtw_rms_ms / (2×max_dtw_ms))

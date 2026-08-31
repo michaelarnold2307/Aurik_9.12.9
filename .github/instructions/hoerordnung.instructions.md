@@ -122,18 +122,33 @@ Invariante dominiert.
 
 ## 8. Maschinen-Wahrheit — wo die Ebenen leben
 
-Diese Datei erzeugt **keine neuen Mess-Module**. Die Ebenen binden bestehende
-Komponenten an ihre Rolle:
+Die Ebenen binden Komponenten an ihre Rolle (Berechnung bleibt bei den
+jeweiligen Mess-Definitionen; hier zählt nur der Entscheidungsfluss):
 
-| Ebene | Träger (bestehend) |
+| Ebene | Träger |
 |---|---|
-| 1 | VQI-Gate + singer_identity-Rollback + EmotionalArc (UV3, Spec 01 §2.35c–e), ConsonantClarity |
-| 2 | `compute_masking_threshold_iso11172` (dsp §2.62), PerceptualSalience, §v10.703-Countdown |
-| 3 | GoalPriorityProtocol (Spec 01 §2.34), `goal_weights` (§2.56), PhaseConductor/PMGG |
-| 4 | experience_runtime (fatigue_index), GoosebumpsQualityChecker, OneTakeExport |
+| 1 | VQI-Gate + singer_identity-Rollback + EmotionalArc (UV3, Spec 01 §2.35c–e), ConsonantClarity; **§SCK-R/§WBG-R** Phasen-Rücknahme im zentralen Phasen-Call (`unified_restorer_v3.py`, Konkretisierung zu V24/V25 in dsp.instructions.md) |
+| 2 | `compute_masking_threshold_iso11172` (dsp §2.62), PerceptualSalience (Pass-Through-Guard), `residuum_masking.py` (3. Blend-Term), `_should_skip_masked_phase` (Stufe B), §v10.703-Countdown (Stufe A: ERB-maskierte Events) |
+| 3 | GoalPriorityProtocol (Spec 01 §2.34) + `HEARING_TIER_MAP`/`hearing_tier()` (Hörordnungs-Dominanzstufe), `goal_weights` (§2.56), PhaseConductor/PMGG; Guards in FeedbackChain (intern + UV3-Callback) und End-Gate-Ranking |
+| 4 | `inviting_sound_gate.py` (Fenster-Gate), experience_runtime (fatigue_index), GoosebumpsQualityChecker, OneTakeExport |
+| §7 Konfliktregel | Wohlklang-Garantie-Alignment-Guard, af-false-positive-Handling, MQA-Verdict-Kennzeichnung („Messartefakt-Verdacht“) |
 
 Änderungen an diesen Trägern bleiben der jeweiligen Spec unterworfen; diese
 Datei regelt nur den Entscheidungsfluss zwischen ihnen.
+
+## 8a. Kalibrierungs-Wächter
+
+`scripts/horordnung_calibration.py` prüft die psychoakustischen Invarianten der
+Hörordnungs-Module gegen synthetische Referenz-Signale mit bekannten
+Eigenschaften (Roughness-/Sharpness-/Residuum-Monotonie, Maskierungs-Richtung,
+Hörstufen-Konsistenz). Verletzung ⇒ Exit 1.
+
+- Verdrahtet als Pre-Commit-Hook `aurik-horordnung-calibration`
+  (läuft bei Änderungen an den psychoakustischen Trägern).
+- Neue Schwellwerte oder Modell-Änderungen an Ebene 2/4 MÜSSEN im Harness
+  eine Invariante ergänzen — sonst verschiebt sich die Kalibrierung still.
+- Das Harness ist die maschinelle Vorstufe der Panel-Kalibrierung (§7, Abschluss
+  der echten Hörertests bleibt menschliche Prozessarbeit).
 
 ## 9. Verhältnis zur normativen Kette
 

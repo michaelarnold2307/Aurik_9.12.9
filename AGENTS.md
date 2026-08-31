@@ -48,8 +48,9 @@ Die Markdown-Dokumente beschreiben die Regeln; die Gates sind:
   (tests/unit, maxfail=3), `aurik-id-registry` (fail-closed: R1 unbekannte
   IDs, R2 nackte Ambiguitäts-Zitate), `aurik-file-lifecycle` (Write-Gate:
   neue Code-Dateien ⇒ Eintrag in `.github/FILE_REGISTRY.md`),
-  `aurik-symbol-duplicates` (`scripts/repo_graph.py --duplicates`) und rund
-  25 weitere `aurik-*`-Guards.
+  `aurik-symbol-duplicates` (`scripts/repo_graph.py --duplicates`),
+  `aurik-horordnung-calibration` (psychoakustische Invarianten,
+  Hörordnung §8a) und rund 25 weitere `aurik-*`-Guards.
 - **CI** (`.github/workflows/ci-lite.yml`, `nightly-quality.yml`,
   `solo-release-gate.yml`): `scripts/compliance_check.py` (R01–R18),
   `scripts/release_must_coverage_check.py` (jeder `[RELEASE_MUST]`-Header in

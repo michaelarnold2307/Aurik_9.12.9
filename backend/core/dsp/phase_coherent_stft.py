@@ -49,6 +49,7 @@ class PhaseCoherentSTFT:
         self._original_phase: np.ndarray | None = None
         self._stft_freqs: np.ndarray | None = None
         self._input_shape: tuple[int, ...] = ()
+        self._num_samples: int = 0
         self._nperseg: int = _DEFAULT_NPERSEG
         self._noverlap: int = _DEFAULT_NOVERLAP
         self._captured: bool = False
@@ -74,6 +75,10 @@ class PhaseCoherentSTFT:
                 a = _b.mean(axis=0)  # Korrektur: channels-first → axis=0
 
         self._input_shape = np.asarray(audio).shape
+        # Audiolänge layout-unabhängig merken: `a` ist nach dem Mono-Summen-Block
+        # immer 1D mit Länge N — niemals _input_shape[0] verwenden, das ist bei
+        # channels-first Stereo die Kanalzahl 2 (2-Sample-Kollaps, §v10.303 Bug-Fix).
+        self._num_samples = int(a.shape[-1])
 
         # Wähle adaptive STFT-Parameter basierend auf Audiolänge
         duration_s = len(a) / sample_rate
@@ -142,18 +147,23 @@ class PhaseCoherentSTFT:
         else:
             restored = self._restore_channel(a, sample_rate)
 
-        # Längen-Matching
+        # Längen-Matching gegen die Audiolänge (self._num_samples), NICHT gegen
+        # _input_shape[0] — bei channels-first Stereo ist das die Kanalzahl 2 und
+        # würde das Signal auf 2 Samples kollabieren lassen (§v10.303 Bug-Fix).
         if was_stereo:
-            if restored.shape[0] > self._input_shape[0]:
-                restored = restored[: self._input_shape[0], :]
-            elif restored.shape[0] < self._input_shape[0]:
-                pad_len = self._input_shape[0] - restored.shape[0]
+            if restored.shape[0] > self._num_samples:
+                restored = restored[: self._num_samples, :]
+            elif restored.shape[0] < self._num_samples:
+                pad_len = self._num_samples - restored.shape[0]
                 restored = np.pad(restored, ((0, pad_len), (0, 0)), mode="edge")
+            # Layout wiederherstellen: channels-first Eingabe → channels-first Ausgabe
+            if len(self._input_shape) == 2 and self._input_shape[0] == 2 and self._input_shape[1] != 2:
+                restored = restored.T
         else:
-            if len(restored) > self._input_shape[0]:
-                restored = restored[: self._input_shape[0]]
-            elif len(restored) < self._input_shape[0]:
-                pad_len = self._input_shape[0] - len(restored)
+            if len(restored) > self._num_samples:
+                restored = restored[: self._num_samples]
+            elif len(restored) < self._num_samples:
+                pad_len = self._num_samples - len(restored)
                 restored = np.pad(restored, (0, pad_len), mode="edge")
 
         logger.debug("PhaseCoherentSTFT: Verarbeitungsschritt wiederhergestellt")

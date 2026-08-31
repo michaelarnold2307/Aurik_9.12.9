@@ -1555,3 +1555,31 @@ if elapsed > _PHASE_WALL_TIME_BUDGET[phase_id]:
 Normquelle fuer Loudness-/TruePeak-Regeln: `[SRC:S06,S07]`.
 
 > `_PHASE_WALL_TIME_BUDGET` als Klassen-Konstante in `backend/core/unified_restorer_v3.py`.
+
+---
+
+## Hörordnungs-Verdrahtung (2026-08-23)
+
+Die psychoakustische Wahrheits-Ordnung (`.github/instructions/hoerordnung.instructions.md`)
+ist die Rollen-Spitze für Hör-Entscheidungen. Ihre Verdrahtungspunkte in UV3:
+
+- **Ebene 1 (§3):** VQI-Rollback akzeptiert Checkpoints auch bei Verbesserung
+  verletzter Invarianten (`consonant_clarity`/`vibrato_precision` < 0.85);
+  erfolgreiche Phasen-Rücknahme unterdrückt die Phase-65-Recovery-Kaskade
+  (`_vqi_retreated_ok`). **§SCK-R/§WBG-R:** Phasen-Rücknahme im zentralen
+  Phasen-Call bei Spektralfarben-Korrelation < 0.60 bzw. Einzelphasen-
+  Wärmeband-Verlust > 3 dB (Restoration) — statt nur Blend.
+- **Ebene 2 (§4):** `residuum_masking.py` als dritter Salience-Blend-Term;
+  `_should_skip_masked_phase` überspringt Phasen, deren Defekte vollständig
+  ERB-maskiert sind (nur bei echter Maskierung — Pass-Through-Guard neutralisiert);
+  Defekt-Countdown weist ERB-maskierte Events aus (Stufe A).
+- **Ebene 3 (§5):** `HEARING_TIER_MAP`/`hearing_tier()` im GoalPriorityProtocol;
+  strikte Dominanz-Guards in FeedbackChain (intern + UV3-Callback) und im
+  End-Gate-Kandidaten-Ranking.
+- **Ebene 4 (§6):** `inviting_sound_gate.py` (Fenster-Gate Roughness/Sharpness/
+  Ermüdung), läuft nach Goosebumps vor MDEM; Ergebnis in
+  `_restoration_context["inviting_gate"]`.
+- **Konfliktregel (§7):** Wohlklang-Garantie-Alignment-Guard, MQA-Verdict-
+  Kennzeichnung („Messartefakt-Verdacht“ bei gehaltener Hör-Instanz).
+- **Wächter (§8a):** Pre-Commit-Hook `aurik-horordnung-calibration`
+  (`scripts/horordnung_calibration.py`).

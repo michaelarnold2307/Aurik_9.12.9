@@ -2,12 +2,33 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import re
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+# Logger-Pflicht (§III DSP, AGENTS.md §3): Diagnostik zusätzlich zum
+# stdout-Protokoll ([intermediate-audit] …) über den Standard-Logging-Kanal
+# ausgeben, damit Fehler in der zentralen Log-Kette sichtbar bleiben.
+logger = logging.getLogger(__name__)
+
+try:  # Package-Kontext (Tests/CI): audit.code_weakness_scanner
+    from audit.code_weakness_scanner import (
+        scan_workspace,
+        summarize_findings,
+        write_json_report,
+        write_markdown_report,
+    )
+except ImportError:  # Direktskript-Start: python audit/live_intermediate_state_monitor.py
+    from code_weakness_scanner import (
+        scan_workspace,
+        summarize_findings,
+        write_json_report,
+        write_markdown_report,
+    )
 
 EVENT_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     ("run_start", re.compile(r"AurikDenker\.denke\(\) gestartet", re.IGNORECASE), "info"),
@@ -211,6 +232,32 @@ def _evaluate_final(workspace: Path) -> dict[str, Any]:
     }
 
 
+def _scan_code_weaknesses(workspace: Path, json_out: Path, md_out: Path) -> dict[str, Any]:
+    """Führt den statischen Code-Schwachstellen-Scan aus und schreibt die Reports.
+
+    Der Watchdog darf den Monitor nie stoppen (§V6): Fehler werden als
+    Warnung gemeldet und mit einer leeren Zusammenfassung weitergefahren.
+    """
+    try:
+        result = scan_workspace(workspace)
+    except Exception as exc:
+        logger.warning("code-weakness-scan fehlgeschlagen: %s", exc)
+        print(f"[intermediate-audit] WARNUNG code-weakness-scan fehlgeschlagen: {exc}")
+        return {"error": str(exc), "total": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
+
+    try:
+        write_json_report(json_out, result)
+        write_markdown_report(md_out, result)
+    except OSError as exc:
+        logger.warning("code-weakness-report nicht schreibbar: %s", exc)
+        print(f"[intermediate-audit] WARNUNG code-weakness-report nicht schreibbar: {exc}")
+
+    summary = summarize_findings(result)
+    summary["report_json"] = str(json_out)
+    summary["report_md"] = str(md_out)
+    return summary
+
+
 def _classify(line: str) -> tuple[str, str] | None:
     for event_id, pattern, severity in EVENT_PATTERNS:
         if pattern.search(line):
@@ -376,6 +423,13 @@ def main() -> int:
     parser.add_argument("--latest-json", default="audit/intermediate_runtime_latest.json")
     parser.add_argument("--intervention-queue-json", default="audit/intervention_queue_live.json")
     parser.add_argument("--offtrack-stop-request-json", default="audit/offtrack_stop_request.json")
+    parser.add_argument(
+        "--no-scan-code-weaknesses",
+        action="store_true",
+        help="Statischen Code-Schwachstellen-Scan am Run-Start deaktivieren.",
+    )
+    parser.add_argument("--code-weakness-report-json", default="audit/code_weakness_report.json")
+    parser.add_argument("--code-weakness-report-md", default="audit/code_weakness_report.md")
     parser.add_argument("--max-events", type=int, default=1000)
     args = parser.parse_args()
 
@@ -385,12 +439,20 @@ def main() -> int:
     intervention_queue_json = workspace / args.intervention_queue_json
     offtrack_stop_request_json = workspace / args.offtrack_stop_request_json
 
+    def _workspace_path(raw: str) -> Path:
+        p = Path(raw)
+        return p if p.is_absolute() else workspace / p
+
+    cw_report_json = _workspace_path(args.code_weakness_report_json)
+    cw_report_md = _workspace_path(args.code_weakness_report_md)
+
     event_count = 0
     observed_spec_gaps: dict[str, dict[str, str]] = {}
     run_started = False
     phase_state: dict[str, dict[str, Any]] = {}
     offtrack_latched = False
     warning_last_seen: dict[str, int] = {}
+    code_weakness_summary: dict[str, Any] | None = None
 
     for raw_line in sys.stdin:
         line = raw_line.rstrip("\n")
@@ -429,6 +491,10 @@ def main() -> int:
             run_started = True
             observed_spec_gaps.clear()
             phase_state.clear()
+            # Statische Schwachstellen-Prüfung: pro Run einmal neu scannen, damit
+            # Codeänderungen zwischen den Runs sofort ausgewiesen werden.
+            if not args.no_scan_code_weaknesses:
+                code_weakness_summary = _scan_code_weaknesses(workspace, cw_report_json, cw_report_md)
 
         phase_id = _phase_from_line(line)
         if phase_id:
@@ -493,6 +559,8 @@ def main() -> int:
                 "trajectory": trajectory,
             },
         }
+        if code_weakness_summary is not None:
+            event_payload["code_weaknesses"] = code_weakness_summary
 
         if event_id in TERMINAL_EVENTS:
             event_payload["final"] = _evaluate_final(workspace)
@@ -511,11 +579,19 @@ def main() -> int:
         elif (not _offtrack_now) and offtrack_latched:
             _write_offtrack_stop_request(offtrack_stop_request_json, event_payload, active=False)
             offtrack_latched = False
+        weakness_note = ""
+        if code_weakness_summary is not None and "error" not in code_weakness_summary:
+            weakness_note = (
+                f" weaknesses_total={code_weakness_summary.get('total')} "
+                f"weakness_critical={code_weakness_summary.get('critical')} "
+                f"weakness_high={code_weakness_summary.get('high')}"
+            )
         print(
             "[intermediate-audit] "
             f"event={event_id} severity={severity} "
             f"required={runtime_eval.get('required_passed')}/{runtime_eval.get('required_total')} "
             f"compliance={runtime_eval.get('compliance_ok')}"
+            f"{weakness_note}"
         )
         sys.stdout.flush()
 

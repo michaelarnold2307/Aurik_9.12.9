@@ -336,6 +336,48 @@ audio_out = voc.decode(magnitude_features, sr=sr)  # CPU-only empfohlen (light)
 # Vocos wenn Magnitude aus ML-Modell (DFN, SGMSE+) stammt
 ```
 
+## STFT — Sample-Exaktheit der Zeitachse
+
+```python
+# Hörordnung Ebene 1 (hoerordnung.instructions.md §3): Timing-/Klang-Invarianten
+# sind unverhandelbar. Jede STFT-basierte Phase MUSS die Signallänge sample-
+# exakt erhalten — außer den expliziten Zeit-Korrektur-Phasen 12 (Wow/Flutter)
+# und 31 (Speed/Pitch), die ihre Längenänderung dokumentieren müssen.
+#
+# KANONISCH: hop_length ganzzahlig und durch frame_length teilbar wählen;
+# keine Slice-/Pad-Arithmetik mit float-Hops; Länge vor/nach Phase prüfen:
+if len(audio_out) != len(audio_in):
+    audio_out = _align_len(audio_out, len(audio_in))  # trim/pad am ENDE, nie mitten drin
+# VERBOTEN: Off-by-one-Slice-/Reshape-Bugs, die die Zeitachse verschieben
+# (Befund 2026-08-23: MDEM-Broadcast 224.27s vs 224.28s).
+```
+
+## §SCK-R Rücknahme bei Spektralfarben-Verletzung (Konkretisierung zu V24)
+
+```python
+# Hörordnung Ebene 1: Verletzt eine Phase die Spektralfarben-Invariante
+# (V24, 1/3-Oktav-Energiekurve 200–8000 Hz, Korrelation < 0.97), wird die
+# PHASE zurückgenommen oder geblendet — nicht erst am Pipeline-Ende
+# „wiederhergestellt“ (Ursache statt Symptom, §V7 (copilot-instructions.md)).
+# RICHTIG:
+if spectral_color_corr < 0.97:
+    audio = pre_phase_audio  # oder Blend; Log mit Begründung (kein Silent-Fail)
+    logger.warning("§SCK-R: Phase zurückgenommen (Spektralfarben-Verletzung)")
+```
+
+## §WBG-R Rücknahme bei Wärmeband-Verletzung (Konkretisierung zu V25)
+
+```python
+# Hörordnung Ebene 1: Senkt eine EINZELNE Phase das Wärmeband (200–800 Hz)
+# um > 3 dB (V25: kumulativ max. 4 dB), wird sie zurückgenommen — kein
+# Wärme-Boost auf Kosten von Natürlichkeit, keine End-Gate-Kompensation
+# als Ersatz für Ursachen-Beseitigung.
+# RICHTIG:
+if warmth_band_loss_db > 3.0:  # Einzelphasen-Delta, nicht kumulativ
+    audio = pre_phase_audio
+    logger.warning("§WBG-R: Phase zurückgenommen (Wärmeband-Verlust %.2f dB)", warmth_band_loss_db)
+```
+
 ## Peak-Guard
 
 ```python
