@@ -54,6 +54,8 @@ try:
 except ImportError:
     psutil = None  # type: ignore[assignment]
     _PSUTIL_OK = False
+from typing import cast
+
 from scipy import interpolate, ndimage, signal
 
 from backend.core.audio_utils import safe_stft  # §v10.115 explicit wrapper (no monkey-patch)
@@ -1803,8 +1805,8 @@ class SpectralRepair(PhaseInterface):
         )
 
         # Magnitude and phase
-        magnitude = np.abs(Zxx)
-        phase = np.angle(Zxx)
+        magnitude = cast(np.ndarray, np.abs(Zxx))
+        phase = cast(np.ndarray, np.angle(Zxx))
         _report(22.0, "Defekterkennung")
 
         # Detect defects using DSP (always)
@@ -2058,11 +2060,11 @@ class SpectralRepair(PhaseInterface):
                     _anchor = (~defect_mask)[:, :_T_use]
                     _Zxx_iter[:, :_T_use][_anchor] = Zxx[:, :_T_use][_anchor]
                     # Defekt-Bins: Inpainting-Magnitude + neue Phase aus Round-Trip
-                    _pocs_phase_new = np.angle(_Zxx_new[:, :_T_use])
+                    _pocs_phase_new = cast(np.ndarray, np.angle(_Zxx_new[:, :_T_use]))
                     _defect_crop = defect_mask[:, :_T_use]
-                    _Zxx_iter[:, :_T_use][_defect_crop] = repaired_magnitude[:, :_T_use][_defect_crop] * np.exp(
-                        1j * _pocs_phase_new[_defect_crop]
-                    )
+                    _Zxx_iter[:, :_T_use][_defect_crop] = np.asarray(repaired_magnitude)[:, :_T_use][
+                        _defect_crop
+                    ] * np.exp(1j * _pocs_phase_new[_defect_crop])
                     _Zxx_pocs = _Zxx_iter
                 Zxx_blended = _Zxx_pocs
                 logger.debug(

@@ -109,6 +109,7 @@ except ImportError:  # pragma: no cover
 # Konstruiere den Pfad relativ zu dieser Datei für robusten Import.
 import os as _os19
 import sys as _sys19
+from typing import cast
 
 from backend.core.ml_model_readiness import check_ml_model_ready
 
@@ -2886,7 +2887,7 @@ class DeEsserPhase(PhaseInterface):
         audio = np.asarray(audio, dtype=np.float64)
         n = len(audio)
         if n < 256:
-            return audio.astype(np.float32)
+            return cast(np.ndarray, audio.astype(np.float32))
 
         # RMS in kurzen Fenstern (5ms) für Sibilanz-Detektion
         frame_len = max(int(sample_rate * 0.005), 64)
@@ -2929,7 +2930,7 @@ class DeEsserPhase(PhaseInterface):
         if last_start < n:
             out[last_start:] = audio[last_start:]
 
-        return np.clip(out, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(out, -1.0, 1.0).astype(np.float32)))
 
     def _process_channel_multiband_gender_aware(
         self,
@@ -3692,7 +3693,7 @@ class DeEsserPhase(PhaseInterface):
                 output[:, gaps] = audio[:, gaps]
             else:
                 output[gaps] = audio[gaps]
-        return np.clip(output, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(output, -1.0, 1.0).astype(np.float32)))
 
     def _apply_formant_preservation(
         self,

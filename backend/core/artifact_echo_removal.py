@@ -13,6 +13,7 @@ Algorithmus:
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -56,7 +57,7 @@ class ArtifactEchoRemoval:
         min_lag = int(sr * 0.005)  # 5ms minimum (unterhalb = Direct-Sound)
 
         if len(mono) < max_lag * 4:
-            return result
+            return cast(np.ndarray, result)
 
         echoes_found = 0
         for ch in range(result.shape[0] if result.ndim == 2 else 1):
@@ -109,7 +110,7 @@ class ArtifactEchoRemoval:
         if echoes_found > 0:
             logger.info("§AR EchoRemoval: %d echo artifacts removed", echoes_found)
 
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     def realign_onsets(
         self,
@@ -154,7 +155,7 @@ class ArtifactEchoRemoval:
                         shift_abs = abs(shift)
                         result[ch, i + shift_abs : i + block_size] = result[ch, i : i + block_size - shift_abs]
 
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     def process(
         self,

@@ -9,12 +9,13 @@ Quelle: slp-rl/aero (MIT, vendored unter plugins/_vendor_aero/ mit LICENSE).
 Checkpoint: models/aero/checkpoint_12-48_hl256.th (offizieller Google-Drive-Link
 aus dem Upstream-README).
 """
+
 from __future__ import annotations
 
 import logging
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -28,7 +29,7 @@ _LR_SR = 12000
 _HR_SR = 48000
 _SEGMENT_S = 10
 
-_inst: "AeroPlugin | None" = None
+_inst: AeroPlugin | None = None
 
 
 class AeroPlugin:
@@ -50,8 +51,8 @@ class AeroPlugin:
         if str(_VENDOR) not in sys.path:
             sys.path.insert(0, str(_VENDOR))
         try:
-            import torch  # noqa: F401
-            from src.models.aero import Aero  # noqa: PLC0415
+            import torch
+            from src.models.aero import Aero
         except Exception as exc:
             logger.warning("AERO-Vendor-Import fehlgeschlagen: %s", exc)
             return
@@ -80,13 +81,13 @@ class AeroPlugin:
         """12 kHz → 48 kHz Bandbreiten-Extension. None bei fehlendem Modell."""
         if self._model is None:
             return None
-        import torch  # noqa: PLC0415
+        import torch
 
         audio = np.nan_to_num(np.asarray(audio, dtype=np.float32), nan=0.0, posinf=0.0, neginf=0.0)
         if audio.ndim == 2:
             audio = audio.mean(axis=1)
         if sr != _LR_SR:
-            from scipy.signal import resample_poly  # noqa: PLC0415
+            from scipy.signal import resample_poly
 
             g = int(np.gcd(sr, _LR_SR))
             audio = resample_poly(audio, _LR_SR // g, sr // g).astype(np.float32)
@@ -105,7 +106,7 @@ class AeroPlugin:
         peak = float(np.max(np.abs(out))) if out.size else 1.0
         if peak > 1.0:
             out = out / peak
-        return out[: int(round(len(audio) * (_HR_SR / _LR_SR)))]
+        return cast(np.ndarray | None, out[: int(round(len(audio) * (_HR_SR / _LR_SR)))])
 
 
 def get_aero_plugin(device: str = "cpu") -> AeroPlugin:

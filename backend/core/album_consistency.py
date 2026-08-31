@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from scipy import signal as scipy_signal
@@ -199,7 +199,7 @@ class AlbumConsistencyPass:
     def _apply_gain(self, audio: np.ndarray, gain_db: float) -> np.ndarray:
         """Wendet Gain (dB) auf Audio an, mit Peak-Safety."""
         if abs(gain_db) < 1e-6:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
+            return cast(np.ndarray, (np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)))
 
         gain_linear = float(10.0 ** (gain_db / 20.0))
         out = audio * gain_linear
@@ -210,12 +210,12 @@ class AlbumConsistencyPass:
         if peak > _PEAK_SAFETY:
             out = out * (_PEAK_SAFETY / peak)
 
-        return np.clip(out, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(out, -1.0, 1.0).astype(np.float32)))
 
     def _build_shelf_sos(self, gain_db: float, freq_hz: float, sr: int) -> np.ndarray:
         """Baut High-Shelf SOS-Filter (identity bei gain_db=0)."""
         if abs(gain_db) < 1e-6:
-            return np.array([[1.0, 0.0, 0.0, 1.0, 0.0, 0.0]], dtype=np.float64)
+            return cast(np.ndarray, (np.array([[1.0, 0.0, 0.0, 1.0, 0.0, 0.0]], dtype=np.float64)))
 
         # Manuelle High-Shelf biquad per RBJ-Audio-EQ-Kochrezept
         A = 10.0 ** (gain_db / 40.0)  # sqrt(gain_linear)
@@ -231,7 +231,7 @@ class AlbumConsistencyPass:
         a1 = 2.0 * ((A - 1.0) - (A + 1.0) * cos_w0)
         a2 = (A + 1.0) - (A - 1.0) * cos_w0 - 2.0 * np.sqrt(A) * alpha
 
-        return np.array([[b0 / a0, b1 / a0, b2 / a0, 1.0, a1 / a0, a2 / a0]], dtype=np.float64)
+        return cast(np.ndarray, (np.array([[b0 / a0, b1 / a0, b2 / a0, 1.0, a1 / a0, a2 / a0]], dtype=np.float64)))
 
     def _apply_tilt_correction(self, audio: np.ndarray, correction_db: float, sr: int) -> np.ndarray:
         """Korrigiert Spectral Tilt via High-Shelf-Filter."""
@@ -259,7 +259,7 @@ class AlbumConsistencyPass:
         if was_1d:
             out = out.flatten()
 
-        return np.asarray(out, dtype=np.float32)
+        return cast(np.ndarray, (np.asarray(out, dtype=np.float32)))
 
     def apply(
         self,

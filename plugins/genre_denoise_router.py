@@ -199,7 +199,7 @@ class GenreAwareDenoiseRouter:
                 genre_scores[genre] = float(scores[valid_indices].mean())
 
         if not genre_scores:
-            return self._build_result("unknown", 0.0, DEFAULT_PRESET)
+            return self._build_result("unknown", 0.0, [], DEFAULT_PRESET)
 
         # Sort genres by score
         ranked = sorted(genre_scores.items(), key=lambda x: x[1], reverse=True)
@@ -241,4 +241,9 @@ class GenreAwareDenoiseRouter:
         """Linearly interpolate between two genre presets."""
         p1 = self.get_preset(genre1)
         p2 = self.get_preset(genre2)
-        return tuple(round(p1[i] * (1 - alpha) + p2[i] * alpha, 3) for i in range(4))
+        return (
+            round(p1[0] * (1 - alpha) + p2[0] * alpha, 3),
+            round(p1[1] * (1 - alpha) + p2[1] * alpha, 3),
+            round(p1[2] * (1 - alpha) + p2[2] * alpha, 3),
+            round(p1[3] * (1 - alpha) + p2[3] * alpha, 3),
+        )

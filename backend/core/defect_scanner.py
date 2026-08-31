@@ -51,7 +51,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 import scipy.fft as fft
@@ -1847,34 +1847,14 @@ class DefectScanner:
         # (niedrige Gain → JND näher an 0 dB → schwerer hörbar)
         _effective_jnd *= _freq_gain
 
-        # Skaliere Severity in dB-Domäne: severity 0.0→−50dB, 1.0→0dB
-        # (typische Defekte liegen zwischen −50 dBFS und 0 dBFS)
-        # Band‑specific energy for adaptive weighting
-        band_freqs = _gammatone_filterbank(sample_rate)
-        band_energies = _band_energy(audio, sample_rate, band_freqs)
-        avg_band_energy = float(np.mean(band_energies))
-
-        # ML feature score (PANNs)
-        tags = panns.get_tags(audio, sample_rate)
-        relevant_tags = ["Singing voice", "Guitar", "Bass guitar", "Piano", "Drum"]
-        ml_score = max(tags.get(tag, 0.0) for tag in relevant_tags)
-
-        # Material‑specific factor
-        material_factor = 1.0
-        if material_type == "vinyl":
-            material_factor = 1.2
-        elif material_type == "tape":
-            material_factor = 0.8
-
-        # Band‑energy factor: moderate influence (0.8–1.2)
-        band_factor = np.clip(avg_band_energy / np.max(band_energies), 0.8, 1.2)
-
-        # ML score influence (max 0.5 extra weight)
-        ml_weight = 1 + min(ml_score * 0.5, 0.5)
-
-        combined_factor = snr_factor * ml_weight * band_factor * material_factor
-        _defect_db = (-50.0 + severity * 50.0) * combined_factor
-        return _defect_db >= _effective_jnd
+        # Skaliere Severity in dB-Domäne: severity 0.0→−50 dB, 1.0→0 dB
+        # (typische Defekte liegen zwischen −50 dBFS und 0 dBFS).
+        # §v10.306 Bug-Reparatur: Band-/PANNs-/SNR-Kontext ist in dieser
+        # Signatur nicht verfügbar — der frühere Block referenzierte
+        # undefinierte Namen und warf bei JEDEM Aufruf NameError.
+        # Material-Maskierung ist bereits über _mat_factor wirksam.
+        _defect_db = -50.0 + severity * 50.0
+        return bool(_defect_db >= _effective_jnd)
 
     def scan(
         self,

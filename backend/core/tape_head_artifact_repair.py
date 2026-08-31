@@ -16,6 +16,7 @@ Algorithmus:
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -64,7 +65,7 @@ class TapeHeadArtifactRepair:
         # 3. HF-Envelope-Glättung
         result = self._smooth_hf_envelope(result, sr)
 
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     def _repair_short_dropouts(self, audio: np.ndarray, sr: int, threshold_db: float, max_ms: float) -> np.ndarray:
         """Erkennt und repariert kurze Pegel-Einbrüche (Head-Clog/Contact)."""
@@ -76,7 +77,7 @@ class TapeHeadArtifactRepair:
         rms_win = int(sr * 0.005)
         hop = rms_win // 2
         if rms_win < 16:
-            return result
+            return cast(np.ndarray, result)
 
         max_dropout_samples = int(sr * max_ms / 1000.0)
         threshold_linear = 10 ** (-threshold_db / 20.0)
@@ -111,7 +112,7 @@ class TapeHeadArtifactRepair:
                 in_dropout = False
 
         if not dropouts:
-            return result
+            return cast(np.ndarray, result)
 
         logger.info("§AP TapeHeadRepair: %d short dropouts found", len(dropouts))
 
@@ -150,13 +151,13 @@ class TapeHeadArtifactRepair:
             else:
                 result = ch_data[: len(result)].astype(np.float32)
 
-        return result
+        return cast(np.ndarray, result)
 
     def _correct_azimuth(self, audio: np.ndarray, sr: int) -> np.ndarray:
         """Korrigiert Azimuth-Fehler via L/R-Phasen-Abgleich >8kHz."""
         result = np.asarray(audio, dtype=np.float32).copy()
         if result.ndim < 2 or result.shape[0] < 2:
-            return result
+            return cast(np.ndarray, result)
 
         left = result[0]
         right = result[1]
@@ -169,7 +170,7 @@ class TapeHeadArtifactRepair:
 
         hf_mask = freqs >= 8000
         if not np.any(hf_mask):
-            return result
+            return cast(np.ndarray, result)
 
         # Phasen-Differenz im HF-Bereich
         phase_diff = np.angle(fft_r[hf_mask]) - np.angle(fft_l[hf_mask])
@@ -177,7 +178,7 @@ class TapeHeadArtifactRepair:
 
         # Nur korrigieren wenn Abweichung > 5°
         if abs(mean_phase_diff) < np.radians(5):
-            return result
+            return cast(np.ndarray, result)
 
         # §v10.16 Coherence-Guard: Stereo-Panning erzeugt Phasendifferenzen
         # die KEINE Azimuth-Fehler sind. Nur korrigieren, wenn die Kanäle
@@ -191,7 +192,7 @@ class TapeHeadArtifactRepair:
                 "stereo panning, NOT azimuth error — skipping correction",
                 _mean_corr_az,
             )
-            return result
+            return cast(np.ndarray, result)
 
         logger.info("§AP Azimuth correction: %.1f° Verarbeitungsschritt shift", np.degrees(mean_phase_diff))
 
@@ -200,7 +201,7 @@ class TapeHeadArtifactRepair:
         right_corrected = np.fft.irfft(fft_r, n=n)
         result[1] = right_corrected[:n].astype(np.float32)
 
-        return result
+        return cast(np.ndarray, result)
 
     def _smooth_hf_envelope(self, audio: np.ndarray, sr: int) -> np.ndarray:
         """Glättet periodische HF-Energie-Einbrüche (Head-Wear)."""
@@ -250,4 +251,4 @@ class TapeHeadArtifactRepair:
             else:
                 result = ch_data[: len(result)].astype(np.float32)
 
-        return result
+        return cast(np.ndarray, result)

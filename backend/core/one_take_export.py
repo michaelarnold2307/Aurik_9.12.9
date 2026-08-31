@@ -21,7 +21,7 @@ from __future__ import annotations
 # v10.101 SOTA: LUFS-basierte Export-Validierung. Perzeptuell geschützt.
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -262,10 +262,10 @@ class OneTakeExport:
                     arr[ch] = OneTakeExport._limit_channel(arr[ch], ceiling_linear, lookahead, release_coeff)
             else:
                 arr = OneTakeExport._limit_channel(arr, ceiling_linear, lookahead, release_coeff)
-            return np.clip(arr, -ceiling_linear, ceiling_linear)
+            return cast(np.ndarray, (np.clip(arr, -ceiling_linear, ceiling_linear)))
         except Exception:
             logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
-            return np.clip(audio, -0.966, 0.966)  # −0.3 dB hard clip fallback
+            return cast(np.ndarray, (np.clip(audio, -0.966, 0.966)))  # −0.3 dB hard clip fallback
 
     @staticmethod
     def _limit_channel(
@@ -290,7 +290,7 @@ class OneTakeExport:
             gain = min(gain, 1.0)
             gain = max(gain, 0.1)  # max −20 dB reduction
             out[i] = ch[i] * gain
-        return out
+        return cast(np.ndarray, out)
 
 
 # ── Convenience ────────────────────────────────────────────────────────
@@ -319,7 +319,7 @@ def _compensate_denoise_learning_dip(audio: np.ndarray, sr: int) -> np.ndarray:
 
     _n_total = len(_mono)
     if _n_total < _n_start * 2:
-        return np.asarray(audio, dtype=np.float64)  # Zu kurz
+        return cast(np.ndarray, (np.asarray(audio, dtype=np.float64)))  # Zu kurz
 
     # RMS der ersten 3s vs Gesamt-RMS
     _rms_start = float(np.sqrt(np.mean(_mono[:_n_start] ** 2) + 1e-12))
@@ -327,12 +327,12 @@ def _compensate_denoise_learning_dip(audio: np.ndarray, sr: int) -> np.ndarray:
     _rms_ratio = _rms_start / _rms_total
 
     if _rms_ratio > 0.80:  # Weniger als 20% Unterschied → kein Handlungsbedarf
-        return np.asarray(audio, dtype=np.float64)
+        return cast(np.ndarray, (np.asarray(audio, dtype=np.float64)))
 
     # Gain-Kompensation: max +4dB am Anfang, linear abfallend über _n_fade Samples
     _max_gain_db = float(np.clip((1.0 - _rms_ratio) * 8.0, 0.0, 4.0))
     if _max_gain_db < 1.0:
-        return np.asarray(audio, dtype=np.float64)
+        return cast(np.ndarray, (np.asarray(audio, dtype=np.float64)))
 
     _gain_linear = 10.0 ** (_max_gain_db / 20.0)
     # Exponentieller Fade (klingt natürlicher als linear)

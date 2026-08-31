@@ -26,7 +26,7 @@ Usage from Phase 24:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from scipy import signal
@@ -238,7 +238,7 @@ def stabilize_tape_level(
         out = np.zeros(n_samples, dtype=np.float64)
         n_trim = min(len(y), n_samples)
         out[:n_trim] = y[:n_trim]
-        return out
+        return cast(np.ndarray, out)
 
     if is_stereo:
         L_out = _apply(arr[:, 0])
@@ -305,7 +305,7 @@ def _compute_hf_tilt(
     ctx_start = max(0, first_stft - ctx_n)
     ctx_end = max(0, first_stft - 2)
     if ctx_end - ctx_start < 4:
-        return hf_tilt
+        return cast(np.ndarray, hf_tilt)
 
     ctx_mag = mag_db[:, ctx_start:ctx_end]
     dip_mag = mag_db[:, stft_idx]
@@ -324,4 +324,4 @@ def _compute_hf_tilt(
     snr_in_dip = dip_spec - noise_floor
     tilt_raw = np.where(snr_in_dip > 6.0, tilt_raw, 0.0)
     hf_tilt = np.clip(tilt_raw, 0.0, 10.0) * event_strength
-    return hf_tilt
+    return cast(np.ndarray, hf_tilt)

@@ -20,6 +20,8 @@ Referenzen:
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 
 # ---------------------------------------------------------------------------
@@ -98,7 +100,7 @@ N_GAMMATONE = 32
 
 def _erb_scale(f_hz: np.ndarray) -> np.ndarray:
     """Equivalent Rectangular Bandwidth: ERB(f) = 24.7 * (4.37*f/1000 + 1)."""
-    return 24.7 * (4.37 * f_hz / 1000.0 + 1.0)
+    return cast(np.ndarray, 24.7 * (4.37 * f_hz / 1000.0 + 1.0))
 
 
 def _gammatone_center_frequencies(sr: int, n_channels: int = N_GAMMATONE) -> np.ndarray:
@@ -109,7 +111,7 @@ def _gammatone_center_frequencies(sr: int, n_channels: int = N_GAMMATONE) -> np.
     _erb_hi = float(hz_to_erb(_hi))
     _erb_centers = np.linspace(_erb_lo, _erb_hi, n_channels)
     _freqs = np.array([erb_to_hz(e) for e in _erb_centers], dtype=np.float32)
-    return np.clip(_freqs, 20.0, sr / 2.0 * 0.95)
+    return cast(np.ndarray, (np.clip(_freqs, 20.0, sr / 2.0 * 0.95)))
 
 
 def _make_gammatone_filter(fc: float, sr: int, order: int = 4) -> np.ndarray:
@@ -282,7 +284,7 @@ def measure_lufs_per_bark(
         else:
             lufs[b] = -70.0
 
-    return lufs
+    return cast(np.ndarray, lufs)
 
 
 def bark_dynamics_target(
@@ -316,4 +318,4 @@ def bark_dynamics_target(
         else:
             gain_db[b] = 0.0  # Unhörbar → nicht anfassen
 
-    return gain_db
+    return cast(np.ndarray, gain_db)

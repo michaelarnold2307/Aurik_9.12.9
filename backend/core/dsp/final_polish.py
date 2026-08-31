@@ -12,6 +12,7 @@ Alle drei arbeiten auf dem finalen Signal VOR der Ausgabe.
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 from scipy import signal as scipy_signal
@@ -154,11 +155,11 @@ def apply_era_eq(
             hs_freq,
             hs_gain_db,
         )
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     except Exception as exc:
         logger.debug("§2.73a Era-EQ nicht blockierend: %s", exc)
-        return np.asarray(audio, dtype=np.float32)
+        return cast(np.ndarray, (np.asarray(audio, dtype=np.float32)))
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -257,7 +258,7 @@ def apply_cd_noise_texture(
     except Exception as exc:
         logger.debug("§2.73b CD-Noise-Texture nicht blockierend: %s", exc)
 
-    return np.asarray(audio, dtype=np.float32)
+    return cast(np.ndarray, (np.asarray(audio, dtype=np.float32)))
 
 
 # STFT helpers (avoid top-level librosa import — lazy)
@@ -362,7 +363,7 @@ def apply_noise_shaped_dither(
 
     except Exception as exc:
         logger.debug("§2.73c Dither nicht blockierend: %s", exc)
-        return np.asarray(audio, dtype=np.float32)
+        return cast(np.ndarray, (np.asarray(audio, dtype=np.float32)))
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -187,7 +187,7 @@ class PhantomDetector:
         # Clicks: Transiente Spitzen
         diff = np.diff(mono)
         threshold = 3.0 * np.std(diff)
-        click_count = np.sum(np.abs(diff) > threshold)
+        click_count = int(np.sum(np.abs(diff) > threshold))
         click_rate = click_count / max(len(mono) / sr, 1)
         if click_rate > 2:
             defects.append("clicks")

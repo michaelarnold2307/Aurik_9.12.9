@@ -15,6 +15,7 @@ Anders als der DefectScanner (62 Defekte, teuer) ist dieser Scan leichtgewichtig
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -136,7 +137,7 @@ class DefectReScanner:
         n_frames = max(1, (n_samples - self.n_fft) // hop + 1)
 
         if n_frames <= 0:
-            return np.zeros(self.n_fft // 2 + 1, dtype=np.float64)
+            return cast(np.ndarray, (np.zeros(self.n_fft // 2 + 1, dtype=np.float64)))
 
         window = np.hanning(self.n_fft)
         spec_sum = np.zeros(self.n_fft // 2 + 1, dtype=np.float64)
@@ -150,7 +151,7 @@ class DefectReScanner:
             spec = np.abs(np.fft.rfft(frame))
             spec_sum += spec
 
-        return spec_sum / max(max_frames, 1)
+        return cast(np.ndarray, (spec_sum / max(max_frames, 1)))
 
     @staticmethod
     def _band_energy(

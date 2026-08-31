@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 from scipy import signal
@@ -55,7 +56,7 @@ def _linear_phase_filter(data: np.ndarray, b: np.ndarray, a: np.ndarray) -> np.n
     """Zero-phase filtering via forward-backward (filtfilt)."""
     if len(data) < len(b) * 3:
         return data  # Too short for meaningful filtering
-    return signal.filtfilt(b, a, data).astype(np.float32)
+    return cast(np.ndarray, (signal.filtfilt(b, a, data).astype(np.float32)))
 
 
 def _transient_emphasis(audio: np.ndarray, sr: int, gain_db: float) -> np.ndarray:
@@ -86,7 +87,7 @@ def _harmonic_exciter(audio: np.ndarray, sr: int, drive_db: float) -> np.ndarray
     # Soft clip via tanh (odd harmonics only — no DC shift)
     wet = np.tanh(audio * drive) / max(drive, 0.01)
     # Mix 15% wet
-    return (audio * 0.85 + wet * 0.15).astype(np.float32)
+    return cast(np.ndarray, (audio * 0.85 + wet * 0.15).astype(np.float32))
 
 
 def enhance_music(
@@ -178,4 +179,4 @@ def _enhance_mono(
     output_rms = np.sqrt(np.mean(result**2)) + 1e-10
     result *= input_rms / output_rms
 
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))

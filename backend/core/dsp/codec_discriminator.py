@@ -222,7 +222,7 @@ class CodecDiscriminator:
         hist, _ = np.histogram(audio_segment, bins=64)
         hist_norm = hist / (np.sum(hist) + 1e-12)
         # Spitzen im Histogramm deuten auf Quantisierungsstufen
-        peaks = np.sum(hist_norm > 3.0 / 64)  # >3x Mittelwert
+        peaks = int(np.sum(hist_norm > 3.0 / 64))  # >3x Mittelwert
         # >8 Peaks = starke Quantisierung (Codec)
         return float(np.clip((peaks - 3) / 10.0, 0.0, 1.0))
 

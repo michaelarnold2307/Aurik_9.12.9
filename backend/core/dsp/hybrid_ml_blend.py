@@ -18,6 +18,7 @@ Beginn von Aurik vorhanden gewesen.
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -143,4 +144,6 @@ def hybrid_ml_apply(
         logger.debug("hybrid_ml_apply: perceptual_blend nicht verfügbar (%s) — skalarer Fallback", _pb_exc)
         out = dry + float(np.clip(scalar_wet, 0.0, 1.0)) * (wet - dry)
 
-    return np.clip(np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0), -1.0, 1.0).astype(np.float32)
+    return cast(
+        np.ndarray, (np.clip(np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0), -1.0, 1.0).astype(np.float32))
+    )

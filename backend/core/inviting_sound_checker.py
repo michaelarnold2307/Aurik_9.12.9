@@ -125,7 +125,7 @@ def _check_startle_attack(mono: np.ndarray, sr: int) -> float:
     peaks_db = 20.0 * np.log10(peaks + 1e-12)  # type: ignore[operator]
 
     jumps = np.diff(peaks_db)
-    startling = np.sum(jumps > 18.0)
+    startling = int(np.sum(jumps > 18.0))
     ratio = startling / max(len(jumps), 1)
 
     if ratio < 0.001:
@@ -177,7 +177,7 @@ def _check_gate_pumping(mono: np.ndarray, sr: int) -> float:
     rms_db = 20.0 * np.log10(rms + 1e-12)
 
     diffs = np.abs(np.diff(rms_db))
-    pumping_events = np.sum((diffs > 6.0) & (diffs < 20.0))
+    pumping_events = int(np.sum((diffs > 6.0) & (diffs < 20.0)))
     ratio = pumping_events / max(len(diffs), 1)
 
     if ratio < 0.005:

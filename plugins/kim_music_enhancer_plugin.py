@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+from typing import cast
 
 import numpy as np
 
@@ -34,11 +35,14 @@ OVERLAP = 128  # DIM_T // 2
 def _get_session():
     import onnxruntime as ort
 
-    if not hasattr(_get_session, "_sess"):
+    _sess = getattr(_get_session, "_sess", None)
+    if _sess is None:
         with _lock:
-            if not hasattr(_get_session, "_sess"):
-                _get_session._sess = ort.InferenceSession(_MODEL_PATH, providers=["CPUExecutionProvider"])
-    return _get_session._sess
+            _sess = getattr(_get_session, "_sess", None)
+            if _sess is None:
+                _sess = ort.InferenceSession(_MODEL_PATH, providers=["CPUExecutionProvider"])
+                setattr(_get_session, "_sess", _sess)
+    return _sess
 
 
 def _stft_stereo(audio: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -72,7 +76,7 @@ def _istft_stereo(spec_L: np.ndarray, spec_R: np.ndarray, orig_len: int) -> np.n
             weight[start : start + N_FFT] += window**2
         audio = audio[:orig_len] / np.maximum(weight[:orig_len], 1e-8)
         out[ch_idx] = audio
-    return out
+    return cast(np.ndarray, out)
 
 
 def enhance_music(audio: np.ndarray) -> np.ndarray:
@@ -129,4 +133,4 @@ def enhance_music(audio: np.ndarray) -> np.ndarray:
         pos += OVERLAP
 
     orig_len = audio.shape[-1] if audio.ndim == 2 else len(audio)
-    return _istft_stereo(out_L, out_R, orig_len).astype(np.float32)
+    return cast(np.ndarray, (_istft_stereo(out_L, out_R, orig_len).astype(np.float32)))

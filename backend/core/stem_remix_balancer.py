@@ -23,6 +23,7 @@ ITU-R BS.1770-4 Ziel-Lautheit = Referenz, Audio-EQ-Cookbook-Prinzip fürs Knie.
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -42,7 +43,7 @@ class StemRemixBalancer:
         instrumental: np.ndarray,
         original_reference: np.ndarray,
         sr: int,
-        vocal_weight: float = 1.0,
+        vocal_weight: float | None = 1.0,
     ) -> np.ndarray:
         """LUFS-korrekter Re-Mix zweier Stems gegen die Original-Referenz.
 
@@ -68,7 +69,7 @@ class StemRemixBalancer:
             # Shape-Invariante: alle Signale auf gemeinsame Länge trimmen.
             _n = min(ref.shape[0], voc.shape[0], ins.shape[0])
             if _n < 256:
-                return ref.copy()
+                return cast(np.ndarray, ref.copy())
             ref = ref[:_n]
             voc = voc[:_n]
             ins = ins[:_n]
@@ -78,12 +79,12 @@ class StemRemixBalancer:
                 ins = self._coerce_layout(ins, ref)
 
             # Summen-Invariante: w=1.0 → exakt voc + ins.
-            _w = float(np.clip(vocal_weight, 0.0, 2.0))
+            _w = float(np.clip(vocal_weight if vocal_weight is not None else 1.0, 0.0, 2.0))
             mix = voc * _w + ins * (2.0 - _w)
 
             if not np.isfinite(mix).all():
                 logger.warning("StemRemixBalancer: NaN/Inf im Mix — Original-Referenz zurück")
-                return ref.copy()
+                return cast(np.ndarray, ref.copy())
 
             # 1) Loudness-Ausgleich auf QUELL-LUFS (BS.1770-vereinfacht, eine
             #    kanonische Messung aus export_quality_gate).
@@ -109,7 +110,7 @@ class StemRemixBalancer:
             _rms_mix = float(np.sqrt(np.mean(np.square(mix.astype(np.float64))) + 1e-12))
             if _rms_mix < 1e-4:
                 logger.warning("StemRemixBalancer: RMS-Kollaps (%.2e) — Original-Referenz zurück", _rms_mix)
-                return ref.copy()
+                return cast(np.ndarray, ref.copy())
 
             # 3) Soft-Knee-Peak-Cap statt Hard-Clamp (§III): sanftes Knie über 95 % FS.
             _peak = float(np.max(np.abs(mix)))
@@ -137,14 +138,14 @@ class StemRemixBalancer:
                     float(_lufs_mix) if _lufs_mix is not None else float("nan"),
                     float(_peak),
                 )
-            return mix
+            return cast(np.ndarray, mix)
         except Exception as _exc:
             # §V6: kein Silent-Failure, aber auch kein Phasen-Crash.
             logger.warning("StemRemixBalancer fehlgeschlagen (%s) — Original-Referenz zurück", _exc)
             try:
-                return np.asarray(original_reference, dtype=np.float32).copy()
+                return cast(np.ndarray, (np.asarray(original_reference, dtype=np.float32).copy()))
             except Exception:
-                return np.asarray(original_reference).copy()
+                return cast(np.ndarray, np.asarray(original_reference).copy())
 
     @staticmethod
     def _coerce_layout(signal: np.ndarray, reference: np.ndarray) -> np.ndarray:
@@ -152,9 +153,9 @@ class StemRemixBalancer:
         if signal.ndim == reference.ndim:
             return signal
         if reference.ndim == 2 and signal.ndim == 1:
-            return np.stack([signal, signal], axis=1)
+            return cast(np.ndarray, (np.stack([signal, signal], axis=1)))
         if reference.ndim == 1 and signal.ndim == 2:
-            return signal.mean(axis=1)
+            return cast(np.ndarray, signal.mean(axis=1))
         return signal
 
 

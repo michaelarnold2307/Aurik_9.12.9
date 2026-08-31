@@ -314,7 +314,7 @@ class ArtifactDetector:
             return 1.0
 
         # Also check for anti-correlation (out-of-phase)
-        anti_phase = np.sum(correlations < -0.5)
+        anti_phase = int(np.sum(correlations < -0.5))
 
         score = float(np.clip(1.0 - (jump_count * 0.1 + anti_phase * 0.05), 0.0, 1.0))
         return score

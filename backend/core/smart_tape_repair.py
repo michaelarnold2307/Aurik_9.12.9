@@ -9,6 +9,7 @@ Reparatur-Stärke adaptiv zu steuern:
 """
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -117,7 +118,7 @@ def _detect_vocal_zones(audio: np.ndarray, sr: int) -> np.ndarray:
     win = int(sr * 0.025)
     hop = max(1, win // 2)
     if win < 64 or n < win:
-        return np.zeros(n, dtype=bool)
+        return cast(np.ndarray, (np.zeros(n, dtype=bool)))
 
     mask = np.zeros(n, dtype=bool)
     for i in range(0, n - win, hop):
@@ -135,4 +136,4 @@ def _detect_vocal_zones(audio: np.ndarray, sr: int) -> np.ndarray:
             if vb_ratio > 0.3 and 300 < centroid < 3000:
                 mask[i : i + win] = True
 
-    return mask
+    return cast(np.ndarray, mask)

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 
@@ -242,7 +243,7 @@ class PerceptualReferenceValidator:
         if count > 0:
             acc /= count
         acc /= np.max(acc) + 1e-12
-        return acc
+        return cast(np.ndarray, acc)
 
     @staticmethod
     def _detect_onsets(mono: np.ndarray) -> list[int]:

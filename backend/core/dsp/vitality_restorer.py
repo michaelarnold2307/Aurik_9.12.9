@@ -16,6 +16,7 @@ Reference: ITU-R BS.1770 (Loudness), BS.1387 (PEAQ), Zwicker/Fastl.
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -73,7 +74,7 @@ def restore_vitality(
     if transients:
         result = _restore_transient_punch(ref, result, sample_rate)
 
-    return np.clip(result, -1.0, 1.0).astype(np.float32)
+    return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
 
 # ═══════════════════════════════════════════════════════════════

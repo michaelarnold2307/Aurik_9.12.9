@@ -71,14 +71,14 @@ class PhraseStructureAnalyzer:
         try:
             import librosa
 
-            onset_env = librosa.onset.onset_strength(y=mono, sr=sr)
-            bpm = float(librosa.beat.tempo(onset_envelope=onset_env, sr=sr)[0])
+            onset_env = librosa.onset.onset_strength(y=mono, sr=sr)  # type: ignore[attr-defined]  # librosa-Stubs exportieren onset nicht
+            bpm = float(librosa.beat.tempo(onset_envelope=onset_env, sr=sr)[0])  # type: ignore[attr-defined]  # librosa-Stubs exportieren beat nicht
         except ImportError:
             # Fallback: Onset-basierte BPM-Schätzung
             energy = np.abs(mono)
             threshold = np.mean(energy) * 2
             onsets = np.diff((energy > threshold).astype(int))
-            onset_count = np.sum(onsets > 0)
+            onset_count = int(np.sum(onsets > 0))
             bpm = float(onset_count / duration_s * 60)
 
         # Segmentierung via Energie-Kontrast

@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import random
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -124,7 +124,7 @@ class ABComparison:
     @property
     def current_audio(self) -> np.ndarray:
         """Gibt das aktuell aktive Audio (A oder B) zurück."""
-        return self._a if self._current_is_a else self._b
+        return cast(np.ndarray, self._a if self._current_is_a else self._b)
 
     @property
     def current_label(self) -> str:
@@ -205,7 +205,7 @@ class ABComparison:
         """
         src = {"A": self._a, "B": self._b, "current": self.current_audio}[which]
         s, e = self._segment_start, min(self._segment_end, len(src))
-        return src[s:e]
+        return cast(np.ndarray, src[s:e])
 
     def get_current_slice(self, position_sample: int, length_samples: int) -> np.ndarray:
         """Gibt einen Slice des aktuell aktiven Audios zurück."""
@@ -363,7 +363,7 @@ class ABBlindTest:
 
     def get_x_audio(self, trial: dict[str, Any]) -> np.ndarray:
         """Gibt das X-Audio für einen Trial zurück (randomisiert A oder B)."""
-        return self._cmp._a if trial["x_is_a"] else self._cmp._b
+        return cast(np.ndarray, self._cmp._a if trial["x_is_a"] else self._cmp._b)
 
     def record_answer(
         self,

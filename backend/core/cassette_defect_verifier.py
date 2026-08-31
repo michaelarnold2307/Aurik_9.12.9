@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -1255,7 +1255,7 @@ def _extract_segment(audio: np.ndarray, start: int, end: int) -> np.ndarray:
     if a.ndim == 2:
         a = a.mean(axis=1) if a.shape[1] <= 2 else a.mean(axis=0)
     a = a.ravel()
-    return a[start:end].copy()
+    return cast(np.ndarray, a[start:end].copy())
 
 
 def _compute_segment_hpe(audio: np.ndarray, sr: int) -> float:

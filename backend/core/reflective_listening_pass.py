@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -321,7 +321,7 @@ class ReflectiveListeningPass:
             _axis = 0 if arr.shape[1] <= 2 else 1
         else:
             _axis = 0
-        return scipy_signal.sosfiltfilt(sos, arr, axis=_axis)
+        return cast(np.ndarray, (scipy_signal.sosfiltfilt(sos, arr, axis=_axis)))
 
     def _apply_corrections(self, audio: np.ndarray, sr: int, issues: list[RLPIssue], material: str) -> np.ndarray:
         """Wendet Mikro-Korrekturen an — kumulativ, aber mit strengen Limits."""
@@ -334,7 +334,7 @@ class ReflectiveListeningPass:
         _time_len = arr.shape[0] if (arr.ndim == 1 or arr.shape[-1] <= 2) else arr.shape[-1]
         if _time_len <= 16:
             logger.debug("RLP: Mikro-Korrekturen übersprungen (Signal zu kurz: %d Samples)", _time_len)
-            return arr
+            return cast(np.ndarray, arr)
 
         for issue in issues:
             corr = issue.correction
@@ -387,7 +387,7 @@ class ReflectiveListeningPass:
                     arr = self._gentle_hf_noise_reduction(arr, sr, freq_hz, strength)
                     logger.debug("RLP: HF-NR strength=%.2f @ %.0f Hz", strength, freq_hz)
 
-        return np.clip(arr, -1.0, 1.0)
+        return cast(np.ndarray, (np.clip(arr, -1.0, 1.0)))
 
     def _is_improvement(self, v1: np.ndarray, v2: np.ndarray, sr: int) -> tuple[bool, dict[str, float]]:
         """Objektiver Vergleich V1 vs V2 mit psychoakustischer Angenehmheits-Prüfung.
@@ -421,8 +421,8 @@ class ReflectiveListeningPass:
         rms_delta = 20.0 * np.log10(rms2 / rms1)
 
         # Peak-Änderung
-        peak1 = np.max(np.abs(v1_mono))
-        peak2 = np.max(np.abs(v2_mono))
+        peak1 = float(np.max(np.abs(v1_mono)))
+        peak2 = float(np.max(np.abs(v2_mono)))
         peak_delta = 20.0 * np.log10((peak2 + 1e-12) / (peak1 + 1e-12))
 
         # Spektrale Korrelation (Klangfarbe erhalten?)

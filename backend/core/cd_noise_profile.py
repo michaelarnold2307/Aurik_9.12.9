@@ -17,7 +17,7 @@ Date: 2026-07-13
 
 import hashlib
 import logging
-from typing import Tuple
+from typing import Tuple, cast
 
 import numpy as np
 
@@ -230,7 +230,7 @@ def _generate_sota_cd_noise(
     rms = float(np.sqrt(np.mean(shaped**2)))
     shaped *= (10.0 ** (target_dbfs / 20.0)) / max(rms, 1e-15)
 
-    return shaped.astype(np.float32)
+    return cast(np.ndarray, shaped.astype(np.float32))
 
 
 def _compute_masking_envelope(audio_mono: np.ndarray, sr: int) -> np.ndarray:
@@ -302,7 +302,7 @@ def _compute_masking_envelope(audio_mono: np.ndarray, sr: int) -> np.ndarray:
     # §G17 final: zero samples stay zero
     envelope[np.abs(audio_mono) < 1e-12] = 0.0
 
-    return envelope
+    return cast(np.ndarray, envelope)
 
 
 def _compute_onset_strength(audio: np.ndarray, sr: int) -> float:

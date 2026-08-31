@@ -26,7 +26,7 @@ import logging
 import math
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -260,7 +260,7 @@ class PANNsPlugin(MLPluginBase):  # §A2
                 sess_options=sess_options,
                 providers=_providers,
             )
-            _active_providers = self._session.get_providers()
+            _active_providers = cast(Any, self._session).get_providers()
             if device == "cuda" and not any(
                 "CUDAExecutionProvider" in _p or "ROCMExecutionProvider" in _p for _p in _active_providers
             ):
@@ -442,11 +442,12 @@ class PANNsPlugin(MLPluginBase):  # §A2
 
             _sess_opts = ort.SessionOptions()
             _sess_opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_BASIC
-            return ort.InferenceSession(
+            _new_sess = ort.InferenceSession(
                 str(self._ONNX_PATH),
                 sess_options=_sess_opts,
                 providers=["CPUExecutionProvider"],
             )
+            return cast(object, _new_sess)
         except Exception as _exc:
             logger.warning("PANNs: CPU-Session-Rebuild fehlgeschlagen: %s", _exc)
             return None

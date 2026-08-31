@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 
@@ -223,7 +223,7 @@ class PostRepairArtifactGuard:
         Reduziert die Strength automatisch: blend_ratio Anteil Original,
         (1 - blend_ratio) Anteil prozessiert.
         """
-        return (blend_ratio * audio_pre + (1 - blend_ratio) * audio_post).astype(np.float32)
+        return cast(np.ndarray, (blend_ratio * audio_pre + (1 - blend_ratio) * audio_post).astype(np.float32))
 
     def normalize_truepeak(self, audio: np.ndarray, target_dbfs: float = -1.0) -> np.ndarray:
         """Begrenzt TruePeak auf target_dbfs."""
@@ -232,7 +232,7 @@ class PostRepairArtifactGuard:
             return audio
         target = 10 ** (target_dbfs / 20)
         if peak > target:
-            return (audio * (target / peak)).astype(np.float32)
+            return cast(np.ndarray, (audio * (target / peak)).astype(np.float32))
         return audio
 
 

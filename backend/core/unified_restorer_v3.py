@@ -8347,9 +8347,10 @@ class UnifiedRestorerV3:
                     if _cached_era_kwarg is not None:
                         _mc_era_decade = getattr(_cached_era_kwarg, "decade", None)
                         _mc_era_conf = float(getattr(_cached_era_kwarg, "confidence", 0.0))
-                    return _get_md().detect(
+                    _md_detect = _get_md().detect(
                         a, sr, file_ext=_file_ext_for_scan, era_decade=_mc_era_decade, era_confidence=_mc_era_conf
-                    )  # type: ignore[no-any-return]
+                    )
+                    return cast(object, _md_detect)
                 except Exception as _e:
                     logger.warning(
                         "MediumDetector nicht verfügbar; setze Material auf unknown (legacy Ersatzpfad deaktiviert): %s",
@@ -10302,9 +10303,8 @@ class UnifiedRestorerV3:
         # Fehlermodus aus §2.59.1 ("PhasePruner löscht dann fälschlich Phasen") und
         # ein Verstoß gegen "Niemals einen erkannten Defekt unbehandelt lassen"
         # (README.md:107). Ein externer Hint bleibt autoritativ und wird nie überschrieben.
-        if not isinstance(getattr(self, "_active_defekt_hint", None), dict) or not (
-            self._active_defekt_hint.get("defect_types")
-        ):
+        _active_defekt_hint = getattr(self, "_active_defekt_hint", None)
+        if not isinstance(_active_defekt_hint, dict) or not (_active_defekt_hint.get("defect_types")):
             try:
                 _dh_types: list[str] = []
                 _dh_sevs: dict[str, float] = {}
@@ -30825,7 +30825,7 @@ class UnifiedRestorerV3:
             _n = min(len(_mono), 48000)  # 1s max
             _seg = _mono[:_n]
             _spec = np.abs(np.fft.rfft(_seg))
-            _hf = np.sum(_spec[len(_spec) // 2 :])
+            _hf = float(np.sum(_spec[len(_spec) // 2 :]))
             _total = np.sum(_spec) + 1e-12
             return float(_hf / _total)
         except Exception as _hf_exc:
@@ -35424,7 +35424,7 @@ class UnifiedRestorerV3:
             self._perf_tracker = PhasePerformanceTracker()
             self._perf_tracker.start_pipeline(len(audio) / max(sample_rate, 1))
         except Exception:
-            self._perf_tracker = None
+            self._perf_tracker = cast(Any, None)
 
         try:
             from backend.core.audio_validator import validate_audio_size
@@ -42925,7 +42925,7 @@ class UnifiedRestorerV3:
             from backend.core.presence_embedding import get_presence_embedding
 
             _pe = get_presence_embedding()
-            _presence_score = _pe.compute(_presence_audio, sample_rate=self.config.sample_rate)
+            _presence_score = _pe.compute(_presence_audio, sample_rate=sample_rate)
             logger.info(
                 "§G90 PresenceScore: %.3f (hearable=%s)",
                 _presence_score.overall,
@@ -42939,8 +42939,8 @@ class UnifiedRestorerV3:
             from backend.core.era_authentic_completion import get_era_completion
 
             _ec = get_era_completion()
-            if _ec.needs_completion(_presence_audio, self.config.sample_rate):
-                _presence_audio = _ec.complete(_presence_audio, self.config.sample_rate)
+            if _ec.needs_completion(_presence_audio, sample_rate):
+                _presence_audio = _ec.complete(_presence_audio, sample_rate)
                 logger.info("§G90 EraCompletion applied: BW was %.0f Hz", _ec.last_bandwidth_hz or 0)
         except Exception as _ec_exc:
             logger.debug("§G90 EraCompletion skipped: %s", _ec_exc)
@@ -43542,7 +43542,7 @@ class UnifiedRestorerV3:
 
             _mp = _get_mp()
             if _mp is not None:
-                return _mp.get_stats()
+                return cast(dict[Any, Any], _mp.get_stats())
         except Exception:
             logger.debug("Stiller optionaler Ausnahmefall ignoriert", exc_info=True)
         return {"checks_performed": 0, "rollbacks_triggered": 0, "available": False}
@@ -43600,8 +43600,8 @@ class UnifiedRestorerV3:
                     _b = int(round(_end * _ppr_ratio))
                     _b = min(max(_b, _a + 1), _ppr_len)
                     if _ppr_full.ndim == 2 and _ppr_full.shape[0] <= 8:
-                        return cast(np.ndarray, _ppr_full[:, _a:_b])
-                    return cast(np.ndarray, _ppr_full[_a:_b])
+                        return _ppr_full[:, _a:_b]
+                    return _ppr_full[_a:_b]
 
                 _chunk_kwargs["pre_repair_reference"] = _ppr_slice_fn(chunks[0][0], chunks[0][1])
                 logger.info(
@@ -44011,7 +44011,7 @@ if __name__ == "__main__":
             window = np.hanning(n_fft)
             spec = np.abs(np.fft.rfft(a[:n_fft] * window))
             spec_db = 20 * np.log10(np.maximum(spec, 1e-10))
-            peak_db = np.max(spec_db)
+            peak_db = float(np.max(spec_db))
             threshold_db = peak_db - 20
             freqs = np.fft.rfftfreq(n_fft, 1.0 / sample_rate)
             above = np.where(spec_db >= threshold_db)[0]
@@ -44056,7 +44056,7 @@ def _deep_extract_ndarray(obj: object, _depth: int = 0) -> "np.ndarray | None":
         return None
     try:
         if isinstance(obj, np.ndarray):
-            return np.asarray(obj, dtype=np.float32)
+            return cast(np.ndarray | None, (np.asarray(obj, dtype=np.float32)))
         if isinstance(obj, (tuple, list)):
             for item in obj:
                 found = _deep_extract_ndarray(item, _depth + 1)

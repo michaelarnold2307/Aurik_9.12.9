@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -80,7 +81,7 @@ def from_mid_side(ms: MidSideResult) -> np.ndarray:
     """
     L = (ms.mid + ms.side).astype(np.float32)
     R = (ms.mid - ms.side).astype(np.float32)
-    return np.stack([L, R], axis=0)
+    return cast(np.ndarray, (np.stack([L, R], axis=0)))
 
 
 def process_vocal_mid_side(
@@ -103,7 +104,7 @@ def process_vocal_mid_side(
     """
     if audio.ndim < 2 or audio.shape[0] < 2:
         # Mono fallback
-        return processor_fn(audio.squeeze()).reshape(1, -1)  # type: ignore[return-value]
+        return cast(np.ndarray, processor_fn(audio.squeeze()).reshape(1, -1))
 
     ms = to_mid_side(audio)
 

@@ -82,6 +82,8 @@ class AstPlugin:
 
     def _init_classifier(self) -> None:
         """Lazy-Init: Bindet den zentralen AstAudioSetClassifier ein."""
+        self._get_classifier: Any = None
+        self._is_loaded_fn: Any = None
         try:
             from backend.core.ast_audio_set_classifier import (
                 get_ast_classifier,
@@ -147,15 +149,17 @@ class AstPlugin:
                 model_used="ast_unloaded",
             )
 
-        labels, scores = result
-        top = labels[:top_k] if labels else []
+        # Bug-Reparatur: classifier.classify() liefert ein AstResult-Objekt
+        # (top_k: list[tuple[int, str, float]]), KEIN (labels, scores)-Tupel.
+        _labels = [(str(name), float(conf)) for _, name, conf in getattr(result, "top_k", [])]
+        _top = _labels[:top_k]
 
         return AstResult(
-            labels=list(labels),
-            top_k=list(top),
+            labels=_labels,
+            top_k=_top,
             embeddings=np.zeros(768, dtype=np.float32),
             model_used="ast_onnx",
-            raw_scores=np.asarray(scores, dtype=np.float32) if scores is not None else np.zeros(527, dtype=np.float32),
+            raw_scores=np.asarray(getattr(result, "probs", np.zeros(527, dtype=np.float32)), dtype=np.float32),
         )
 
     def get_tags(self, audio: np.ndarray, sr: int = 48000, top_k: int = 15) -> dict[str, float]:
@@ -186,7 +190,10 @@ class AstPlugin:
         if not classifier.is_loaded():
             return 0.0
         try:
-            return float(classifier.discriminate_defect(defect_type, audio, sr))
+            _disc = classifier.discriminate_defect(defect_type, audio, sr, time_s=0.0, severity=0.5)
+            if _disc is None:
+                return 0.0
+            return float(_disc.instrument_confidence)
         except Exception:
             return 0.0
 
@@ -206,7 +213,8 @@ class AstPlugin:
             result = classifier.classify(audio, sr, top_k=50)
             if result is None:
                 return 0.0
-            labels, scores = result
+            # Bug-Reparatur: classify() liefert AstResult mit .probs
+            scores = np.asarray(getattr(result, "probs", np.zeros(527, dtype=np.float32)), dtype=np.float32)
             # Musik-Instrument-Indizes aus AudioSet (grobe Abdeckung)
             musical_indices = set(range(120, 250))  # Instruments-Bereich
             musical_conf = 0.0

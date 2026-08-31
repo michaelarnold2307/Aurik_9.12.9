@@ -18,7 +18,7 @@ import logging
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -287,7 +287,7 @@ def run_blindtest(
         with wave.open(str(path), "rb") as w:
             n_frames = w.getnframes()
             data = np.frombuffer(w.readframes(n_frames), dtype=np.int16)
-            return data.astype(np.float32) / 32768.0
+            return cast(np.ndarray, data.astype(np.float32) / 32768.0)
 
     degraded = _read_wav(degraded_path)
     restored = _read_wav(restored_path)

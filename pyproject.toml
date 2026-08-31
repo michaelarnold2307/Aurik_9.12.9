@@ -355,6 +355,15 @@ module = [
 ]
 ignore_errors = true
 
+# Vendored Drittanbieter-Code (plugins/_vendor_*) — unverändert kopiert (MIT),
+# wird gemäß AGENTS.md-Policy nicht angepasst (Linter-SKIP_DIRS analog).
+[[tool.mypy.overrides]]
+module = [
+    "plugins._vendor_aero",
+    "plugins._vendor_aero.*",
+]
+ignore_errors = true
+
 # phase_19: multi-line def override nicht suppressierbar via # type: ignore in mypy 1.x/2.x
 [[tool.mypy.overrides]]
 module = "backend.core.phases.phase_19_de_esser"

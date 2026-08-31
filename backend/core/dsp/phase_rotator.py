@@ -16,6 +16,8 @@ Non-blocking: import errors are silently caught by the caller.
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 from scipy.signal import butter, sosfilt
 
@@ -51,7 +53,7 @@ def _design_allpass_2nd_order(freq_hz: float, sr: int, rotation_deg: float) -> n
 
     # Build SOS array
     sos = np.tile(np.hstack([b, a]), (num_sections, 1))
-    return sos
+    return cast(np.ndarray, sos)
 
 
 def apply_phase_rotator(
@@ -114,4 +116,4 @@ def apply_phase_rotator(
     else:
         result = np.column_stack([out_l, out_r])
 
-    return np.clip(result.astype(np.float32), -1.0, 1.0)
+    return cast(np.ndarray, (np.clip(result.astype(np.float32), -1.0, 1.0)))

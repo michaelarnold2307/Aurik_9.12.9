@@ -102,6 +102,7 @@ def _quality_delta(original: np.ndarray, processed: np.ndarray, sr: int = 48000)
 
 
 from dataclasses import dataclass, field
+from typing import cast
 
 
 @dataclass
@@ -1073,13 +1074,13 @@ class DeepFilterNetGuard:
                     len(_result.breath_positions),
                     _breath_pct,
                 )
-            return _mask
+            return cast(np.ndarray, _mask)
         except ImportError:
             logger.debug("BreathDetector nicht verfügbar — keine Atemmaske")
-            return np.zeros(len(audio), dtype=bool)
+            return cast(np.ndarray, (np.zeros(len(audio), dtype=bool)))
         except Exception as exc:
             logger.debug("Atemerkennung fehlgeschlagen: %s", exc)
-            return np.zeros(len(audio), dtype=bool)
+            return cast(np.ndarray, (np.zeros(len(audio), dtype=bool)))
 
     def process(self, audio: np.ndarray, sr: int = 48000) -> tuple[np.ndarray, bool]:
         """Führt DeepFilterNet mit Atmungserhalt aus.

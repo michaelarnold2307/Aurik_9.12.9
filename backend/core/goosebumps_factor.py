@@ -319,8 +319,8 @@ def _measure_dynamic_contrast(mono: np.ndarray, sr: int) -> float:
     diffs = np.abs(np.diff(rms_db))
 
     # Zähle „bedeutsame" Kontraste (6-15 dB)
-    meaningful = np.sum((diffs >= 6.0) & (diffs <= 15.0))
-    extreme = np.sum(diffs > 15.0)
+    meaningful = int(np.sum((diffs >= 6.0) & (diffs <= 15.0)))
+    extreme = int(np.sum(diffs > 15.0))
 
     contrast_ratio = meaningful / max(len(diffs), 1)
     extreme_penalty = extreme / max(len(diffs), 1) * 0.5

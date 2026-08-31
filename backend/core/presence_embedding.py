@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -183,7 +183,7 @@ class PresenceEmbedding:
     @staticmethod
     def _to_mono(audio: np.ndarray) -> np.ndarray:
         arr = np.asarray(audio, dtype=np.float64)
-        return arr.mean(axis=1) if arr.ndim == 2 else arr
+        return cast(np.ndarray, arr.mean(axis=1) if arr.ndim == 2 else arr)
 
     def _compute_vocal_formant_coherence(self, audio: np.ndarray, sr: int) -> float:
         """MERT-basierte Distanz zwischen restaurierten Formanten und Referenz-Datenbank.
@@ -257,7 +257,7 @@ class PresenceEmbedding:
 
             # Verteilung der Onset-Staerke: Median + IQR
             median_onset = float(np.median(onset_strength))
-            iqr_onset = float(np.subtract(*np.percentile(onset_strength, [75, 25])))
+            iqr_onset = float(np.percentile(onset_strength, 75) - np.percentile(onset_strength, 25))
 
             # Referenz: gute Musik hat median ~4dB, IQR ~3dB
             median_score = 1.0 - abs(median_onset - 4.0) / 8.0

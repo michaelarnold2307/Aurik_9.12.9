@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import math
 import threading
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -217,10 +217,10 @@ class DynamicsArcGuard:
                 seg = mono[i : i + seg_len]
                 power = np.mean(seg * seg) + 1e-12
                 lufs_vals.append(-0.691 + 10.0 * math.log10(power))
-            return np.array(lufs_vals, dtype=np.float32)
+            return cast(np.ndarray, (np.array(lufs_vals, dtype=np.float32)))
         except Exception as e:
             logger.warning("klang_guards.py::_measure_lufs_arc Ersatzpfad: %s", e)
-            return np.zeros(segments, dtype=np.float32)
+            return cast(np.ndarray, (np.zeros(segments, dtype=np.float32)))
 
     def set_baseline(self, audio: np.ndarray, sr: int) -> None:
         self._baseline_arc = self._measure_lufs_arc(audio, sr)
@@ -657,7 +657,7 @@ class HumanizationPass:
                 result = audio_f.copy()
                 for ch in range(audio_f.shape[0]):
                     result[ch] = HumanizationPass._process_channel(audio_f[ch], sr, strength)
-                return result
+                return cast(np.ndarray, result)
             return HumanizationPass._process_channel(audio_f, sr, strength)
         except Exception as e:
             logger.warning("klang_guards.py::anwenden Ersatzpfad: %s", e)
@@ -689,4 +689,4 @@ class HumanizationPass:
         # Blend
         result = channel * (1.0 - strength * 0.05) + out * strength * 0.05
         result *= amp_mod
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))

@@ -114,8 +114,8 @@ class VocalAnalyzer:
             from backend.core.dsp.vocal_register_detector import detect_vocal_register
 
             reg = detect_vocal_register(audio, sample_rate)
-            profile.register = reg.get("register", "unknown")
-            profile.register_confidence = reg.get("confidence", 0.0)
+            profile.register = str(reg[0])
+            profile.register_confidence = float(reg[1])
         except Exception:
             profile.register = "chest"  # safe default
 
@@ -125,9 +125,9 @@ class VocalAnalyzer:
 
             styler = VocalStyleProfiler()
             style = styler.profile(audio, sample_rate)
-            profile.vibrato_rate_hz = style.get("vibrato_rate_hz", 5.5)
-            profile.vibrato_extent_semitones = style.get("vibrato_extent_st", 0.5)
-            profile.breathiness_index = style.get("breathiness", 0.0)
+            profile.vibrato_rate_hz = getattr(style, "vibrato_rate_hz", 5.5)
+            profile.vibrato_extent_semitones = getattr(style, "vibrato_depth_cents", 50.0) / 100.0
+            profile.breathiness_index = getattr(style, "breathiness_index", 0.0)
         except Exception:
             pass
 

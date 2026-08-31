@@ -10,6 +10,8 @@ the changes are subtle.
 Author: Aurik 10.0.1
 """
 
+from typing import cast
+
 import numpy as np
 
 
@@ -47,4 +49,4 @@ def compute_ab_delta(original: np.ndarray, restored: np.ndarray, normalize: bool
         target_peak = 10 ** (-6.0 / 20.0)  # -6 dBFS
         delta = delta * (target_peak / peak)
 
-    return np.clip(delta, -1.0, 1.0).astype(np.float32)
+    return cast(np.ndarray, (np.clip(delta, -1.0, 1.0).astype(np.float32)))

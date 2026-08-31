@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import torch
@@ -72,7 +73,7 @@ class DFNExpandedDenoiser:
             mask = (hz2erb(freqs) >= lo) & (hz2erb(freqs) < hi)
             if mask.sum() > 0:
                 fb[b, mask] = 1.0 / mask.sum()
-        return fb
+        return cast(np.ndarray, fb)
 
     def _extract_features(self, audio: torch.Tensor) -> tuple:
         spec = torch.stft(audio, n_fft=N_FFT, hop_length=HOP, window=self._window, return_complex=True)
@@ -103,7 +104,7 @@ class DFNExpandedDenoiser:
         if is_stereo:
             left = self._denoise_mono(audio[0], sample_rate)
             right = self._denoise_mono(audio[1], sample_rate)
-            return np.stack([left, right], axis=0)
+            return cast(np.ndarray, (np.stack([left, right], axis=0)))
 
         return self._denoise_mono(audio if audio.ndim == 1 else audio[0], sample_rate)
 
@@ -136,7 +137,7 @@ class DFNExpandedDenoiser:
             weight[pos : pos + len(processed)] += w
 
         weight = np.maximum(weight, 1e-8)
-        return (result / weight).astype(np.float32)
+        return cast(np.ndarray, (result / weight).astype(np.float32))
 
     def _process_chunk(self, audio: np.ndarray, target_len: int) -> np.ndarray:
         audio_t = torch.from_numpy(audio).float().unsqueeze(0).to(self._device)
@@ -147,4 +148,4 @@ class DFNExpandedDenoiser:
 
         enhanced = torch.complex(enh[0, 0, :, :, 0], enh[0, 0, :, :, 1]).T.unsqueeze(0)
         out = torch.istft(enhanced, n_fft=N_FFT, hop_length=HOP, window=self._window, length=target_len)
-        return out.cpu().numpy().squeeze()
+        return cast(np.ndarray, out.cpu().numpy().squeeze())

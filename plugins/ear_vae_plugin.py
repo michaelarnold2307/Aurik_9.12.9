@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 
@@ -191,7 +192,7 @@ class EarVAEPlugin:
             audio = audio[:2, :]
         if audio.shape[0] == 1:
             audio = np.repeat(audio, 2, axis=0)
-        return np.ascontiguousarray(audio)
+        return cast(np.ndarray, np.ascontiguousarray(audio))
 
     def unload(self) -> None:
         """Release ONNX sessions."""

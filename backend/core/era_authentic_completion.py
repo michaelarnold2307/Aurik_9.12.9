@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -196,7 +197,7 @@ class EraAuthenticPerceptualCompletion:
         arr = np.asarray(audio, dtype=np.float32)
 
         if not force and not self.needs_completion(arr, sr):
-            return arr
+            return cast(np.ndarray, arr)
 
         try:
             # 1. Ära-Parameter bestimmen
@@ -215,7 +216,7 @@ class EraAuthenticPerceptualCompletion:
 
             if bw_extended is arr or np.array_equal(bw_extended, arr):
                 logger.debug("EraAuthenticPerceptualCompletion: Keine Änderung durch BandwidthExtender")
-                return arr
+                return cast(np.ndarray, arr)
 
             # 4. Ära-spezifische spektrale Formung (Lowpass bei max_target)
             shaped = _apply_era_spectral_shaping(bw_extended, sr, max_target_hz=max_target)
@@ -226,7 +227,7 @@ class EraAuthenticPerceptualCompletion:
                     "EraAuthenticPerceptualCompletion: Completion validierung fehlgeschlagen — "
                     "Original wird zurückgegeben"
                 )
-                return arr
+                return cast(np.ndarray, arr)
 
             self._applied = True
             logger.info(
@@ -244,7 +245,7 @@ class EraAuthenticPerceptualCompletion:
                 "EraAuthenticPerceptualCompletion: Fehler bei Completion — Original wird zurückgegeben: %s",
                 exc,
             )
-            return arr
+            return cast(np.ndarray, arr)
 
 
 def _map_material_to_extender_category(material: str) -> str:

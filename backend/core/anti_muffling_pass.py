@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 
@@ -140,7 +141,7 @@ class AntiMufflingPass:
         if not report.muffling_detected:
             report.warnings.append("No muffling detected — skipping")
             self._reports.append(report)
-            return result
+            return cast(np.ndarray, result)
 
         # ── Adaptive Strength ──
         muffling_severity = 1.0 - report.muffling_score  # 0=ok, 1=extrem
@@ -172,7 +173,7 @@ class AntiMufflingPass:
         n_blocks = len(block_muffling)
         if n_blocks == 0:
             self._reports.append(report)
-            return result
+            return cast(np.ndarray, result)
 
         for ch in range(result.shape[0] if result.ndim == 2 else 1):
             ch_data = result[ch] if result.ndim == 2 else result
@@ -259,7 +260,7 @@ class AntiMufflingPass:
             )
 
         self._reports.append(report)
-        return result
+        return cast(np.ndarray, result)
 
     def _verify_warmth(self, before: np.ndarray, after: np.ndarray, sr: int) -> bool:
         """Prüft ob Bass/Mitten erhalten blieben."""

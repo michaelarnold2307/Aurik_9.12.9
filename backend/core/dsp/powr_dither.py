@@ -21,6 +21,7 @@ Autor: Aurik 10.0.20 — August 2026
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -82,7 +83,7 @@ def _generate_noise_shaping_filter(sample_rate: int, fft_size: int) -> np.ndarra
     filter_response[:2] = filter_response[2]
     filter_response[-2:] = filter_response[-3]
 
-    return filter_response.astype(np.float64)
+    return cast(np.ndarray, filter_response.astype(np.float64))
 
 
 def apply_powr_dither(
@@ -121,7 +122,7 @@ def apply_powr_dither(
         result = np.zeros_like(arr)
         for ch in range(arr.shape[1]):
             result[:, ch] = _apply_powr_mono(arr[:, ch], sample_rate, bit_depth, rng, block_size)
-        return result.astype(np.float32)
+        return cast(np.ndarray, result.astype(np.float32))
     else:
         raise ValueError(f"Audio muss 1D (mono) oder 2D (stereo) sein, nicht {arr.ndim}D")
 
@@ -180,7 +181,7 @@ def _apply_powr_mono(
     # Mische Dither zum Original-Audio
     result = audio + dither_buffer
 
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def quantize_to_int(audio: np.ndarray, bit_depth: int = 16) -> np.ndarray:
@@ -195,10 +196,10 @@ def quantize_to_int(audio: np.ndarray, bit_depth: int = 16) -> np.ndarray:
     """
     if bit_depth == 16:
         max_val = 32767
-        return np.clip(audio * max_val, -max_val, max_val).astype(np.int16)
+        return cast(np.ndarray, (np.clip(audio * max_val, -max_val, max_val).astype(np.int16)))
     elif bit_depth == 24:
         max_val = 8388607  # 2^23 - 1
-        return np.clip(audio * max_val, -max_val, max_val).astype(np.int32)
+        return cast(np.ndarray, (np.clip(audio * max_val, -max_val, max_val).astype(np.int32)))
     else:
         raise ValueError("quantize_to_int: bit_depth muss 16 oder 24 sein")
 

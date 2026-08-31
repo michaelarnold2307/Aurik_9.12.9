@@ -641,8 +641,10 @@ class HarmonicRestorationPhase(PhaseInterface):
                 _spec_p07 = np.abs(np.fft.rfft(_mono_p07[: min(len(_mono_p07), 48000)]))
                 _spec_p07 = _spec_p07 / (np.max(_spec_p07) + 1e-12)
                 # Peaks oberhalb -20dB Schwelle zählen → harmonische Dichte
-                _peaks_p07 = np.sum(
-                    (_spec_p07[1:-1] > _spec_p07[:-2]) & (_spec_p07[1:-1] > _spec_p07[2:]) & (_spec_p07[1:-1] > 0.1)
+                _peaks_p07 = int(
+                    np.sum(
+                        (_spec_p07[1:-1] > _spec_p07[:-2]) & (_spec_p07[1:-1] > _spec_p07[2:]) & (_spec_p07[1:-1] > 0.1)
+                    )
                 )
                 _harmonic_density_p07 = np.clip(_peaks_p07 / max(len(_spec_p07) * 0.05, 1), 0.0, 1.0)
             except Exception:

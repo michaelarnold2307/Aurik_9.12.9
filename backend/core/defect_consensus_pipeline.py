@@ -116,7 +116,7 @@ class DefectManifest:
         counts: dict[DefectCategory, float] = defaultdict(float)
         for d in self.defects:
             counts[d.category] += d.confidence * d.severity
-        return max(counts, key=counts.get)
+        return max(counts, key=lambda k: counts[k])
 
 
 # ═════════════════════════════════════════════════════════════════════════════

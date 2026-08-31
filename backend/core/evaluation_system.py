@@ -26,7 +26,7 @@ import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 
@@ -183,7 +183,7 @@ def _snr_db(signal: np.ndarray, noise_ref: np.ndarray) -> float:
     diff = np.asarray(signal, dtype=np.float64) - np.asarray(noise_ref, dtype=np.float64)
     sig_power = float(np.mean(np.asarray(noise_ref, dtype=np.float64) ** 2)) + 1e-12
     noise_power = float(np.mean(diff**2)) + 1e-12
-    return 10.0 * np.log10(sig_power / noise_power)
+    return cast(float, 10.0 * np.log10(sig_power / noise_power))
 
 
 def compute_objective_metrics(case: EvalCase) -> CaseMetrics:
@@ -240,8 +240,8 @@ def _compute_utmos_delta(damaged: np.ndarray, restored: np.ndarray, sr: int) -> 
         plugin = get_utmos()
         if plugin is None or getattr(plugin, "model", None) is None:
             return None
-        mos_damaged = float(plugin.estimate_mos(np.asarray(damaged), sr))
-        mos_restored = float(plugin.estimate_mos(np.asarray(restored), sr))
+        mos_damaged = float(plugin.estimate_mos(np.asarray(damaged), sr).mos)
+        mos_restored = float(plugin.estimate_mos(np.asarray(restored), sr).mos)
         return mos_restored - mos_damaged
     except Exception as exc:
         log.debug("UTMOS nicht verfügbar (%s) — Delta übersprungen", exc)
@@ -255,9 +255,10 @@ def _compute_musical_goals(restored: np.ndarray, clean: np.ndarray, sr: int) -> 
 
         checker = MusicalGoalsChecker()
         result = checker.check_with_adaptive_thresholds(
-            restored=np.asarray(restored, dtype=np.float32),
-            reference=np.asarray(clean, dtype=np.float32),
+            audio=np.asarray(restored, dtype=np.float32),
             sr=sr,
+            adaptive_thresholds={},
+            reference=np.asarray(clean, dtype=np.float32),
         )
         passed = int(getattr(result, "passed_count", 0))
         total = int(getattr(result, "total_count", 0))
@@ -488,8 +489,8 @@ def discover_corpus_cases(corpus_root: Path | str, limit: int = 0) -> list[dict[
                 "restored_path": None,
             }
             if restored_dir.is_dir():
-                restored_file = restored_dir / damaged_file.name
-                if not restored_file.exists():
+                restored_file: Path | None = restored_dir / damaged_file.name
+                if restored_file is None or not restored_file.exists():
                     restored_file = _find_clean_for(damaged_file, restored_dir)
                 if restored_file is not None and restored_file.exists():
                     case["restored_path"] = str(restored_file)

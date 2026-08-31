@@ -574,7 +574,7 @@ def _scale_audio_region(
 
         if out.ndim == 1:
             _apply(out)
-            return out
+            return cast(np.ndarray, out)
         ch_first = out.shape[0] <= 2 and out.shape[1] > out.shape[0]
         if ch_first:
             if channel_index is None:
@@ -585,7 +585,7 @@ def _scale_audio_region(
                     ch[end - cf : end] *= iramp
             else:
                 _apply(out[channel_index])
-            return out
+            return cast(np.ndarray, out)
         if channel_index is None:
             for c in range(out.shape[1]):
                 ch = out[:, c]
@@ -594,7 +594,7 @@ def _scale_audio_region(
                 ch[end - cf : end] *= iramp
         else:
             _apply(out[:, channel_index])
-        return out
+        return cast(np.ndarray, out)
 
     # Fallback: no crossfade (region too short)
     if out.ndim == 1:
@@ -776,7 +776,7 @@ def apply_musical_gain_envelope(  # pylint: disable=too-many-positional-argument
     _gain_db = float(20.0 * np.log10(float(gain)))
     if np.ndim(gain) == 0 and _gain_db <= small_gain_bypass_db:
         arr = np.asarray(audio, dtype=np.float32)
-        return (arr * gain).astype(np.float32)
+        return cast(np.ndarray, (arr * gain).astype(np.float32))
 
     arr = np.asarray(audio, dtype=np.float32)
     was_2d = arr.ndim == 2
@@ -992,7 +992,7 @@ def apply_soft_clip(
     arr = np.nan_to_num(arr, nan=0.0, posinf=ceiling, neginf=-ceiling)
 
     if ceiling <= 0.0:
-        return np.zeros_like(audio, dtype=np.float32)
+        return cast(np.ndarray, (np.zeros_like(audio, dtype=np.float32)))
 
     # Normalisiere auf ceiling → tanh → skaliere zurück
     knee_linear = float(10.0 ** (-knee_db / 20.0))  # z.B. 0.6 dB → 0.933
@@ -1008,7 +1008,7 @@ def apply_soft_clip(
         soft_clipped = soft_threshold + (ceiling - soft_threshold) * np.tanh(excess)
         arr[mask] = np.sign(arr[mask]) * soft_clipped
 
-    return arr.astype(np.float32)
+    return cast(np.ndarray, arr.astype(np.float32))
 
 
 def crossfade_to_bypass(
@@ -1038,7 +1038,7 @@ def crossfade_to_bypass(
     fade_len = min(fade_len, processed.shape[-1], original.shape[-1])
 
     if fade_len < 2:
-        return original.astype(np.float32)
+        return cast(np.ndarray, original.astype(np.float32))
 
     result = original.copy().astype(np.float64)
 
@@ -1054,9 +1054,9 @@ def crossfade_to_bypass(
         result[:fade_len] = fade_out * processed[-fade_len:] + fade_in * original[:fade_len]
     else:
         # Dimension mismatch — fallback to original
-        return original.astype(np.float32)
+        return cast(np.ndarray, original.astype(np.float32))
 
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 # ── §v10.99 Edge Taper: Filter-Ringing am Audio-Ende eliminieren ──
@@ -1091,7 +1091,7 @@ def apply_edge_taper(
     n_total = result.shape[-1] if result.ndim > 1 else len(result)
 
     if n_taper * 2 >= n_total:
-        return np.asarray(audio, dtype=np.float32)  # too short, skip
+        return cast(np.ndarray, (np.asarray(audio, dtype=np.float32)))  # too short, skip
 
     if fade_in:
         win_in = np.hanning(n_taper * 2)[:n_taper].astype(np.float64)
@@ -1114,7 +1114,7 @@ def apply_edge_taper(
         else:
             result[:, -n_taper:] *= win_out[np.newaxis, :]
 
-    return np.asarray(result, dtype=np.float32)
+    return cast(np.ndarray, (np.asarray(result, dtype=np.float32)))
 
 
 # ── §v10.304 Safe Array Construction ────────────────────────────────────
@@ -1139,7 +1139,7 @@ def safe_asarray(
         if isinstance(obj, np.ndarray):
             return np.asarray(obj, dtype=dtype) if dtype else obj
         _arr = np.asarray(obj, dtype=dtype)
-        return _arr
+        return cast(np.ndarray, _arr)
     except (ValueError, TypeError):
         logger.debug("safe_asarray: inhomogeneous data, returning zeros")
-        return np.zeros(fallback_shape, dtype=dtype or np.float32)
+        return cast(np.ndarray, (np.zeros(fallback_shape, dtype=dtype or np.float32)))

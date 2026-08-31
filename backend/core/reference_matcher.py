@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -90,4 +91,4 @@ def apply_match(audio: np.ndarray, sr: int, target: MatchProfile) -> np.ndarray:
     result = np.clip(result * gain, -1.0, 1.0)
 
     logger.info("ReferenceMatch: EQ+dynamic angewendet")
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 
@@ -243,7 +244,7 @@ class ChunkedPipeline:
                     else:
                         output[out_start + crossfade_len : out_end, :] = chunk_audio[crossfade_len:, :]
 
-        return output
+        return cast(np.ndarray, output)
 
     @staticmethod
     def verify_crossfade(results: list, sample_rate: int) -> list[str]:

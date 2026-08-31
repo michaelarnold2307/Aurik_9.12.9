@@ -30,6 +30,7 @@ import threading
 import time
 from collections import OrderedDict
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 
@@ -152,4 +153,4 @@ def allocate_if_large(shape: tuple[int, ...], dtype: type = np.float32) -> np.nd
     n_bytes = int(np.prod(shape)) * np.dtype(dtype).itemsize
     if n_bytes >= _MEMMAP_THRESHOLD_BYTES:
         return get_memmap_pool().allocate(shape, dtype)
-    return np.empty(shape, dtype=dtype)
+    return cast(np.ndarray, (np.empty(shape, dtype=dtype)))

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -113,14 +114,13 @@ def compute_optimal_alignment(
             if abs(subpixel_offset) < 1.0:
                 shift_samples += subpixel_offset
 
-    correlation = abs(peak_val) / (ref_std * tgt_std + 1e-12)
-    correlation = min(float(correlation), 1.0)
+    correlation = min(float(abs(peak_val) / (ref_std * tgt_std + 1e-12)), 1.0)
 
-    was_adjusted = correlation >= CORRELATION_THRESHOLD and abs(shift_samples) > 0.25
+    was_adjusted = bool(correlation >= CORRELATION_THRESHOLD and abs(shift_samples) > 0.25)
 
     return AlignmentResult(
         shift_samples=shift_samples if was_adjusted else 0.0,
-        correlation=correlation,
+        correlation=float(correlation),
         was_adjusted=was_adjusted,
     )
 
@@ -168,7 +168,7 @@ def apply_phase_aligned_crossfade(
         len(chunk_b_aligned) - fade_samples, fade_samples, is_first=False
     )
 
-    return result
+    return cast(np.ndarray, result)
 
 
 def _build_weight(length: int, fade_samples: int, *, is_first: bool) -> np.ndarray:
@@ -178,7 +178,7 @@ def _build_weight(length: int, fade_samples: int, *, is_first: bool) -> np.ndarr
         w[-fade_samples:] = (0.5 * (1.0 + np.cos(np.pi * np.arange(fade_samples) / fade_samples))).astype(np.float32)
     elif not is_first and fade_samples < length:
         w[:fade_samples] = (0.5 * (1.0 - np.cos(np.pi * np.arange(fade_samples) / fade_samples))).astype(np.float32)
-    return w
+    return cast(np.ndarray, w)
 
 
 def should_skip_alignment(overlap: np.ndarray, sr: int, erb_masker=None) -> bool:
@@ -199,14 +199,12 @@ def should_skip_alignment(overlap: np.ndarray, sr: int, erb_masker=None) -> bool
 
     # Check against ERB masking threshold
     try:
-        from backend.core.erb_auditory_masking import ERBMaskingThreshold
-
-        masker = erb_masker or ERBMaskingThreshold()
+        masker = erb_masker
         threshold = masker.compute_masking_threshold(overlap, sr)
         residual_db = 10.0 * np.log10(energy + 1e-12)
         threshold_db = 10.0 * np.log10(np.mean(threshold) + 1e-12)
 
         # If residual is >20 dB below masking threshold, alignment is unnecessary
-        return residual_db < threshold_db - 20.0
+        return cast(bool, residual_db < threshold_db - 20.0)
     except Exception:
         return False

@@ -30,7 +30,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -900,7 +900,7 @@ class AutonomousRestorationEngine:
             return _uv3.restore(audio, sample_rate, **_kwargs)  # type: ignore[return-value]
         except Exception:
             # Fallback: einfache Gain-Anpassung als Baseline
-            return np.asarray(audio, dtype=np.float32)
+            return cast(np.ndarray, (np.asarray(audio, dtype=np.float32)))
 
     @staticmethod
     def _estimate_snr_improvement(original: np.ndarray, processed: np.ndarray) -> float:

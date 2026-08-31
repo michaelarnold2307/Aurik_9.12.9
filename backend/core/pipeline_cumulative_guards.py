@@ -380,7 +380,7 @@ class GrooveHardGuard:
                 return 0
             # Onset = Energie-Anstieg > Faktor 2 zum Vorgänger
             energy_prev = np.concatenate([[energy[0]], energy[:-1]])
-            onsets = np.sum((energy > energy_prev * 2.0) & (energy > 1e-8))
+            onsets = int(np.sum((energy > energy_prev * 2.0) & (energy > 1e-8)))
             return int(onsets)
         except Exception:
             return 0

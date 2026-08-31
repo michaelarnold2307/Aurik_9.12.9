@@ -12,6 +12,7 @@ Chain: BWReconstructor → DeepFilterNet (40% Wet — Patina-Erhalt)
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -82,6 +83,6 @@ def restore(audio: np.ndarray, sample_rate: int, **kwargs) -> np.ndarray:
 
         _dsp_result = _dsp_restore(audio, sample_rate, **kwargs)
         if hasattr(_dsp_result, "audio"):
-            return np.asarray(_dsp_result.audio, dtype=np.float32)
+            return cast(np.ndarray, (np.asarray(_dsp_result.audio, dtype=np.float32)))
 
-    return np.clip(result, -1.0, 1.0).astype(np.float32)
+    return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))

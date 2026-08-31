@@ -8,6 +8,7 @@ Imported by UnifiedRestorerV3 to validate every phase call.
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -41,7 +42,7 @@ def guard_phase_input(audio: np.ndarray, sample_rate: int, phase_id: str) -> np.
     if audio.ndim == 2 and audio.shape[0] > 2 and audio.shape[1] > 2:
         raise ValueError(f"PhaseContract [{phase_id}]: ambiguous shape {audio.shape}")
 
-    return np.ascontiguousarray(audio, dtype=np.float32)
+    return cast(np.ndarray, (np.ascontiguousarray(audio, dtype=np.float32)))
 
 
 def guard_phase_output(result, audio_in: np.ndarray, phase_id: str) -> PhaseResult:

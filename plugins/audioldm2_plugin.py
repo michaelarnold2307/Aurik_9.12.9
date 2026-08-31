@@ -27,6 +27,7 @@ import logging
 import threading
 import time
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 
@@ -219,7 +220,7 @@ def _ddim_scheduler(
         # Clamp for stability
         latent = np.clip(latent, -10.0, 10.0)
 
-    return latent.astype(np.float32)
+    return cast(np.ndarray, latent.astype(np.float32))
 
 
 # Pre-computed alpha_bar for efficiency (linear beta schedule, T=1000)
@@ -293,7 +294,7 @@ def _get_clap_embeddings(prompt: str) -> np.ndarray | None:
             else:
                 pad_w = _AUDIOLDM2_CROSSATTENTION_DIM - emb.shape[2]
                 emb = np.pad(emb, ((0, 0), (0, 0), (0, pad_w)))
-        return np.asarray(emb, dtype=np.float32)
+        return cast(np.ndarray | None, (np.asarray(emb, dtype=np.float32)))
     except Exception as exc:
         logger.debug("AudioLDM2: CLAP encode_text fehlgeschlagen: %s", exc)
         return None
@@ -406,7 +407,7 @@ def _latent_to_audio(latent: np.ndarray, target_duration_s: float) -> np.ndarray
                 audio = audio[:target_samples]
             elif len(audio) < target_samples:
                 audio = np.pad(audio, (0, target_samples - len(audio)))
-            return audio.astype(np.float32)
+            return cast(np.ndarray, audio.astype(np.float32))
 
         except Exception as exc:
             logger.debug("AudioLDM2 VAE decoder fehlgeschlagen: %s — falling back to Griffin-Lim", exc)
@@ -445,7 +446,7 @@ def _latent_to_audio_fallback(latent: np.ndarray, target_duration_s: float) -> n
         audio = audio[:target_samples]
     elif len(audio) < target_samples:
         audio = np.pad(audio, (0, target_samples - len(audio)))
-    return audio.astype(np.float32)
+    return cast(np.ndarray, audio.astype(np.float32))
 
 
 def _mel_to_audio(mel_spec: np.ndarray, sample_rate: int, hop_length: int) -> np.ndarray:
@@ -459,7 +460,7 @@ def _mel_to_audio(mel_spec: np.ndarray, sample_rate: int, hop_length: int) -> np
             # HiFi-GAN expects mel in a specific format
             audio = hifigan.mel_to_audio(mel_spec.astype(np.float32))  # type: ignore[attr-defined]
             if audio is not None and len(audio) > 0:
-                return np.asarray(audio, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(audio, dtype=np.float32)))
     except Exception as exc:
         logger.debug("HiFi-GAN nicht verfuegbar, using Griffin-Lim: %s", exc)
 
@@ -499,7 +500,7 @@ def _mel_to_audio_griffin_lim(
             stft = librosa.stft(audio, n_fft=n_fft, hop_length=hop_length)
             spec_complex = np.abs(stft) * (spec_complex / np.maximum(np.abs(spec_complex), 1e-8))
 
-        return audio.astype(np.float32)
+        return cast(np.ndarray, audio.astype(np.float32))
     except Exception:
         # Ultra-fallback: random noise shaped by mel envelope
         _n_samples = hop_length * (mel_spec.shape[1] - 1) + 1024
@@ -611,7 +612,7 @@ class AudioLDM2Plugin:
 
             # 5. Decode latent to audio
             audio = _latent_to_audio(latent, duration)
-            return np.clip(audio, -1.0, 1.0).astype(np.float32)
+            return cast(np.ndarray, (np.clip(audio, -1.0, 1.0).astype(np.float32)))
 
         except Exception as exc:
             logger.warning("AudioLDM2: generation fehlgeschlagen: %s", exc, exc_info=True)
@@ -648,7 +649,7 @@ class AudioLDM2Plugin:
         """
         if not self._ok:
             logger.debug("AudioLDM2 denoise: model not loaded, returning original")
-            return np.asarray(audio, dtype=np.float32)
+            return cast(np.ndarray, (np.asarray(audio, dtype=np.float32)))
 
         audio = np.nan_to_num(np.asarray(audio, dtype=np.float32), nan=0.0, posinf=0.0, neginf=0.0)
         was_stereo = audio.ndim == 2 and audio.shape[0] == 2
@@ -734,11 +735,11 @@ class AudioLDM2Plugin:
                 duration,
                 prompt,
             )
-            return denoised.astype(np.float32)
+            return cast(np.ndarray, denoised.astype(np.float32))
 
         except Exception as exc:
             logger.warning("AudioLDM2 denoise failed: %s — returning original", exc)
-            return np.asarray(audio, dtype=np.float32)
+            return cast(np.ndarray, (np.asarray(audio, dtype=np.float32)))
 
     def _run_unet(
         self,
@@ -772,7 +773,7 @@ class AudioLDM2Plugin:
         }
 
         outputs = self._session.run(None, inputs)
-        return np.asarray(outputs[0], dtype=np.float32)
+        return cast(np.ndarray, (np.asarray(outputs[0], dtype=np.float32)))
 
     def _fallback_noise(self, duration: float) -> np.ndarray:
         """Generate shaped noise as fallback when generation fails."""
@@ -786,7 +787,7 @@ class AudioLDM2Plugin:
             noise[:fade_n] *= fade_in
             noise[-fade_n:] *= fade_out
         noise = np.clip(noise * 0.3, -1.0, 1.0)  # low amplitude
-        return noise.astype(np.float32)
+        return cast(np.ndarray, noise.astype(np.float32))
 
     def unload(self) -> None:
         """Release ONNX session memory."""

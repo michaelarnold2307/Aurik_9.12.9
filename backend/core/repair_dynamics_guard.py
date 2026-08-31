@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -298,7 +298,7 @@ class RepairDynamicsGuard:
         r1 = min(n_total, repair_end)
         repair_len = r1 - r0
         if repair_len < 4:
-            return result
+            return cast(np.ndarray, result)
 
         ctx_samples = int(sr * context_ms / 1000.0)
         xfade_samples = min(int(sr * crossfade_ms / 1000.0), repair_len // 4)
@@ -360,7 +360,7 @@ class RepairDynamicsGuard:
         # ── 9. Overshoot-Schutz ──
         result = np.clip(result, -1.0, 1.0).astype(np.float32)
 
-        return result
+        return cast(np.ndarray, result)
 
     # ────────────────────────────────────────────────────────────────────────
     # VERIFICATION (alle sechs Säulen)
@@ -615,10 +615,10 @@ class RepairDynamicsGuard:
 def _get_channel(data: np.ndarray, channel: int | None) -> np.ndarray:
     """Kanal aus 1D/2D extrahieren, ggf. Mono-Mix."""
     if data.ndim == 2 and channel is not None:
-        return np.asarray(data[channel], dtype=np.float32)
+        return cast(np.ndarray, (np.asarray(data[channel], dtype=np.float32)))
     elif data.ndim == 2:
-        return np.asarray(np.mean(data, axis=0), dtype=np.float32)
-    return np.asarray(data, dtype=np.float32)
+        return cast(np.ndarray, (np.asarray(np.mean(data, axis=0), dtype=np.float32)))
+    return cast(np.ndarray, (np.asarray(data, dtype=np.float32)))
 
 
 def _flat_target(data: np.ndarray, channel: int | None) -> np.ndarray:
@@ -631,13 +631,13 @@ def _get_slice(data: np.ndarray, channel: int | None, start: int, end: int) -> n
     s = max(0, start)
     if data.ndim == 2 and channel is not None:
         e = min(data.shape[1], end)
-        return np.asarray(data[channel, s:e], dtype=np.float32)
+        return cast(np.ndarray, (np.asarray(data[channel, s:e], dtype=np.float32)))
     elif data.ndim == 2:
         e = min(data.shape[1], end)
-        return np.asarray(np.mean(data[:, s:e], axis=0), dtype=np.float32)
+        return cast(np.ndarray, (np.asarray(np.mean(data[:, s:e], axis=0), dtype=np.float32)))
     else:
         e = min(len(data), end)
-        return np.asarray(data[s:e], dtype=np.float32)
+        return cast(np.ndarray, (np.asarray(data[s:e], dtype=np.float32)))
 
 
 def _band_rms(segment: np.ndarray, sr: int, lo_hz: float, hi_hz: float) -> float:

@@ -22,7 +22,7 @@ Author: Aurik v10.0.0
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
@@ -58,7 +58,7 @@ def build_strength_envelope(
 
     if not section_targets:
         logger.debug("SectionStrengthEnvelope: no targets → uniform %.2f", _DEFAULT_STRENGTH)
-        return envelope
+        return cast(np.ndarray, envelope)
 
     # Sort by start time
     sorted_targets = sorted(section_targets, key=lambda s: s.start_s)
@@ -155,7 +155,7 @@ def build_strength_envelope(
         float(np.mean(envelope)),
     )
 
-    return envelope
+    return cast(np.ndarray, envelope)
 
 
 def get_section_strength_at(

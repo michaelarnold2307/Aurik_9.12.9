@@ -17,7 +17,7 @@ Nutzung:
 from __future__ import annotations
 
 import time
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -141,7 +141,7 @@ class FastGoalProxy:
         goals["tonales_zentrum"] = _score(chroma_peak, 1.5, 4.0)
 
         # Mikro-Dynamik: Frame-zu-Frame-Varianz
-        goals["micro_dynamics"] = _score(np.std(np.diff(frame_rms)) if n_frames > 2 else 0, 0.001, 0.02)
+        goals["micro_dynamics"] = _score(float(np.std(np.diff(frame_rms))) if n_frames > 2 else 0.0, 0.001, 0.02)
 
         # Separation-Treue: Spektrale Schärfe
         goals["separation_fidelity"] = _score(spectral_centroid / len(spec), 0.05, 0.18)
@@ -167,7 +167,7 @@ def _bark_band_energy(audio: np.ndarray, sr: int) -> np.ndarray:
     for i in range(len(_BARK_EDGES) - 1):
         mask = (freqs >= _BARK_EDGES[i]) & (freqs < _BARK_EDGES[i + 1])
         energy[i] = np.sum(spec[mask] ** 2)
-    return energy
+    return cast(np.ndarray, energy)
 
 
 def _onset_density(audio: np.ndarray, sr: int) -> float:
@@ -181,7 +181,7 @@ def _onset_density(audio: np.ndarray, sr: int) -> float:
     # Spectral flux approximation
     flux = np.diff(energy)
     threshold = np.mean(flux) + 0.5 * np.std(flux)
-    onsets = np.sum(flux > threshold)
+    onsets = int(np.sum(flux > threshold))
     duration_s = len(audio) / sr
     return onsets / max(duration_s, 0.01)  # type: ignore[no-any-return]
 
@@ -192,7 +192,7 @@ def _harmonic_density(spec: np.ndarray) -> float:
         return 0.0
     # Finde lokale Peaks
     peaks = (spec[1:-1] > spec[:-2]) & (spec[1:-1] > spec[2:])
-    peak_energy = np.sum(spec[1:-1][peaks] ** 2)
+    peak_energy = float(np.sum(spec[1:-1][peaks] ** 2))
     total_energy = np.sum(spec**2) + 1e-10
     return float(peak_energy / total_energy)
 

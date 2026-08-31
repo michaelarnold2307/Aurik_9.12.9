@@ -29,6 +29,7 @@ Verwendung:
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 from scipy.signal import istft, stft
@@ -131,7 +132,7 @@ class PhaseCoherentSTFT:
         """
         if not self._captured or self._original_phase is None:
             logger.debug("PhaseCoherentSTFT.wiederherstellen: keine Verarbeitungsschritt gespeichert — Passthrough")
-            return np.asarray(audio, dtype=np.float32)
+            return cast(np.ndarray, (np.asarray(audio, dtype=np.float32)))
 
         a = np.asarray(audio, dtype=np.float64)
         was_stereo = a.ndim == 2 and a.shape[1] >= 2
@@ -167,7 +168,7 @@ class PhaseCoherentSTFT:
                 restored = np.pad(restored, (0, pad_len), mode="edge")
 
         logger.debug("PhaseCoherentSTFT: Verarbeitungsschritt wiederhergestellt")
-        return np.asarray(restored, dtype=np.float32)
+        return cast(np.ndarray, (np.asarray(restored, dtype=np.float32)))
 
     # ── Internals ────────────────────────────────────────────────────────
 
@@ -205,10 +206,10 @@ class PhaseCoherentSTFT:
                 noverlap=self._noverlap,
                 boundary=True,
             )
-            return np.asarray(reconstructed, dtype=np.float32)
+            return cast(np.ndarray, (np.asarray(reconstructed, dtype=np.float32)))
         except Exception as exc:
             logger.warning("PhaseCoherentSTFT._wiederherstellen_channel fehlgeschlagen (%s) — Passthrough", exc)
-            return np.asarray(channel, dtype=np.float32)
+            return cast(np.ndarray, (np.asarray(channel, dtype=np.float32)))
 
 
 def restore_phase_coherence(

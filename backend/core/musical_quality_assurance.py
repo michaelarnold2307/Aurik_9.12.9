@@ -1221,8 +1221,8 @@ class MusicalQualityAssurance:
                 from backend.core.blind_internal_reference import get_blind_internal_reference
 
                 _bir = get_blind_internal_reference()
-                _bir_vec = _bir.compute(processed_audio, sample_rate)
-                _bir_best = float(_bir_vec.get("best_Wert", 0.5))
+                _bir_vec = _bir.find(processed_audio, sample_rate)
+                _bir_best = float(getattr(_bir_vec, "best_score", 0.5))
                 if _bir_best > 0.55:
                     musical_improvement = max(musical_improvement, _bir_best * 0.15)
                     logger.debug("MQA: BIR best_Wert=%.3f → musical_improvement=%.3f", _bir_best, musical_improvement)
@@ -1338,8 +1338,8 @@ class MusicalQualityAssurance:
             from backend.core.blind_internal_reference import get_blind_internal_reference
 
             _bir = get_blind_internal_reference()
-            _bir_vec = _bir.compute(processed_audio, sample_rate)
-            _bir_score = float(np.clip(_bir_vec.get("best_Wert", 0.5), 0.0, 1.0))
+            _bir_vec = _bir.find(processed_audio, sample_rate)
+            _bir_score = float(np.clip(getattr(_bir_vec, "best_score", 0.5), 0.0, 1.0))
             logger.debug("MQA: BIR-Qualitätsvektor best_Wert=%.3f", _bir_score)
         except Exception as _bir_exc:
             logger.debug("MQA: BIR-Vektor nicht verfügbar (%s)", _bir_exc)

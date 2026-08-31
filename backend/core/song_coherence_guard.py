@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -218,7 +218,7 @@ class SongCoherenceGuard:
             "+".join(issues),
             "+".join(fix_desc),
         )
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     def _adaptive_stitch(self, segments: list[np.ndarray], profiles: list[CoherenceProfile], sr: int) -> np.ndarray:
         """Sticht Segmente mit adaptiven Cross-Fades (länger bei Sprüngen)."""

@@ -118,7 +118,7 @@ class CalibrationContext:
     # Optionale Messwerte (mit Defaults, die physikalisch neutral sind)
     snr_db: float = 30.0
     bandwidth_hz: float = 20000.0
-    era_decade: int = 1980
+    era_decade: int | None = 1980
     genre: str = "unknown"
     vocal_confidence: float = 0.0
 

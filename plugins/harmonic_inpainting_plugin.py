@@ -24,7 +24,7 @@ import logging
 import sys
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -216,7 +216,7 @@ class HarmonicInpaintingPlugin:
                 v = self._model(x, t_val)  # [1, T, 1]
             v_np = v.squeeze().cpu().numpy().astype(np.float32)
             out = attenuated + (v_np * mask)  # nur Inpainting-Regionen
-            return (np.clip(out, -1.0, 1.0) * peak).astype(np.float32)[: len(chunk)]
+            return cast(np.ndarray | None, ((np.clip(out, -1.0, 1.0) * peak).astype(np.float32)[: len(chunk)]))
         except Exception as exc:
             logger.debug("HarmonicInpainting Chunk-Fehler: %s", exc)
             return None
@@ -271,7 +271,7 @@ class HarmonicInpaintingPlugin:
                 import librosa
 
                 out = librosa.resample(out, orig_sr=_SR, target_sr=sr).astype(np.float32)
-            return np.clip(out, -1.0, 1.0)
+            return cast(np.ndarray | None, (np.clip(out, -1.0, 1.0)))
         except Exception as exc:
             logger.debug("HarmonicInpainting enhance Fehler: %s", exc)
             return None

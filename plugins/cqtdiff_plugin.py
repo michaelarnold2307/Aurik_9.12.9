@@ -29,6 +29,7 @@ import logging
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 
@@ -165,8 +166,8 @@ class CQTdiffPlusPlugin:
                     try:
                         import torch
 
-                        self._ts_model = torch.jit.load(str(ts_path), map_location="cpu")
-                        self._ts_model.eval()
+                        self._ts_model = cast(Any, torch.jit.load(str(ts_path), map_location="cpu"))
+                        cast(Any, self._ts_model).eval()
                         self._model_loaded = True
                         logger.info("🔵 CQTdiff: TorchScript geladen (%s)", ts_path)
                         return

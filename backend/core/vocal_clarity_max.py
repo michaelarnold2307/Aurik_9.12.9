@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -75,7 +75,7 @@ class VocalClarityMax:
             vocal_mask = self._detect_vocal_regions(mono, sr)
 
         if not np.any(vocal_mask):
-            return result
+            return cast(np.ndarray, result)
 
         # ── 1. Vocal Presence Recovery (2-6 kHz) ──
         # Dynamischer EQ: hebt Presence nur in vocal-active Zonen an
@@ -172,7 +172,7 @@ class VocalClarityMax:
                 logger.warning("vocal_clarity_max.py::unbekannter Ersatzpfad: %s", e)
 
         self._reports.append(report)
-        return result
+        return cast(np.ndarray, result)
 
     def _detect_vocal_regions(self, audio: np.ndarray, sr: int) -> np.ndarray:
         """Erkennt Gesangszonen via Energie + spektralem Schwerpunkt."""
@@ -180,7 +180,7 @@ class VocalClarityMax:
         win = int(sr * 0.025)
         hop = win // 2
         if win < 64 or n < win:
-            return np.ones(n, dtype=bool)
+            return cast(np.ndarray, (np.ones(n, dtype=bool)))
 
         mask = np.zeros(n, dtype=bool)
         for i in range(0, n - win, hop):
@@ -193,7 +193,7 @@ class VocalClarityMax:
             if rms > 0.01 and 400 < centroid < 3000:
                 mask[i : i + win] = True
 
-        return mask
+        return cast(np.ndarray, mask)
 
     def _measure_breath_energy(self, audio: np.ndarray, sr: int, vocal_mask: np.ndarray) -> float:
         """Misst Atem-Energie in 8-12 kHz auf vocal_mask."""

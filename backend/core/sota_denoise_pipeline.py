@@ -34,7 +34,7 @@ import math
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 from scipy import signal as scipy_signal
@@ -224,7 +224,7 @@ class AdaptiveSpectralSubtractor:
                 center_freq = (low + high) / 2
                 sensitivity = 1.0 + 0.5 * np.exp(-(((center_freq - 2000) / 1000) ** 2))
                 weights[mask] = sensitivity
-        return weights
+        return cast(np.ndarray, weights)
 
     def _build_hearing_threshold(self) -> np.ndarray:
         """Absolute Hörschwelle (Fletcher-Munson), linear skaliert."""
@@ -240,7 +240,7 @@ class AdaptiveSpectralSubtractor:
             ),
         )
         threshold_db = np.clip(threshold_db, -10, 70)
-        return 10 ** (threshold_db / 20)  # dB → linear
+        return cast(np.ndarray, 10 ** (threshold_db / 20))  # dB → linear
 
     def process(
         self,
@@ -296,7 +296,7 @@ class AdaptiveSpectralSubtractor:
         crossfade = 1.0 - strength * noise_profile.confidence
         result = result_padded * (1 - crossfade) + audio * crossfade
 
-        return result.astype(np.float32)
+        return cast(np.ndarray, result.astype(np.float32))
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -354,7 +354,7 @@ class TransientProtector:
 
     def recombine(self, transients: np.ndarray, denoised_sustained: np.ndarray) -> np.ndarray:
         """Fügt geschützte Transienten und entrauschten Stationär-Anteil zusammen."""
-        return (transients + denoised_sustained).astype(np.float32)
+        return cast(np.ndarray, (transients + denoised_sustained).astype(np.float32))
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -533,7 +533,7 @@ class SOTADenoisePipeline:
             DenoiseResult mit entrauschtem Audio und Metadaten
         """
         t0 = time.time()
-        layers = []
+        layers: list[Any] = []
 
         # Preprocessing
         if audio.ndim == 1:
@@ -646,4 +646,4 @@ class SOTADenoisePipeline:
         g = math.gcd(orig_sr, target_sr)
         up = target_sr // g
         down = orig_sr // g
-        return scipy_signal.resample_poly(audio.astype(np.float64), up, down).astype(np.float32)
+        return cast(np.ndarray, (scipy_signal.resample_poly(audio.astype(np.float64), up, down).astype(np.float32)))

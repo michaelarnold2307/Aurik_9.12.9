@@ -112,7 +112,7 @@ def compute_perceptual_threshold(
         # Effektive Schwelle = max(Hörschwelle, Maskierung) + JND
         threshold_db[b] = float(max(hearing, spread_contrib) + jnd)
 
-    return threshold_db
+    return cast(np.ndarray, threshold_db)
 
 
 def should_skip_phase(
@@ -252,4 +252,7 @@ def perceptual_loudness_normalize(
             ]
         ).astype(np.float32)
 
-    return np.clip(output, -1.0, 1.0)
+    return cast(np.ndarray, (np.clip(output, -1.0, 1.0)))
+
+
+from typing import cast

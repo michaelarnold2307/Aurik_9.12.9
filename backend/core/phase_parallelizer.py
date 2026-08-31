@@ -30,7 +30,7 @@ import logging
 import os
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -130,7 +130,7 @@ class ParallelPhaseExecutor:
                 # Blend: 50% original + 50% group result
                 result = 0.5 * result + 0.5 * group_audio.astype(np.float64)
 
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     def _execute_group(
         self,

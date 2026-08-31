@@ -7,6 +7,7 @@ Natural-sounding HF extension without ML model dependency.
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -40,7 +41,7 @@ def _sbr_extend(audio: np.ndarray, sr: int) -> np.ndarray:
         # Find the effective upper bandwidth of the material
         # (frequency above which mean energy drops below -40 dB of peak)
         mean_mag = np.mean(mag, axis=1)
-        peak_mag = np.max(mean_mag)
+        peak_mag = float(np.max(mean_mag))
         if peak_mag < 1e-10:
             return audio  # silence
 
@@ -101,7 +102,7 @@ def _sbr_extend(audio: np.ndarray, sr: int) -> np.ndarray:
             # Build destination envelope: resample source envelope to dst bins
             # with natural HF roll-off continuing the source tilt
             env_src = src_smooth[:, t]
-            env_max = np.max(env_src)
+            env_max = float(np.max(env_src))
             if env_max < 1e-10:
                 continue
 
@@ -130,7 +131,7 @@ def _sbr_extend(audio: np.ndarray, sr: int) -> np.ndarray:
         # --- Step 4: Reconstruct ---
         D_new = mag * np.exp(1j * phase)
         y = _librosa_istft(D_new, hop_length=hop, length=len(audio))
-        return np.asarray(y, dtype=np.float32)
+        return cast(np.ndarray, (np.asarray(y, dtype=np.float32)))
 
     except Exception as e:
         logger.warning("sbr_extend.py::_sbr_extend Ersatzpfad: %s", e)

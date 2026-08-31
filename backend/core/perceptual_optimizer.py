@@ -22,7 +22,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -333,7 +333,7 @@ class PerceptualOptimizer:
                 ]
                 pos += seg_len - 2 * crossfade_samples
 
-        return result
+        return cast(np.ndarray, result)
 
     def _perceptual_score(self, audio: np.ndarray, sr: int) -> float:
         """Berechnet einen kombinierten Perceptual-Score (0-1)."""

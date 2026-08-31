@@ -14,6 +14,7 @@ Algorithmus:
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -53,14 +54,14 @@ class VocalScratchRepair:
             vocal_mask = self._detect_vocal_zones(mono, sr)
 
         if not np.any(vocal_mask):
-            return result
+            return cast(np.ndarray, result)
 
         # ── Kratzer-Detektion in Gesangszonen ──
         # Suche nach scharfen Transienten im Hochtonbereich (>3 kHz)
         scratches = self._detect_scratches(mono, sr, vocal_mask, threshold_db, max_repair_ms)
 
         if not scratches:
-            return result
+            return cast(np.ndarray, result)
 
         logger.info("§AO VocalScratchRepair: %d Kratzer in Gesangszonen gefunden", len(scratches))
 
@@ -106,7 +107,7 @@ class VocalScratchRepair:
                 else:
                     result[s_start:s_end] = combined[: s_end - s_start]
 
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     def _detect_scratches(
         self, audio: np.ndarray, sr: int, vocal_mask: np.ndarray, threshold_db: float, max_ms: float
@@ -166,7 +167,7 @@ class VocalScratchRepair:
         win = int(sr * 0.025)
         hop = win // 2
         if win < 64 or n < win:
-            return np.ones(n, dtype=bool)
+            return cast(np.ndarray, (np.ones(n, dtype=bool)))
 
         mask = np.zeros(n, dtype=bool)
         for i in range(0, n - win, hop):
@@ -178,4 +179,4 @@ class VocalScratchRepair:
             # Vocal: moderate RMS, centroid 400–3000 Hz
             if rms > 0.005 and 400 < centroid < 3000:
                 mask[i : i + win] = True
-        return mask
+        return cast(np.ndarray, mask)

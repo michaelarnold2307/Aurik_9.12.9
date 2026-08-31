@@ -22,7 +22,7 @@ Algorithm:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -69,7 +69,7 @@ class CrossChannelRepair:
         """
         result = np.asarray(audio, dtype=np.float32).copy()
         if audio.ndim < 2 or audio.shape[0] < 2:
-            return result  # mono → kein Cross-Channel-Repair möglich
+            return cast(np.ndarray, result)  # mono → kein Cross-Channel-Repair möglich
 
         healthy_ch = 1 - affected_channel
         healthy = result[healthy_ch]
@@ -77,7 +77,7 @@ class CrossChannelRepair:
         n = min(dropout_len, len(healthy) - dropout_start, len(damaged) - dropout_start)
 
         if n < 10:
-            return result
+            return cast(np.ndarray, result)
 
         # Cross-fade Regionen: 10ms vorher und nachher
         fade_in = min(int(sr * 0.010), n // 3)  # 10ms
@@ -158,7 +158,7 @@ class CrossChannelRepair:
                 logger.warning("cross_channel_repair.py::unbekannter Ersatzpfad: %s", e)
 
         self._repair_boundaries.append((affected_channel, repair_start, repair_end))
-        return result
+        return cast(np.ndarray, result)
 
     def repair_click(
         self,
@@ -178,7 +178,7 @@ class CrossChannelRepair:
         """
         result = np.asarray(audio, dtype=np.float32).copy()
         if audio.ndim < 2 or audio.shape[0] < 2:
-            return result
+            return cast(np.ndarray, result)
 
         healthy_ch = 1 - affected_channel
         n = len(audio[0])
@@ -217,7 +217,7 @@ class CrossChannelRepair:
             )
 
         self._repair_boundaries.append((affected_channel, start, end))
-        return result
+        return cast(np.ndarray, result)
 
     def verify_global_dynamics(
         self,

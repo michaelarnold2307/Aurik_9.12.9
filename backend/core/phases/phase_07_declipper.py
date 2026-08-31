@@ -49,7 +49,7 @@ PERFORMANCE:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -218,11 +218,11 @@ def _declip_pchip(audio: np.ndarray, threshold: float) -> np.ndarray:
         declipped = blend * declipped + (1.0 - blend) * audio
 
     # Normalisierung: PCHIP kann über 1.0 hinausgehen
-    max_val = np.max(np.abs(declipped))
+    max_val = float(np.max(np.abs(declipped)))
     if max_val > 1.0:
         declipped = np.clip(declipped, -1.0, 1.0)
 
-    return declipped.astype(audio.dtype, copy=False)
+    return cast(np.ndarray, (declipped.astype(audio.dtype, copy=False)))
 
 
 class DeclipperPhase(PhaseInterface):

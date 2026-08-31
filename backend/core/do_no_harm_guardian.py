@@ -371,7 +371,7 @@ class DoNoHarmGuardian:
             _spec_db -= np.max(_spec_db)
             _spec_lin = 10.0 ** (_spec_db / 20.0)
             _spec_norm = _spec_lin / (np.sum(_spec_lin) + 1e-10)
-            _entropy = -np.sum(_spec_norm * np.log2(_spec_norm + 1e-10))
+            _entropy = float(-np.sum(_spec_norm * np.log2(_spec_norm + 1e-10)))
             _max_entropy = np.log2(len(_spec_norm))
             naturalness = float(np.clip(_entropy / max(_max_entropy, 1.0), 0.0, 1.0))
         except Exception:

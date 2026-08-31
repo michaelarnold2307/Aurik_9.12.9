@@ -26,6 +26,7 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 
@@ -86,8 +87,8 @@ try:
     from backend.core.ml_memory_budget import release as _ml_budget_release
     from backend.core.ml_memory_budget import try_allocate as _ml_budget_try_allocate
 except ImportError:
-    _ml_budget_try_allocate = None
-    _ml_budget_release = None
+    _ml_budget_try_allocate = cast(Any, None)
+    _ml_budget_release = cast(Any, None)
 
 
 @dataclass
@@ -185,8 +186,9 @@ class MiipherDiTPlugin:
             # PLM-Registrierung (§4.6b)
             if _PLM_AVAILABLE:
                 try:
-                    _plm = get_plugin_lifecycle_manager()
-                    _plm.register_plugin(
+                    from backend.core.plugin_lifecycle_manager import register_plugin as _plm_register
+
+                    _plm_register(
                         self._BUDGET_NAME,
                         size_gb=self._BUDGET_SIZE_GB,
                         unload_fn=self.unload,
@@ -236,7 +238,7 @@ class MiipherDiTPlugin:
             else:
                 _restored = _restored[: len(audio)]
 
-            return _restored.astype(np.float32)
+            return cast(np.ndarray, _restored.astype(np.float32))
         except Exception:
             return audio  # Fail-safe: Original zurück
 
@@ -394,10 +396,10 @@ class MiipherDiTPlugin:
         _input = (audio_mono / _peak).astype(np.float32)
         _input_onnx = _input.reshape(1, -1, 1)
         _t = np.array([0.5], dtype=np.float32)
-        _velocity = self._ort_session.run(None, {"x": _input_onnx, "t": _t})[0]
+        _velocity = cast(Any, self._ort_session).run(None, {"x": _input_onnx, "t": _t})[0]
         # Flow-Matching: ŷ = x + (1-t) · v̂
         _corrected = _input_onnx + (1.0 - _t[0]) * _velocity.reshape(1, -1, 1)
-        return _corrected.reshape(-1).astype(np.float32) * _peak
+        return cast(np.ndarray, _corrected.reshape(-1).astype(np.float32) * _peak)
 
     def _enhance_chunked(self, audio_mono: np.ndarray, sr: int) -> np.ndarray:
         """Chunked-Processing für lange Songs via Auriks ChunkedPipeline.

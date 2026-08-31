@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 
@@ -256,7 +257,7 @@ class DefectPrecisionEnhancer:
             except Exception:
                 logger.debug("Precision repair %d at sample %d fehlgeschlagen, skipping", i, d.start_sample)
 
-        return result
+        return cast(np.ndarray, result)
 
     def verify_repair(
         self,

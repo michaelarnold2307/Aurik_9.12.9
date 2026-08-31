@@ -6,7 +6,7 @@ Ein Aufruf: export_for(audio, sr, "spotify") → -14 LUFS, -1 dBTP.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -44,7 +44,7 @@ def export_for(audio: np.ndarray, sr: int, platform: str = "spotify") -> np.ndar
         result = np.clip(result, -ceiling, ceiling)
 
     logger.info("PlatformExport [%s]: LUFS target=%.0f, gain=%.1fdB", preset["name"], target_lufs, 20 * np.log10(gain))
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def list_platforms() -> list[dict[str, Any]]:

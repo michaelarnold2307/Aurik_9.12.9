@@ -189,7 +189,7 @@ def rerank_defects_perceptual(
     try:
         import librosa
 
-        onset_frames = librosa.onset.onset_detect(
+        onset_frames = librosa.onset.onset_detect(  # type: ignore[attr-defined]  # librosa-Stubs exportieren onset nicht
             y=mono[: min(len(mono), sr * 30)],
             sr=sr,
             hop_length=512,

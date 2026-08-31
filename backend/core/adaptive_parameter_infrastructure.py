@@ -12,16 +12,18 @@ song-individuelle, aus dem Signal berechnete Werte.
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 
 
 def _mono(audio: np.ndarray) -> np.ndarray:
     """§2.51 Layout-sichere Mono-Konversion: mean(axis=0) kollabierte channels-last (N,2) auf (2,)."""
     if audio.ndim == 1:
-        return np.asarray(audio)
+        return cast(np.ndarray, np.asarray(audio))
     from backend.core.audio_utils import safe_to_mono  # local import: vermeidet Zyklen
 
-    return np.asarray(safe_to_mono(audio))
+    return cast(np.ndarray, np.asarray(safe_to_mono(audio)))
 
 
 def derive_noise_floor(audio: np.ndarray, sr: int) -> dict:
@@ -151,7 +153,7 @@ def verify_output_quality(original: np.ndarray, processed: np.ndarray, sr: int) 
     # Spektrale Korrelation (wie ähnlich ist die spektrale Hüllkurve?)
     _fft_o = np.abs(np.fft.rfft(orig * np.hanning(n)))
     _fft_p = np.abs(np.fft.rfft(proc * np.hanning(n)))
-    _corr_num = np.sum((_fft_o - np.mean(_fft_o)) * (_fft_p - np.mean(_fft_p)))
+    _corr_num = float(np.sum((_fft_o - np.mean(_fft_o)) * (_fft_p - np.mean(_fft_p))))
     _corr_den = np.sqrt(np.sum((_fft_o - np.mean(_fft_o)) ** 2) * np.sum((_fft_p - np.mean(_fft_p)) ** 2) + 1e-20)
     spectral_correlation = float(_corr_num / _corr_den)
 

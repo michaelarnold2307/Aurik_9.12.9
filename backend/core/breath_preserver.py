@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -170,7 +171,7 @@ def reconstruct_breath(
         result[:n_samples] = result[:n_samples] * (1 - blend * 0.3) + waveform_blend[:n_samples] * blend * 0.3
 
     logger.info("BreathPreserver: Atem rekonstruiert (blend=%.1f)", blend)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def protect_breath(audio: np.ndarray, sr: int = 48000) -> tuple[np.ndarray, BreathMask | None]:

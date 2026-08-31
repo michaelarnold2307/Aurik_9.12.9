@@ -28,6 +28,7 @@ import logging
 import threading
 import time
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 from scipy.signal import resample_poly as _resample_poly
@@ -189,7 +190,7 @@ def _run_flashsr_onnx(audio: np.ndarray, sr: int) -> np.ndarray | None:
         if audio.ndim == 2 and audio.shape[0] == 2:
             result = np.stack([result, result], axis=0)
 
-        return result
+        return cast(np.ndarray | None, result)
 
     except Exception as exc:
         logger.warning("FlashSR ONNX-Inferenz fehlgeschlagen: %s", exc)
@@ -322,7 +323,7 @@ class FlashSRPlugin:
                     ml_result = self._resample(ml_result, out_sr, target_sr)
                 if mono_in and ml_result.ndim > 1:
                     ml_result = ml_result.mean(axis=-1) if ml_result.shape[-1] <= 2 else ml_result[: ml_result.shape[0]]
-                return np.clip(np.nan_to_num(ml_result.astype(np.float32), nan=0.0), -1.0, 1.0)
+                return cast(np.ndarray, (np.clip(np.nan_to_num(ml_result.astype(np.float32), nan=0.0), -1.0, 1.0)))
             logger.debug("FlashSR: ML fehlgeschlagen – DSP-Kaskade aktiv.")
 
         # ---- DSP-Fallback ---------------------------------------------------
@@ -360,7 +361,7 @@ class FlashSRPlugin:
         win = np.hanning(n_fft).astype(np.float32)
         n_frames = (len(x) - n_fft) // hop + 1
         if n_frames <= 0:
-            return np.clip(np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0), -1.0, 1.0)
+            return cast(np.ndarray, (np.clip(np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0), -1.0, 1.0)))
 
         specs = []
         for i in range(n_frames):
@@ -395,7 +396,7 @@ class FlashSRPlugin:
             wsum[i * hop : i * hop + n_fft] += win
         wsum[wsum == 0] = 1.0
         y = y[: len(x)] / wsum[: len(x)]
-        return np.clip(np.nan_to_num(y, nan=0.0, posinf=0.0, neginf=0.0), -1.0, 1.0)
+        return cast(np.ndarray, (np.clip(np.nan_to_num(y, nan=0.0, posinf=0.0, neginf=0.0), -1.0, 1.0)))
 
     def _spectral_exciter(self, x: np.ndarray, sr: int) -> np.ndarray:
         """Harmonische Oberton-Synthese für HF-Erweiterung."""

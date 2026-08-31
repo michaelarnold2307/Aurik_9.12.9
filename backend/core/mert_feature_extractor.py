@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 
@@ -64,7 +65,7 @@ class MERTFeatureExtractor:
         # Inferenz
         outputs = self._session.run(None, {"input_values": audio_batch})
         features = outputs[0]  # [1, frames, 768]
-        return features[0]  # [frames, 768]
+        return cast(np.ndarray, features[0])  # [frames, 768]
 
     def extract_mean(self, audio: np.ndarray, sample_rate: int = 48000) -> np.ndarray:
         """Extrahiert gemittelte MERT-Features (ein Vektor pro Audiodatei).
@@ -72,7 +73,7 @@ class MERTFeatureExtractor:
         Nützlich für Genre-Erkennung oder globale Audio-Klassifikation.
         """
         features = self.extract(audio, sample_rate)
-        return features.mean(axis=0).astype(np.float32)  # [768]
+        return cast(np.ndarray, features.mean(axis=0).astype(np.float32))  # [768]
 
     def extract_segments(self, audio: np.ndarray, sample_rate: int = 48000, segment_s: float = 5.0) -> np.ndarray:
         """Extrahiert MERT-Features in Segmenten (für lange Audiodateien).
@@ -96,7 +97,7 @@ class MERTFeatureExtractor:
             feat = self.extract_mean(segment, sample_rate)
             features.append(feat)
 
-        return np.stack(features, axis=0)
+        return cast(np.ndarray, (np.stack(features, axis=0)))
 
 
 # ── Context-Analyse ────────────────────────────────────────────────────────

@@ -35,7 +35,7 @@ def compute(audio: np.ndarray, sr: int, time_resolution_s: float = 1.0) -> dict[
         spec = np.abs(np.fft.rfft(chunk * np.hanning(len(chunk)), n=n_fft))
 
         # 1. Clicks: hochfrequente Impulse
-        hf_energy = np.sum(spec[freqs >= 6000] ** 2)
+        hf_energy = float(np.sum(spec[freqs >= 6000] ** 2))
         total_energy = np.sum(spec**2) + 1e-10
         heatmap[seg, 0] = float(np.clip(hf_energy / total_energy * 2, 0, 1))
 

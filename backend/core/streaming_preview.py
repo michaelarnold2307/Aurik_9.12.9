@@ -21,7 +21,7 @@ import logging
 import threading
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -116,13 +116,13 @@ class StreamingPreview:
             p3 = DenoisePhase(sample_rate=self.sr)
             r3 = p3.process(chunk, sample_rate=self.sr, material_type="unknown")
             result = apply_comfort_guard(r3.audio, self.sr)
-            return result.astype(np.float32)
+            return cast(np.ndarray, result.astype(np.float32))
         except Exception:
             # Fallback: leichter Lowpass
             from scipy.signal import butter, filtfilt
 
             b, a_coeff = butter(4, 16000 / (self.sr / 2), btype="low")
-            return filtfilt(b, a_coeff, chunk.astype(np.float64)).astype(np.float32)
+            return cast(np.ndarray, (filtfilt(b, a_coeff, chunk.astype(np.float64)).astype(np.float32)))
 
 
 def create_streaming_preview(sample_rate: int = 48000) -> StreamingPreview:

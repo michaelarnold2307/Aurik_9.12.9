@@ -280,7 +280,7 @@ class DefectAnalyzer:
 
         if total_energy > 0:
             ratio = high_freq_energy / total_energy
-            return ratio > 0.1  # type: ignore[no-any-return]  # More than 10% high-freq energy
+            return bool(ratio > 0.1)  # type: ignore[no-any-return]  # More than 10% high-freq energy
 
         return False
 

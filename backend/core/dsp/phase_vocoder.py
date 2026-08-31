@@ -19,6 +19,7 @@ Performance target: <50 ms per 5 s chunk @ 48 kHz on modern CPU.
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -56,7 +57,7 @@ def phase_vocoder_timestretch(
     audio_f = np.nan_to_num(np.asarray(audio, dtype=np.float32), nan=0.0, posinf=0.0, neginf=0.0)
     n_samples = len(audio_f)
     if n_samples < n_fft:
-        return audio_f.copy()
+        return cast(np.ndarray, audio_f.copy())
 
     analysis_hop = n_fft // hop_ratio
 
@@ -86,7 +87,7 @@ def phase_vocoder_timestretch(
 
     # Early exit if no correction needed
     if np.max(np.abs(sf_per_frame - 1.0)) < 0.002:
-        return audio_f.copy()
+        return cast(np.ndarray, audio_f.copy())
 
     # ── Step 1: Analysis STFT ────────────────────────────────────────
     win = np.hanning(n_fft).astype(np.float64)
@@ -94,7 +95,7 @@ def phase_vocoder_timestretch(
 
     # Build analysis frames via sliding_window_view + batched rfft
     if n_analysis_frames < 2:
-        return audio_f.copy()
+        return cast(np.ndarray, audio_f.copy())
 
     frames = np.lib.stride_tricks.sliding_window_view(audio_f.astype(np.float64), n_fft)[::analysis_hop][
         :n_analysis_frames
@@ -184,7 +185,7 @@ def phase_vocoder_timestretch(
     output = np.nan_to_num(output, nan=0.0, posinf=0.0, neginf=0.0)
     output = np.clip(output, -1.0, 1.0)
 
-    return output.astype(np.float32, copy=False)
+    return cast(np.ndarray, (output.astype(np.float32, copy=False)))
 
 
 def phase_vocoder_timestretch_fast(
@@ -222,7 +223,9 @@ def phase_vocoder_timestretch_fast(
         src_pos = np.clip(src_pos, 0.0, n_samples - 1)
 
         corrected = np.interp(src_pos, np.arange(n_samples, dtype=np.float32), audio_f)
-        return np.nan_to_num(corrected, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32, copy=False)
+        return cast(
+            np.ndarray, (np.nan_to_num(corrected, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32, copy=False))
+        )
 
     # For larger stretches, use full phase vocoder
     return phase_vocoder_timestretch(audio, stretch_factors, sample_rate)

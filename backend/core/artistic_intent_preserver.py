@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -37,7 +37,7 @@ class IntentMask:
         return float(self.mask.mean())
 
     def get_safe_mask(self, threshold: float = 0.3) -> np.ndarray:
-        return np.where(self.mask >= threshold, self.mask, 0.0).astype(np.float32)
+        return cast(np.ndarray, (np.where(self.mask >= threshold, self.mask, 0.0).astype(np.float32)))
 
 
 class ArtisticIntentPreserver:
@@ -102,7 +102,7 @@ class ArtisticIntentPreserver:
             if len(frame) < self.N_FFT:
                 frame = np.pad(frame, (0, self.N_FFT - len(frame)))
             spec[:, i] = np.abs(np.fft.rfft(frame * win))
-        return spec + 1e-10
+        return cast(np.ndarray, spec + 1e-10)
 
     def _harmonic_mask(self, spec: np.ndarray, sr: int) -> np.ndarray:
         """Erkennt musikalische Struktur via Spektral-Flatness.
@@ -129,7 +129,7 @@ class ArtisticIntentPreserver:
             # Grund-Level: musicality auf alle Bins
             mask[:, t] = np.maximum(mask[:, t], musicality * 0.5)
 
-        return np.clip(mask, 0.0, 1.0)
+        return cast(np.ndarray, (np.clip(mask, 0.0, 1.0)))
 
     def _transient_mask(self, mono: np.ndarray, sr: int, n_frames_spec: int) -> np.ndarray:
         """Transienten-Detektion: Energie-Anstiege = Events, Leerlauf = weniger."""
@@ -144,7 +144,7 @@ class ArtisticIntentPreserver:
 
         max_e = float(np.max(energy))
         if max_e < 1e-8:
-            return np.zeros((self.N_FFT // 2 + 1, n_frames_spec), dtype=np.float32)
+            return cast(np.ndarray, (np.zeros((self.N_FFT // 2 + 1, n_frames_spec), dtype=np.float32)))
 
         # Transient-Detektion: relative Energie-Sprünge
         mask_1d = np.zeros(n_frames, dtype=np.float32)
@@ -164,7 +164,7 @@ class ArtisticIntentPreserver:
             idx = min(int(t * self.HOP / self.TRANSIENT_WINDOW), n_frames - 1)
             mask_2d[0, t] = mask_1d[idx]
 
-        return np.tile(mask_2d, (self.N_FFT // 2 + 1, 1)).astype(np.float32)
+        return cast(np.ndarray, (np.tile(mask_2d, (self.N_FFT // 2 + 1, 1)).astype(np.float32)))
 
     def _formant_mask(self, spec: np.ndarray, sr: int) -> np.ndarray:
         """Formant-Struktur: Vokale haben Energie-Konzentration in Formant-Bändern."""
@@ -188,7 +188,7 @@ class ArtisticIntentPreserver:
                 elif ratio[t] > self.FORMANT_RATIO_THRESHOLD * 0.6:
                     mask[bin_low:bin_high, t] = 0.7
 
-        return np.clip(mask, 0.0, 1.0)
+        return cast(np.ndarray, (np.clip(mask, 0.0, 1.0)))
 
     def _estimate_noise_floor(self, spec: np.ndarray) -> float:
         p5 = float(np.percentile(spec, 5))
@@ -197,11 +197,11 @@ class ArtisticIntentPreserver:
     def _genre_adapt(self, mask: np.ndarray, genre: str) -> np.ndarray:
         genre_lower = str(genre).lower()
         if any(g in genre_lower for g in ("punk", "rock", "metal", "alternative")):
-            return np.clip(mask * 1.15 + 0.05, 0.0, 1.0)
+            return cast(np.ndarray, (np.clip(mask * 1.15 + 0.05, 0.0, 1.0)))
         if any(g in genre_lower for g in ("classical", "klassik", "orchestral", "opera", "oper")):
-            return np.clip(mask * 1.25, 0.0, 1.0)
+            return cast(np.ndarray, (np.clip(mask * 1.25, 0.0, 1.0)))
         if any(g in genre_lower for g in ("lofi", "lo-fi", "ambient", "drone")):
-            return np.clip(mask * 0.85, 0.0, 1.0)
+            return cast(np.ndarray, (np.clip(mask * 0.85, 0.0, 1.0)))
         return mask
 
     def _smooth_mask(self, mask: np.ndarray) -> np.ndarray:
@@ -210,7 +210,7 @@ class ArtisticIntentPreserver:
         kernel = np.ones(3) / 3.0
         for i in range(mask.shape[0]):
             mask[i, :] = np.convolve(mask[i, :], kernel, mode="same")
-        return np.clip(mask, 0.0, 1.0)
+        return cast(np.ndarray, (np.clip(mask, 0.0, 1.0)))
 
 
 _preserver: ArtisticIntentPreserver | None = None

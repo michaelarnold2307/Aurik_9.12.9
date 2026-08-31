@@ -23,7 +23,7 @@ import os
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -500,7 +500,7 @@ class AstAudioSetClassifier:
     def _resample(self, audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
         """Resample mit scipy (wenn verfügbar) oder np.interp-Fallback."""
         if orig_sr == target_sr:
-            return audio.astype(np.float32)
+            return cast(np.ndarray, audio.astype(np.float32))
         try:
             import scipy.signal
 
@@ -511,7 +511,7 @@ class AstAudioSetClassifier:
             n = len(audio)
             x_old = np.linspace(0, n - 1, n)
             x_new = np.linspace(0, n - 1, int(n * target_sr / orig_sr))
-            return np.interp(x_new, x_old, audio).astype(np.float32)
+            return cast(np.ndarray, (np.interp(x_new, x_old, audio).astype(np.float32)))
 
     def _compute_mel_spectrogram(self, audio_16k: np.ndarray) -> np.ndarray:
         """Berechnet 128-Mel-Spektrogramm (1024 Frames) für AST Input.
@@ -572,7 +572,7 @@ class AstAudioSetClassifier:
         mn, mx = mel_spec.min(), mel_spec.max()
         if mx > mn:
             mel_spec = (mel_spec - mn) / (mx - mn + 1e-12)
-        return mel_spec.astype(np.float32)
+        return cast(np.ndarray, mel_spec.astype(np.float32))
 
     @staticmethod
     def _fallback_result() -> AstResult:

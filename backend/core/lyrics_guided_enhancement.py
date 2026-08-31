@@ -1080,11 +1080,14 @@ class LyricsGuidedEnhancement:
             logger.info("§v10.303.52 Semantic-DSP: 0 Wörter mit Keyword-Match verarbeitet")
             # Identisches End-Transform wie im DSP-Pfad (NaN/Clip/float32) —
             # für valides Audio ein No-Op, aber bit-kompatibel zum Vollpfad.
-            return np.clip(
-                np.nan_to_num(np.asarray(audio, dtype=np.float32), nan=0.0, posinf=0.0, neginf=0.0),
-                -1.0,
-                1.0,
-            ).astype(np.float32)
+            return cast(
+                np.ndarray,
+                np.clip(
+                    np.nan_to_num(np.asarray(audio, dtype=np.float32), nan=0.0, posinf=0.0, neginf=0.0),
+                    -1.0,
+                    1.0,
+                ).astype(np.float32),
+            )
 
         out = np.asarray(audio, dtype=np.float32).copy()
         n_samples = out.shape[0]
@@ -1135,7 +1138,7 @@ class LyricsGuidedEnhancement:
                 # zurück (48001) → full-Convolution zentriert auf n_samples croppen.
                 _full = np.convolve(_c, _kern, mode="full")
                 _off = (len(_full) - n_samples) // 2
-                return _full[_off : _off + n_samples].astype(np.float32)
+                return cast(np.ndarray, _full[_off : _off + n_samples].astype(np.float32))
 
             eq_low = _smooth_curve(eq_low)
             eq_mid = _smooth_curve(eq_mid)
@@ -1196,11 +1199,14 @@ class LyricsGuidedEnhancement:
                 if str(getattr(w, "word", "") or "").lower().strip() in self._SEMANTIC_DSP_PARAMS
             ),
         )
-        return np.clip(
-            np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0),
-            -1.0,
-            1.0,
-        ).astype(np.float32)
+        return cast(
+            np.ndarray,
+            np.clip(
+                np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0),
+                -1.0,
+                1.0,
+            ).astype(np.float32),
+        )
 
     # ── Public API ──────────────────────────────────────────────────────────
 
@@ -2155,3 +2161,4 @@ __all__ = [
     "is_lyrics_guided_loaded",
     "reconstruct_consonant_bursts",
 ]
+from typing import cast

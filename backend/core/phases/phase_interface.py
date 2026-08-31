@@ -18,7 +18,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -441,7 +441,7 @@ class PhaseInterface(abc.ABC):
 
         if was_mono:
             result = result[0]
-        return result.astype(np.float32)
+        return cast(np.ndarray, result.astype(np.float32))
 
     def _safe_process(
         self,

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -121,7 +122,7 @@ def _apply_high_shelf(
 
     if was_mono:
         result = result[0]
-    return result
+    return cast(np.ndarray, result)
 
 
 def apply_comfort_guard(audio: np.ndarray, sr: int = 48000) -> np.ndarray:

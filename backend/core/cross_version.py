@@ -31,7 +31,7 @@ def score_versions(versions: list[np.ndarray], sr: int) -> list[VersionScore]:
         n_fft = min(4096, len(mono))
         spec = np.abs(np.fft.rfft(mono[: n_fft * 8], n=n_fft))
         freqs = np.fft.rfftfreq(n_fft, d=1.0 / sr)
-        hf = np.sum(spec[freqs >= 4000] ** 2)
+        hf = float(np.sum(spec[freqs >= 4000] ** 2))
         total = np.sum(spec**2) + 1e-10
         brightness = float(np.clip(hf / total, 0, 1))
         abs_m = np.abs(mono)

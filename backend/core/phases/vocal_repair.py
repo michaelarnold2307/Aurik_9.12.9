@@ -16,6 +16,7 @@ Date: 2026-07-13
 """
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -164,7 +165,7 @@ def _extend_bandwidth(mono: np.ndarray, sr: int, bandwidth_hz: float) -> np.ndar
     # Mix at very low level (-20 dB)
     mono_out = mono.astype(np.float64) + harmonics.astype(np.float64) * 0.1
 
-    return mono_out
+    return cast(np.ndarray, mono_out)
 
 
 def _repair_distortion(mono: np.ndarray) -> np.ndarray:

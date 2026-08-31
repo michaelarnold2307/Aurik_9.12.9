@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -62,7 +62,7 @@ def _safety_clamp(repaired: np.ndarray, original: np.ndarray, max_ratio: float =
     rms_rep = np.sqrt(np.mean(result**2)) + 1e-10
     if rms_rep > rms_orig * max_ratio:
         result *= (rms_orig * max_ratio) / rms_rep
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_wow_flutter(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -99,7 +99,7 @@ def _repair_wow_flutter(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_wow_flutter Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_hiss(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -133,7 +133,7 @@ def _repair_hiss(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_hiss Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_clicks(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -210,7 +210,7 @@ def _repair_clicks(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_clicks Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_crackle(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -264,7 +264,7 @@ def _repair_crackle(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_crackle Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_dropouts(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -334,7 +334,7 @@ def _repair_dropouts(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_dropouts Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_pre_echo(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -386,7 +386,7 @@ def _repair_pre_echo(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_pre_echo Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_groove_echo(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -437,7 +437,7 @@ def _repair_groove_echo(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_groove_echo Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_mpeg_frame_loss(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -504,7 +504,7 @@ def _repair_mpeg_frame_loss(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_mpeg_frame_loss Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_tape_head_clog(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -562,7 +562,7 @@ def _repair_tape_head_clog(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_tape_head_clog Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_sticky_shed(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -623,7 +623,7 @@ def _repair_sticky_shed(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_sticky_shed Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_inner_groove_distortion(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -653,7 +653,7 @@ def _repair_inner_groove_distortion(audio: np.ndarray, sr: int, **kwargs) -> np.
                     continue
                 seg = ch_data[s:e]
                 hf = sosfilt(sos_hp, seg)
-                hf_energy = np.sum(hf**2)
+                hf_energy = float(np.sum(hf**2))
                 total_energy = np.sum(seg**2) + 1e-10
                 hf_ratio = hf_energy / total_energy
                 # Wenn HF-Anteil in dieser Sektion < 0.5% → IGD-betroffen
@@ -693,7 +693,7 @@ def _repair_inner_groove_distortion(audio: np.ndarray, sr: int, **kwargs) -> np.
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_inner_groove_distortion Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_motor_interference(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -744,7 +744,7 @@ def _repair_motor_interference(audio: np.ndarray, sr: int, **kwargs) -> np.ndarr
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_motor_interference Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_sibilance(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -817,7 +817,7 @@ def _repair_sibilance(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_sibilance Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_transient_smearing(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -866,7 +866,7 @@ def _repair_transient_smearing(audio: np.ndarray, sr: int, **kwargs) -> np.ndarr
     except Exception as e:
         logger.warning("surgical_repair.py::_repair_transient_smearing Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _repair_tape_splice(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
@@ -953,7 +953,7 @@ def _repair_tape_splice(audio: np.ndarray, sr: int, **kwargs) -> np.ndarray:
     except Exception as e:
         logger.warning("surgical_repair.py::unbekannter Ersatzpfad: %s", e)
     result = _safety_clamp(result, audio)
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 # Mapping: Defekt-Typ → Lightweight-Repair-Funktion
@@ -1024,7 +1024,7 @@ class SurgicalRepair:
         kernel = np.ones(window) / window
         smooth = np.convolve(energy, kernel, mode="same")
         threshold = np.convolve(smooth, kernel, mode="same") * 3.0 + 1e-10
-        return energy > threshold
+        return cast(np.ndarray, energy > threshold)
 
     def repair(
         self,

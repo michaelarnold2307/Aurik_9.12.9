@@ -26,6 +26,7 @@ import os
 import pathlib
 import threading
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 
@@ -754,7 +755,9 @@ class HolisticPerceptualGate:
                 else:
                     slice_ref = np.asarray(audio[:, start_n:end_n], dtype=np.float32)
                 if slice_ref.shape[-1] > int(sr * 0.05):
-                    return np.asarray(self._compute_embedding(slice_ref, sr), dtype=np.float32)
+                    return cast(
+                        np.ndarray | None, (np.asarray(self._compute_embedding(slice_ref, sr), dtype=np.float32))
+                    )
             return None
         except Exception:
             return None

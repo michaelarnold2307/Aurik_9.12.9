@@ -17,7 +17,7 @@ Reference:  ITU-R BS.1387 (PEAQ), Zwicker/Fastl psychoacoustics,
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from scipy import ndimage
@@ -115,7 +115,7 @@ def compute_strength_envelope(
 
     if not defect_locations:
         logger.debug("§2.71: Keine Defekt-Locations → uniform floor=%.3f", min_strength)
-        return np.asarray(envelope, dtype=np.float32)
+        return cast(np.ndarray, (np.asarray(envelope, dtype=np.float32)))
 
     sev_map = dict(defect_severity_map or {})
     sal_map = dict(defect_saliency_map or {})
@@ -228,7 +228,7 @@ def compute_strength_envelope(
         audio_duration_s,
     )
 
-    return np.asarray(envelope, dtype=np.float32)
+    return cast(np.ndarray, (np.asarray(envelope, dtype=np.float32)))
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -261,7 +261,7 @@ def _apply_asymmetric_smoothing(
             # Release: envelope falling → slow decay
             smoothed[i] = release_coeff * smoothed[i - 1] + (1.0 - release_coeff) * envelope[i]
 
-    return np.asarray(smoothed, dtype=np.float64)
+    return cast(np.ndarray, (np.asarray(smoothed, dtype=np.float64)))
 
 
 def _detect_transients(
@@ -352,7 +352,7 @@ def _apply_crossfade_windows(
         blend = result[f0:f1] * (1.0 - window) + _smooth_segment(result[f0:f1]) * window
         result[f0:f1] = blend
 
-    return result
+    return cast(np.ndarray, result)
 
 
 def _smooth_segment(segment: np.ndarray) -> np.ndarray:
@@ -451,7 +451,7 @@ def _apply_temporal_masking(
                 float(np.mean(mask_accum)),
             )
 
-        return np.asarray(envelope_masked, dtype=np.float64)
+        return cast(np.ndarray, (np.asarray(envelope_masked, dtype=np.float64)))
 
     except Exception as e:
         logger.warning("strength_envelope.py::unbekannter Ersatzpfad: %s", e)
@@ -461,9 +461,9 @@ def _apply_temporal_masking(
 def _resample_1d(data: np.ndarray, target_len: int) -> np.ndarray:
     """Resample a 1D array to target_len via linear interpolation."""
     if len(data) == target_len:
-        return np.asarray(data, dtype=np.float64)
+        return cast(np.ndarray, (np.asarray(data, dtype=np.float64)))
     if len(data) <= 1:
-        return np.full(target_len, float(data[0]) if len(data) else 0.0, dtype=np.float64)
+        return cast(np.ndarray, (np.full(target_len, float(data[0]) if len(data) else 0.0, dtype=np.float64)))
 
     x_orig = np.linspace(0.0, 1.0, len(data))
     x_target = np.linspace(0.0, 1.0, target_len)
@@ -497,7 +497,7 @@ def resample_envelope_to_sr(
     """
     n_frames = len(envelope)
     if n_frames <= 1:
-        return np.full(target_samples, float(envelope[0]) if n_frames else 0.1, dtype=np.float32)
+        return cast(np.ndarray, (np.full(target_samples, float(envelope[0]) if n_frames else 0.1, dtype=np.float32)))
 
     env_t = np.arange(n_frames, dtype=np.float64) * envelope_hop
     target_t = np.arange(target_samples, dtype=np.float64)
@@ -517,7 +517,7 @@ def resample_envelope_to_sr(
             logger.warning("strength_envelope.py::resample_envelope_to_sr Ersatzpfad: %s", e)
             pass  # Fallback to linear
 
-    return np.interp(target_t, env_t, envelope.astype(np.float64)).astype(np.float32)
+    return cast(np.ndarray, (np.interp(target_t, env_t, envelope.astype(np.float64)).astype(np.float32)))
 
 
 def apply_strength_envelope_wet_dry(
@@ -594,7 +594,7 @@ def apply_strength_envelope_wet_dry(
                 gain_bc = gain
 
             result = (dry * orig + wet_bc * proc * gain_bc).astype(np.float32)
-            return np.clip(result, -1.0, 1.0).astype(np.float32)
+            return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     # Standard blend (no energy compensation)
     if is_multich:
@@ -604,7 +604,7 @@ def apply_strength_envelope_wet_dry(
             wet = wet[np.newaxis, :]
 
     result = dry * orig + wet * proc
-    return np.clip(result, -1.0, 1.0).astype(np.float32)
+    return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
 
 # ═══════════════════════════════════════════════════════════════════════

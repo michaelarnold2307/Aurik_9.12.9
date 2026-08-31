@@ -43,7 +43,7 @@ import os
 import sys
 import threading
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 try:
     import psutil as _psutil
@@ -746,8 +746,8 @@ class MLDeviceManager:
                 self._backend = GPUBackend.ROCM
                 self._ort_gpu_providers = ["MIGraphXExecutionProvider", "CPUExecutionProvider"]
                 self._gpu_available = True
-                self._gpu_name = device_info.get("name", "AMD GPU (MIGraphX)")
-                self._vram_total_gb = device_info.get("vram_gb", 8.0)
+                self._gpu_name = str(device_info.get("name", "AMD GPU (MIGraphX)"))
+                self._vram_total_gb = cast(float, device_info.get("vram_gb", 8.0))
                 self._vram_free_gb = self._vram_total_gb * 0.85
                 # §Rev. 2026-08-16: _gpu_architecture MUSS ein AMDArchitecture-Enum sein —
                 # gpu_status_summary() greift auf .value zu. Die frühere String-Zuweisung

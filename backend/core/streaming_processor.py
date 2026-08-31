@@ -16,6 +16,7 @@ Date: 2026-07-13
 """
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -147,4 +148,4 @@ class StreamingProcessor:
             (n_total * 4 / 1024 / 1024) * (1 - chunk_samples / n_total),
         )
 
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))

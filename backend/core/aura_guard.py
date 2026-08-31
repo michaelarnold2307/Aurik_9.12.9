@@ -261,8 +261,8 @@ def _measure_era_character(
     f_low, f_high = profile["freq_range"]
 
     # Prüfe Frequenzgang-Übereinstimmung
-    lf_energy = np.sum(spec[(freqs >= f_low) & (freqs < f_high)] ** 2)
-    total_energy = np.sum(spec**2)
+    lf_energy = float(np.sum(spec[(freqs >= f_low) & (freqs < f_high)] ** 2))
+    total_energy = float(np.sum(spec**2))
 
     # Charakteristischer Frequenzanteil
     character_ratio = lf_energy / (total_energy + 1e-12)

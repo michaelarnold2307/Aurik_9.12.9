@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -246,7 +246,7 @@ class BWReconstructorPlugin:
         else:
             audio_out = audio_reconstructed
 
-        return np.nan_to_num(audio_out, nan=0.0, posinf=0.0, neginf=0.0)
+        return cast(np.ndarray, (np.nan_to_num(audio_out, nan=0.0, posinf=0.0, neginf=0.0)))
 
     # ── v5-Waveform-Pfad (§v10.19, train_bw_v5.py-Konventionen) ─────────────
 
@@ -318,7 +318,7 @@ class BWReconstructorPlugin:
             pos += self._V5_HOP
 
         out = np.where(out_weight > 1e-9, out_accum / np.maximum(out_weight, 1e-9), audio_22k)
-        return np.asarray(out, dtype=np.float64)
+        return cast(np.ndarray, (np.asarray(out, dtype=np.float64)))
 
     # ── Interne Hilfsfunktionen ────────────────────────────────────────────
 
@@ -421,7 +421,7 @@ class BWReconstructorPlugin:
         audio /= np.maximum(weight, 1e-8)
         audio = np.clip(audio, -1.0, 1.0)
 
-        return audio.astype(np.float32)
+        return cast(np.ndarray, audio.astype(np.float32))
 
     def _process_segments(self, mel_input: np.ndarray) -> np.ndarray:
         """ONNX-Inferenz in überlappenden 256×256-Segmenten."""
@@ -458,7 +458,7 @@ class BWReconstructorPlugin:
             weight[:, start : start + out_len] += window_2d
 
         output /= np.maximum(weight, 1e-8)
-        return output
+        return cast(np.ndarray, output)
 
     def _infer_single(self, mel_segment: np.ndarray) -> np.ndarray:
         """Einzelne ONNX-Inferenz: (256, 256) → (256, 256)."""
@@ -533,7 +533,7 @@ class BWReconstructorPlugin:
                 if right > center:
                     basis[m, k] = 1.0 - (k - center) / (right - center)
 
-        return basis
+        return cast(np.ndarray, basis)
 
 
 # ── Convenience-Funktion ───────────────────────────────────────────────────

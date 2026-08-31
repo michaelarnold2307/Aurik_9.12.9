@@ -33,19 +33,19 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 
 try:
     from backend.core.post_repair_artifact_guard import PostRepairArtifactGuard as _ArtifactGuard
 except Exception:  # pragma: no cover — optional
-    _ArtifactGuard = None
+    _ArtifactGuard = None  # type: ignore[misc, assignment]  # optionaler Import-Fallback
 
 try:
     from backend.core.perceptual_closed_loop import PerceptualClosedLoop as _PerceptualLoop
 except Exception:  # pragma: no cover — optional
-    _PerceptualLoop = None
+    _PerceptualLoop = None  # type: ignore[misc, assignment]  # optionaler Import-Fallback
 
 log = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ def _normalize_amp_peak99(amp: np.ndarray) -> tuple[np.ndarray, float]:
 
 def _denormalize_amp(amp: np.ndarray, scale: float) -> np.ndarray:
     """Gain-Kompensation: Modell-Ausgang zurück auf Originalpegel."""
-    return (np.asarray(amp, dtype=np.float32) * scale).astype(np.float32)
+    return cast(np.ndarray, (np.asarray(amp, dtype=np.float32) * scale).astype(np.float32))
 
 
 def _guard_amp_loudness(denoised: np.ndarray, original: np.ndarray) -> np.ndarray:
@@ -129,7 +129,7 @@ def _guard_amp_loudness(denoised: np.ndarray, original: np.ndarray) -> np.ndarra
     out_max = float(np.max(denoised)) if denoised.size else 0.0
     if out_max > max(in_max, 1e-6) * 1.05:
         denoised = denoised * (max(in_max, 1e-6) * 1.05 / out_max)
-    return denoised.astype(np.float32)
+    return cast(np.ndarray, denoised.astype(np.float32))
 
 
 def _is_localized_change(pre: np.ndarray, post: np.ndarray, max_fraction: float = 0.10) -> bool:
@@ -469,8 +469,8 @@ class RepairPlanner:
                     # Kalibrierung — die Phase muss WIRKEN können.
                     "strength": float(
                         max(
-                            avg_severity * avg_confidence,
-                            self._strength_floor if avg_confidence > self._confidence_floor else 0.0,
+                            float(avg_severity) * float(avg_confidence),
+                            float(self._strength_floor) if avg_confidence > self._confidence_floor else 0.0,
                         )
                     ),
                     "confidence": float(avg_confidence),
@@ -871,7 +871,7 @@ class CoordinatedRepair:
             channel_out = handler(audio[ch], step, manifest, sample_rate)
             outputs.append(channel_out)
 
-        return np.stack(outputs)
+        return cast(np.ndarray, np.stack(outputs))
 
     def _run_denoise(
         self,
@@ -891,7 +891,7 @@ class CoordinatedRepair:
             _mp = self._run_mp_senet_vocal(audio, step, manifest, sr)
             if np.asarray(_mp).shape == audio.shape and not np.allclose(np.asarray(_mp), audio, atol=1e-7):
                 log.info("MP-SENet aktiv für %s", step.phase_id)
-                return np.asarray(_mp, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(_mp, dtype=np.float32)))
         # 2) SGMSE+ Sprach-Enhancement-Diffusion (Opt-In, kontextaktiviert)
         if step.parameters.get("use_sgmse", False):
             try:
@@ -902,7 +902,7 @@ class CoordinatedRepair:
                 _out = getattr(_res, "audio", None)
                 if _out is not None and np.asarray(_out).shape == audio.shape:
                     log.info("SGMSE+ aktiv für %s (σ=%.2f)", step.phase_id, _sigma)
-                    return np.asarray(_out, dtype=np.float32)
+                    return cast(np.ndarray, (np.asarray(_out, dtype=np.float32)))
             except Exception as exc:
                 log.warning("SGMSE+ nicht verfügbar (%s) — DSP-Fallback", exc)
         # 3) Standard: SOTA 4-Layer DSP-Pipeline
@@ -912,7 +912,7 @@ class CoordinatedRepair:
             pipeline = SOTADenoisePipeline()
             strength = step.parameters.get("strength", 0.4)
             result = pipeline.process(audio, sr, override_strength=strength)
-            return result.audio.astype(np.float32)
+            return cast(np.ndarray, result.audio.astype(np.float32))
         except Exception:
             return audio
 
@@ -950,7 +950,7 @@ class CoordinatedRepair:
             result = plugin.process(audio, sr, strength)
             if result is not None and np.asarray(result).shape == audio.shape:
                 log.info("Banquet Vinyl: %s (strength=%.2f)", step.phase_id, strength)
-                return np.asarray(result, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(result, dtype=np.float32)))
         except Exception as exc:
             log.warning("Banquet nicht verfügbar (%s) — Fallback DirectDefectRepair", exc)
         return self._run_transient_repair(audio, step, manifest, sr)
@@ -978,7 +978,7 @@ class CoordinatedRepair:
                     step.phase_id,
                     {k: v for k, v in report.items() if isinstance(v, (int, float, bool))},
                 )
-                return repaired.astype(np.float32)
+                return cast(np.ndarray, repaired.astype(np.float32))
         except Exception as exc:
             log.debug("DirectDefectRepair nicht verfügbar (%s) — Pass-Through", exc)
         return audio
@@ -1085,7 +1085,7 @@ class CoordinatedRepair:
                 window = np.hanning(chunk_samples)
                 output[start : start + out_len] += inpainted_chunk[:out_len] * window[:out_len] / 2
 
-            return output.astype(np.float32)
+            return cast(np.ndarray, output.astype(np.float32))
         except Exception:
             log.debug("Inpainting not available, skipping")
             return audio
@@ -1125,7 +1125,7 @@ class CoordinatedRepair:
             )
             out = getattr(result, "audio", result)
             if out is not None and np.asarray(out).shape == audio.shape:
-                return np.asarray(out, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(out, dtype=np.float32)))
         except Exception as exc:
             log.warning("Hum-Removal nicht verfügbar (%s) — Pass-Through", exc)
         return audio
@@ -1149,7 +1149,7 @@ class CoordinatedRepair:
             )
             out = getattr(result, "audio", result)
             if out is not None and np.asarray(out).shape == audio.shape:
-                return np.asarray(out, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(out, dtype=np.float32)))
         except Exception as exc:
             log.warning("De-Clipper nicht verfügbar (%s) — Pass-Through", exc)
         return audio
@@ -1173,7 +1173,7 @@ class CoordinatedRepair:
             )
             out = getattr(result, "audio", result)
             if out is not None and np.asarray(out).shape == audio.shape:
-                return np.asarray(out, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(out, dtype=np.float32)))
         except Exception as exc:
             log.warning("Wow/Flutter-Fix nicht verfügbar (%s) — Pass-Through", exc)
         return audio
@@ -1197,7 +1197,7 @@ class CoordinatedRepair:
             )
             out = getattr(result, "audio", result)
             if out is not None and np.asarray(out).shape == audio.shape:
-                return np.asarray(out, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(out, dtype=np.float32)))
         except Exception as exc:
             log.warning("Phasenkorrektur nicht verfügbar (%s) — Pass-Through", exc)
         return audio
@@ -1234,7 +1234,7 @@ class CoordinatedRepair:
 
                 mat = _MT("tape" if mat_str == "cassette" else mat_str)
             except Exception:
-                mat = mat_str
+                mat = cast(Any, mat_str)
             result = DeEsserPhase().process(
                 audio=audio,
                 sample_rate=sr,
@@ -1243,7 +1243,7 @@ class CoordinatedRepair:
             )
             out = getattr(result, "audio", result)
             if out is not None and np.asarray(out).shape == audio.shape:
-                return np.asarray(out, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(out, dtype=np.float32)))
         except Exception as exc:
             log.warning("De-Esser nicht verfügbar (%s) — Pass-Through", exc)
         return audio
@@ -1259,7 +1259,7 @@ class CoordinatedRepair:
         try:
             from backend.core.phases.phase_29_tape_hiss_reduction import TapeHissReductionPhase
 
-            mat = getattr(self, "_material", "") or "unknown"
+            mat = cast(Any, getattr(self, "_material", "") or "unknown")
             result = TapeHissReductionPhase().process(
                 audio=audio,
                 sample_rate=sr,
@@ -1268,7 +1268,7 @@ class CoordinatedRepair:
             )
             out = getattr(result, "audio", result)
             if out is not None and np.asarray(out).shape == audio.shape:
-                return np.asarray(out, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(out, dtype=np.float32)))
         except Exception as exc:
             log.warning("Tape-Hiss-Reduktion nicht verfügbar (%s) — Pass-Through", exc)
         return audio
@@ -1292,7 +1292,7 @@ class CoordinatedRepair:
             )
             out = getattr(result, "audio", result)
             if out is not None and np.asarray(out).shape == audio.shape:
-                return np.asarray(out, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(out, dtype=np.float32)))
         except Exception as exc:
             log.warning("Print-Through-Reduktion nicht verfügbar (%s) — Pass-Through", exc)
         return audio
@@ -1364,7 +1364,7 @@ class CoordinatedRepair:
             wsum[wsum < 1e-8] = 1.0
             out /= wsum
             log.info("MP-SENet Vokal-Denoising: %d Frames verarbeitet", len(enhanced_spec))
-            return out.astype(np.float32)
+            return cast(np.ndarray, out.astype(np.float32))
         except Exception as exc:
             log.warning("MP-SENet nicht verfügbar (%s) — Pass-Through", exc)
         return audio
@@ -1385,7 +1385,7 @@ class CoordinatedRepair:
         try:
             from backend.core.phases.phase_20_reverb_reduction import ReverbReduction
 
-            mat = getattr(self, "_material", "") or "unknown"
+            mat = cast(Any, getattr(self, "_material", "") or "unknown")
             result = ReverbReduction().process(
                 audio=audio,
                 sample_rate=sr,
@@ -1394,7 +1394,7 @@ class CoordinatedRepair:
             )
             out = getattr(result, "audio", result)
             if out is not None and np.asarray(out).shape == audio.shape:
-                return np.asarray(out, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(out, dtype=np.float32)))
         except Exception as exc:
             log.warning("Reverb-Reduktion nicht verfügbar (%s) — Pass-Through", exc)
         return audio
@@ -1418,7 +1418,7 @@ class CoordinatedRepair:
             )
             out = getattr(result, "audio", result)
             if out is not None and np.asarray(out).shape == audio.shape:
-                return np.asarray(out, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(out, dtype=np.float32)))
         except Exception as exc:
             log.warning("Advanced De-Reverb nicht verfügbar (%s) — Pass-Through", exc)
         return audio
@@ -1442,7 +1442,7 @@ class CoordinatedRepair:
             )
             out = getattr(result, "audio", result)
             if out is not None and np.asarray(out).shape == audio.shape:
-                return np.asarray(out, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(out, dtype=np.float32)))
         except Exception as exc:
             log.warning("Frequency-Restoration nicht verfügbar (%s) — Pass-Through", exc)
         return audio

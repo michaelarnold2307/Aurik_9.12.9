@@ -9,7 +9,7 @@ und backend/core/regulator/_dsp_applier.py (Biquad-EQ, Kompressor, Limiter, Enha
 
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import scipy.signal
@@ -468,7 +468,7 @@ def _apply_dsp_module(audio: np.ndarray, sr: int, module_name: str, params: dict
         elif module_name == "TransientProtectionGuard":
             from dsp.transient_protection_guard import TransientProtectionGuard  # type: ignore[import]
 
-            return TransientProtectionGuard().process(audio, sr)  # type: ignore[return-value]
+            return cast(np.ndarray, TransientProtectionGuard().process(audio, sr))
         elif module_name == "HarmonicExciterStudio":
             from dsp.harmonic_exciter import HarmonicExciter  # type: ignore[import]
 

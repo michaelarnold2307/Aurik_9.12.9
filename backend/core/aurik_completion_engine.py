@@ -21,7 +21,7 @@ import logging
 import os
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -118,7 +118,7 @@ def apply_sweet_spot_fix(audio: np.ndarray, sr: int, metric: str, current_value:
     except Exception as e:
         logger.debug("SweetSpot fix %s fehlgeschlagen: %s", metric, e)
 
-    return np.clip(arr, -1.0, 1.0)
+    return cast(np.ndarray, (np.clip(arr, -1.0, 1.0)))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -498,7 +498,7 @@ def apply_dynamic_eq(
             band_signal = sosfiltfilt(sos, result)
             result = result + band_signal * (gain_linear - 1.0)
 
-    return np.clip(result, -1.0, 1.0)
+    return cast(np.ndarray, (np.clip(result, -1.0, 1.0)))
 
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -368,7 +368,6 @@ def apply_silence_preservation(
         return _out.astype(np.float32)  # type: ignore[no-any-return]
     except Exception:  # pragma: no cover
         logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
-    except Exception:  # pragma: no cover
         logger.exception("silence_mask: Fehler bei apply_silence_preservation — Fallback: unverändert")
         return np.asarray(processed, dtype=np.float32)  # type: ignore[no-any-return]
 

@@ -20,6 +20,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 
@@ -293,7 +294,7 @@ class CodecAwareProcessor:
         except Exception as e:
             logger.debug("§Y CodecAwareProcessor: %s", e)
 
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     @staticmethod
     def list_profiles() -> dict[str, str]:

@@ -4,6 +4,7 @@ Import: from backend.core.pim_phase_hook import apply_pim_intensity
 """
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -178,18 +179,18 @@ def apply_per_band_mask(
             ch_dry = arr[:, c]
             ch_wet = _process_channel(ch_dry)
             processed[:, c] = ch_dry * (1.0 - mix) + ch_wet * mix
-        return processed.astype(np.float32)
+        return cast(np.ndarray, processed.astype(np.float32))
     elif arr.ndim == 2 and arr.shape[0] <= 2:
         processed = np.zeros_like(arr)
         for c in range(arr.shape[0]):
             ch_dry = arr[c, :]
             ch_wet = _process_channel(ch_dry)
             processed[c, :] = ch_dry * (1.0 - mix) + ch_wet * mix
-        return processed.astype(np.float32)
+        return cast(np.ndarray, processed.astype(np.float32))
     else:
         ch_dry = arr.ravel()
         ch_wet = _process_channel(ch_dry)
-        return (ch_dry * (1.0 - mix) + ch_wet * mix).astype(np.float32)
+        return cast(np.ndarray, (ch_dry * (1.0 - mix) + ch_wet * mix).astype(np.float32))
 
 
 def apply_pre_emphasis(audio, sr, freq_hz=2000, boost_db=6.0):

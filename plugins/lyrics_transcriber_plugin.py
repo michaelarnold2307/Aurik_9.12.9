@@ -28,6 +28,7 @@ import math
 import threading
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 
@@ -205,8 +206,11 @@ class LyricsTranscriber:
 
         try:
             if self._session_loaded and self._session is not None:
-                result = self._session.run(None, {"input": mono})
-                return self._decode_result(result, sr, duration_s)
+                result = cast(Any, self._session).run(None, {"input": mono})
+                _decode = getattr(self, "_decode_result", None)
+                if _decode is not None:
+                    return cast(LyricsTranscriptionResult, _decode(result, sr, duration_s))
+                raise AttributeError("_decode_result fehlt — DSP-Fallback")
         except Exception as exc:
             logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
             logger.debug("Whisper-Inferenz fehlgeschlagen, DSP-Fallback: %s", exc)

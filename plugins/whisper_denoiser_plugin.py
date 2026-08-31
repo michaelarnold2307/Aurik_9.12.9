@@ -28,7 +28,7 @@ import logging
 import os
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -225,7 +225,7 @@ class WhisperDenoiserPlugin:
 
         _out = np.concatenate(_out_parts)[:_orig_len]
         _out = np.nan_to_num(_out, nan=0.0, posinf=0.0, neginf=0.0)
-        return np.clip(_out, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(_out, -1.0, 1.0).astype(np.float32)))
 
 
 def get_whisper_denoiser_plugin() -> WhisperDenoiserPlugin:

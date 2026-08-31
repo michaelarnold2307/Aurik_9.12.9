@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -674,7 +674,7 @@ def _apply_high_shelf(audio: np.ndarray, sr: int, freq: float, gain_db: float, q
             for ch in range(audio.shape[1]):
                 filtered = sosfiltfilt(sos, audio[:, ch])
                 result[:, ch] = audio[:, ch] + (filtered - audio[:, ch]) * (gain_linear - 1.0)
-            return result.astype(np.float32)
+            return cast(np.ndarray, result.astype(np.float32))
         else:
             filtered = sosfiltfilt(sos, audio)
             return (audio + (filtered - audio) * (gain_linear - 1.0)).astype(np.float32)  # type: ignore[no-any-return]
@@ -883,7 +883,7 @@ def _noise_floor_gate(audio: np.ndarray, sr: int, original: np.ndarray) -> np.nd
         upsampled = np.interp(np.arange(len(mono)), np.arange(n_win) * win, gate)
         if audio.ndim == 2:
             return (audio * upsampled[:, np.newaxis]).astype(np.float32)  # type: ignore[no-any-return]
-        return (audio * upsampled).astype(np.float32)
+        return cast(np.ndarray, (audio * upsampled).astype(np.float32))
     except Exception as e:
         logger.warning("_noise_floor_gate: %s", e)
         return audio
@@ -951,7 +951,7 @@ def _spectral_balance(audio: np.ndarray, sr: int) -> np.ndarray:
         if audio.ndim == 2:
             ratio = np.clip(result / (mono + 1e-12), 0.85, 1.05)
             return (audio * ratio[:, np.newaxis]).astype(np.float32)  # type: ignore[no-any-return]
-        return result.astype(np.float32)
+        return cast(np.ndarray, result.astype(np.float32))
     except Exception as e:
         logger.warning("_spectral_balance: %s", e)
         return audio

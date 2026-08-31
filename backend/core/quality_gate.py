@@ -282,9 +282,10 @@ class QualityGate:
                 except (TypeError, ValueError) as _exc:
                     logger.debug("Operation fehlgeschlagen (unkritisch): %s", _exc)
 
+            return True  # alle ML-Checks bestanden
+
         except Exception:
             logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
-        except Exception:
             logger.exception("[QualityGate/ML] Unerwarteter Fehler – Fallback True")
             return True
 
@@ -304,10 +305,11 @@ class QualityGate:
             if mode is not None and mode not in self._VALID_MODES:
                 logger.warning("[QualityGate/GUI] Unbekannter Modus '%s' – abgelehnt.", mode)
                 return False
+
+            return True  # alle GUI-Checks bestanden
+
         except Exception:
             logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
-            return True
-        except Exception:
             logger.exception("[QualityGate/GUI] Unerwarteter Fehler – Fallback True")
             return True
 

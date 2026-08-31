@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 
@@ -62,14 +63,14 @@ def _to_mono(audio: np.ndarray) -> np.ndarray:
     """Convert multi-channel audio to mono."""
     arr = np.asarray(audio, dtype=np.float64)
     if arr.ndim == 1:
-        return arr
+        return cast(np.ndarray, arr)
     if arr.ndim == 2:
         if arr.shape[0] <= 2 and arr.shape[1] > 2:
             return arr.mean(axis=0)  # type: ignore[no-any-return]
         if arr.shape[1] <= 2 and arr.shape[0] > 2:
             return arr.mean(axis=1)  # type: ignore[no-any-return]
         return arr.mean(axis=-1)  # type: ignore[no-any-return]
-    return arr.ravel()
+    return cast(np.ndarray, arr.ravel())
 
 
 def _band_energy(audio: np.ndarray, sr: int, low_hz: float, high_hz: float) -> float:
@@ -125,7 +126,7 @@ def _burg_lpc(frame: np.ndarray, order: int) -> np.ndarray:
         for i in range(m, n):
             ef[i] = ef_prev[i] + k * eb_prev[i - 1]
             eb[i - 1] = eb_prev[i - 1] + k * ef_prev[i]
-    return a
+    return cast(np.ndarray, a)
 
 
 def _lpc_to_formants(lpc_coeffs: np.ndarray, sr: int) -> list[float]:

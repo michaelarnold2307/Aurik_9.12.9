@@ -19,7 +19,7 @@ import logging
 import math
 import os
 import threading
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -205,7 +205,7 @@ class DeepFilterNetV3Plugin:
         Returns:
             Denoisiertes Audio, selbe Form, float32 ∈ [-1, 1].
         """
-        self._current_energy_bias_db: float = energy_bias_db
+        self._current_energy_bias_db = energy_bias_db
         audio = np.nan_to_num(audio.astype(np.float32), nan=0.0, posinf=0.0, neginf=0.0)
         # UV3 passes (2, N) channels-first; normalize to (N, 2) for uniform processing.
         _was_channels_first = audio.ndim == 2 and audio.shape[0] == 2 and audio.shape[1] > 2
@@ -365,7 +365,7 @@ class DeepFilterNetV3Plugin:
         if energy_bias_db == 0.0:
             return gain
         _bias_lin = float(10.0 ** (energy_bias_db / 20.0))
-        return np.clip(gain + (1.0 - gain) * (1.0 - _bias_lin), 0.0, 1.0)
+        return cast(np.ndarray, (np.clip(gain + (1.0 - gain) * (1.0 - _bias_lin), 0.0, 1.0)))
 
     def _infer_onnx(self, mono: np.ndarray) -> np.ndarray:
         """Vollständige 3-Modell ONNX-Inferenz-Pipeline."""

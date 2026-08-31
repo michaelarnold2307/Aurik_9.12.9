@@ -11,6 +11,7 @@ import logging
 import math
 import threading
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -218,7 +219,7 @@ class MicroDynamicsEnvelopeMorphing:
                 int(res_mono.size),
                 int(orig_mono.size),
             )
-            return res
+            return cast(np.ndarray, res)
 
         L_orig = self.compute_lufs_profile(orig_mono, sr)
         L_rest = self.compute_lufs_profile(res_mono, sr)

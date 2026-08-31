@@ -7,7 +7,7 @@ PMGG Wet/Dry, STCG, Dropout-Repair, Noise Gate:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -34,7 +34,7 @@ def crossfade_blend(original: np.ndarray, processed: np.ndarray, sr: int, blend_
     result[:blend_samples] = mono_orig[:blend_samples] * fade_out + mono_proc[:blend_samples] * fade_in
     result[-blend_samples:] = mono_orig[-blend_samples:] * fade_in + mono_proc[-blend_samples:] * fade_out
 
-    return np.clip(result, -1.0, 1.0).astype(np.float32)
+    return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
 
 def smooth_stereo_correction(audio: np.ndarray, delay_samples: int, sr: int, smooth_s: float = 0.10) -> np.ndarray:
@@ -105,7 +105,7 @@ def dropout_fade(
                 w = fade_out[i]
                 result[idx] = rep[idx] * (1 - w) + mono[idx] * w
 
-    return np.clip(result, -1.0, 1.0).astype(np.float32)
+    return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
 
 def noise_gate_envelope(gate_mask: np.ndarray, sr: int, attack_ms: float = 2.0, release_ms: float = 50.0) -> np.ndarray:
@@ -130,4 +130,4 @@ def noise_gate_envelope(gate_mask: np.ndarray, sr: int, attack_ms: float = 2.0, 
             smoothed[i] = alpha * smoothed[i - 1] + (1 - alpha) * gate_mask[i]
 
     logger.debug("NoiseGate envelope: attack=%dms release=%dms", attack_ms, release_ms)
-    return smoothed
+    return cast(np.ndarray, smoothed)

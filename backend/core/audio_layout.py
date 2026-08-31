@@ -21,6 +21,8 @@ Transposes — keine Arithmetik, keine Resamples.
 
 from __future__ import annotations
 
+from typing import cast
+
 import numpy as np
 
 # Maximale plausible Kanalzahl eines Audiosignals (Guard gegen
@@ -55,13 +57,13 @@ def mono_mix(arr: np.ndarray) -> np.ndarray:
     if arr.ndim == 1:
         return arr
     if is_channels_first(arr):
-        return arr.mean(axis=0)
+        return cast(np.ndarray, arr.mean(axis=0))
     if is_samples_first(arr):
-        return arr.mean(axis=1)
+        return cast(np.ndarray, arr.mean(axis=1))
     # Ambige/kleine Shapes (z. B. (2, 2)): Kanäle auf der kleineren Achse.
     if arr.shape[0] <= arr.shape[1]:
-        return arr.mean(axis=0)
-    return arr.mean(axis=1)
+        return cast(np.ndarray, arr.mean(axis=0))
+    return cast(np.ndarray, arr.mean(axis=1))
 
 
 def to_channels_first(arr: np.ndarray) -> np.ndarray:
@@ -70,7 +72,7 @@ def to_channels_first(arr: np.ndarray) -> np.ndarray:
     if arr.ndim != 2 or is_channels_first(arr):
         return arr
     if is_samples_first(arr):
-        return np.ascontiguousarray(arr.T)
+        return cast(np.ndarray, np.ascontiguousarray(arr.T))
     return arr
 
 
@@ -80,7 +82,7 @@ def to_samples_first(arr: np.ndarray) -> np.ndarray:
     if arr.ndim != 2 or is_samples_first(arr):
         return arr
     if is_channels_first(arr):
-        return np.ascontiguousarray(arr.T)
+        return cast(np.ndarray, np.ascontiguousarray(arr.T))
     return arr
 
 

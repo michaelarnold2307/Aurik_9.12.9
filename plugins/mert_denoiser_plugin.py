@@ -17,7 +17,7 @@ import logging
 import math
 import time
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, cast
 
 import numpy as np
 import onnxruntime as ort
@@ -113,7 +113,7 @@ class MERTDenoiserPlugin:
 
         elapsed = time.time() - start_time
         log.debug(f"MERT Denoiser: {total_samples / TARGET_SAMPLE_RATE:.1f}s in {elapsed:.1f}s")
-        return result
+        return cast(np.ndarray, result)
 
     def _process_channel(self, audio: np.ndarray) -> np.ndarray:
         """Process a single channel with overlapping chunks."""
@@ -144,7 +144,7 @@ class MERTDenoiserPlugin:
         # Normalize by overlap weight
         weight[weight < 1e-8] = 1.0
         output /= weight
-        return output
+        return cast(np.ndarray, output)
 
     def _denoise_chunk(self, audio_48k: np.ndarray) -> np.ndarray:
         """Denoise a single chunk: MERT features → Decoder → clean spectrogram → audio."""
@@ -208,7 +208,7 @@ class MERTDenoiserPlugin:
 
         norm_window[norm_window < 1e-8] = 1.0
         result /= norm_window
-        return result
+        return cast(np.ndarray, result)
 
     @staticmethod
     def _resample(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
@@ -221,13 +221,13 @@ class MERTDenoiserPlugin:
         gcd = math.gcd(orig_sr, target_sr)
         up = target_sr // gcd
         down = orig_sr // gcd
-        return scipy_signal.resample_poly(audio, up, down).astype(np.float32)
+        return cast(np.ndarray, (scipy_signal.resample_poly(audio, up, down).astype(np.float32)))
 
     @staticmethod
     def _overlap_window(chunk_size: int, hop: int) -> np.ndarray:
         """Create overlapping Hann windows for smooth chunk blending."""
         window = np.hanning(chunk_size)
-        return window**2  # Hann^2 for perfect reconstruction with 50% overlap
+        return cast(np.ndarray, window**2)  # Hann^2 for perfect reconstruction with 50% overlap
 
     # ── Static helpers for compatibility ──
 
@@ -240,7 +240,7 @@ class MERTDenoiserPlugin:
         if isinstance(data, np.ndarray):
             return data, sample_rate
         if isinstance(data, bytes):
-            data = io.BytesIO(data)
+            data = io.BytesIO(data)  # type: ignore[assignment]  # Bytes→BytesIO für load_audio_file
         from backend.file_import import load_audio_file
 
         loaded = load_audio_file(data, target_sr=sample_rate, mono=False, do_carrier_analysis=False)

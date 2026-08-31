@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 
@@ -239,7 +240,7 @@ def compute_transient_mask(audio: np.ndarray, sample_rate: int) -> np.ndarray:
     _mono = audio if audio.ndim == 1 else np.mean(audio, axis=0)
     _n_frames = 1 + (len(_mono) - _n_fft) // _hop
     if _n_frames < 4:
-        return np.zeros(max(1, _n_frames), dtype=np.float32)
+        return cast(np.ndarray, (np.zeros(max(1, _n_frames), dtype=np.float32)))
 
     # Energie pro Frame
     _energy = np.array([float(np.mean(_mono[i * _hop : i * _hop + _n_fft] ** 2)) for i in range(_n_frames)])
@@ -249,4 +250,4 @@ def compute_transient_mask(audio: np.ndarray, sample_rate: int) -> np.ndarray:
     _mask = (_delta > 3.0).astype(np.float32)
     # Smooth über 3 Frames (32ms) für natürliche Übergänge
     _mask = np.convolve(_mask, np.ones(3) / 3, mode="same")
-    return np.clip(_mask, 0.0, 1.0).astype(np.float32)
+    return cast(np.ndarray, (np.clip(_mask, 0.0, 1.0).astype(np.float32)))

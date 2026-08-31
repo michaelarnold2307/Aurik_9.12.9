@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 
@@ -152,7 +152,7 @@ class PerceptualClosedLoop:
         """Blendet basierend auf dem PerceptualResult zurück."""
         ratio = result.blend_ratio
         blended = ratio * audio_pre + (1 - ratio) * audio_post
-        return blended.astype(np.float32)
+        return cast(np.ndarray, blended.astype(np.float32))
 
 
 @dataclass

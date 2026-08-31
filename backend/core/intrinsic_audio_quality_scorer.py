@@ -48,7 +48,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -186,16 +186,21 @@ class IntrinsicAudioQualityScorer:
     def _frame_rms(cls, mono: np.ndarray, sr: int) -> np.ndarray:
         n = int(mono.shape[0])
         if n == 0:
-            return np.zeros(1, dtype=np.float64)
+            return cast(np.ndarray, (np.zeros(1, dtype=np.float64)))
         frame_len = int(np.clip(round(sr * 0.050), 128, max(128, n)))
         hop = max(1, frame_len // 2)
         if n < frame_len:
-            return np.asarray([np.sqrt(float(np.mean(mono.astype(np.float64) ** 2)) + cls._EPS)], dtype=np.float64)
+            return cast(
+                np.ndarray,
+                (np.asarray([np.sqrt(float(np.mean(mono.astype(np.float64) ** 2)) + cls._EPS)], dtype=np.float64)),
+            )
         power = mono.astype(np.float64) ** 2
         cumsum = np.concatenate([np.zeros(1, dtype=np.float64), np.cumsum(power, dtype=np.float64)])
         starts = np.arange(0, n - frame_len + 1, hop, dtype=np.int64)
         sums = cumsum[starts + frame_len] - cumsum[starts]
-        return np.asarray(np.sqrt(np.maximum(sums / float(frame_len), 0.0) + cls._EPS), dtype=np.float64)
+        return cast(
+            np.ndarray, (np.asarray(np.sqrt(np.maximum(sums / float(frame_len), 0.0) + cls._EPS), dtype=np.float64))
+        )
 
     @classmethod
     def _spectrum(cls, mono: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray]:
@@ -320,7 +325,7 @@ class IntrinsicAudioQualityScorer:
         harmonicity = cls._clip01((fundamental_power + harmonic_power) / band_total * 1.8)
         thd_pct = float(np.clip(np.sqrt(distortion_power / fundamental_power) * 100.0, 0.0, 100.0))
         thd_score = cls._clip01(1.0 / (1.0 + thd_pct / 18.0))
-        pitch_consistency = cls._clip01(fundamental_power / (fundamental_power + np.median(local_power) * 8.0))
+        pitch_consistency = cls._clip01(fundamental_power / (fundamental_power + float(np.median(local_power)) * 8.0))
         return harmonicity, pitch_consistency, thd_pct, thd_score
 
     @classmethod

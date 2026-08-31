@@ -231,7 +231,7 @@ class EqualLoudnessContour:
     frequencies: np.ndarray
     spl_levels: np.ndarray
 
-    def get_spl_at_frequency(self, freq_hz: float) -> float:
+    def get_spl_at_frequency(self, freq_hz: "float | np.ndarray") -> "float | np.ndarray":
         """
         Gibt zurück: SPL at specific frequency (interpolated).
 

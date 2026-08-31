@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -108,7 +109,7 @@ def _to_bark_bands(spec_db: np.ndarray, freqs: np.ndarray) -> np.ndarray:
                 bands[b] = float(np.median(spec_db[mask]))
         else:
             bands[b] = -120.0
-    return bands
+    return cast(np.ndarray, bands)
 
 
 def _spread_mask_threshold(masker_db: np.ndarray) -> np.ndarray:
@@ -125,7 +126,7 @@ def _spread_mask_threshold(masker_db: np.ndarray) -> np.ndarray:
     thr = np.max(contributions, axis=1)
     # Sehr leise Maskierer erzeugen keine nennenswerte Schwelle — Floor bei Ruhehörschwelle-Proxy
     thr = np.maximum(thr, -80.0)
-    return thr + _MASK_OFFSET_DB
+    return cast(np.ndarray, thr + _MASK_OFFSET_DB)
 
 
 def estimate_residuum_salience(

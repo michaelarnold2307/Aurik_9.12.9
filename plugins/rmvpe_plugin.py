@@ -28,6 +28,7 @@ import math
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 
@@ -306,10 +307,10 @@ class RmvpePlugin:
                 mel = np.pad(mel, ((0, pad_t), (0, 0)), mode="edge")
             # RMVPE ONNX expects rank-3 input with mel channels first: [B, 128, T]
             inp = mel.T[np.newaxis]  # [1, 128, T]
-            inp_name = session.get_inputs()[0].name
+            inp_name = cast(Any, session).get_inputs()[0].name
             # §ml-plugin-SKILL: Fixed-Shape-Input defensive guard.
             # If the ONNX model was exported with a fixed T dim (not dynamic), adjust.
-            _inp_meta = session.get_inputs()[0]
+            _inp_meta = cast(Any, session).get_inputs()[0]
             _t_meta_dim = _inp_meta.shape[2] if len(_inp_meta.shape) >= 3 else None
             if isinstance(_t_meta_dim, int) and _t_meta_dim > 0 and inp.shape[2] != _t_meta_dim:
                 _t_fixed = int(_t_meta_dim)
@@ -319,7 +320,7 @@ class RmvpePlugin:
                 else:
                     inp = inp[:, :, :_t_fixed]
                 logger.debug("RMVPE ONNX: fixed T=%d detected — input adjusted from %d", _t_fixed, inp.shape[2])
-            ort_out = session.run(None, {inp_name: inp.astype(np.float32)})
+            ort_out = cast(Any, session).run(None, {inp_name: inp.astype(np.float32)})
             salience = np.asarray(ort_out[0], dtype=np.float32)  # [1, T, 360]
             if salience.ndim == 3:
                 salience = salience[0]  # [T, 360]

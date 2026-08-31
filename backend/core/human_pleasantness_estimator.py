@@ -186,7 +186,7 @@ def _compute_zwicker_sharpness(mono: np.ndarray, sr: int) -> float:
     high = z_centers > 15.8
     g_z[high] = 0.066 * np.exp(0.171 * z_centers[high])
 
-    numerator = np.sum(specific_loudness * g_z * z_centers)
+    numerator = float(np.sum(specific_loudness * g_z * z_centers))
     denominator = np.sum(specific_loudness) + eps
 
     sharpness = 0.11 * numerator / denominator

@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -156,7 +156,7 @@ def _compute_vocal_presence(spectrum: np.ndarray, freqs: np.ndarray) -> float:
     vocal_score = 0.0
     for lo, hi, weight in vocal_regions:
         mask = (freqs >= lo) & (freqs <= hi)
-        band_energy = np.sum(spectrum[mask])
+        band_energy = float(np.sum(spectrum[mask]))
         vocal_score += weight * (band_energy / total)
 
     return float(np.clip(vocal_score * 3.0, 0.0, 1.0))
@@ -260,7 +260,7 @@ def compute_equal_loudness_weighting(freqs: np.ndarray) -> np.ndarray:
     # 50 dB Abweichung (20 Hz) → Gewicht 0.0
     weights = np.clip(1.0 - np.abs(db_at_freqs) / 50.0, 0.0, 1.0)
 
-    return weights.astype(np.float32)
+    return cast(np.ndarray, weights.astype(np.float32))
 
 
 def compute_critical_mask(
@@ -306,7 +306,7 @@ def compute_critical_mask(
                     boost = 0.2 * vocal_presence  # max +0.2 auf bestehende Maske
                     mask[vz_mask] = np.clip(mask[vz_mask] + boost, 0.0, 1.0)
 
-    return mask.astype(np.float32)
+    return cast(np.ndarray, mask.astype(np.float32))
 
 
 def analyze_critical_zones(
@@ -340,7 +340,7 @@ def analyze_critical_zones(
     total = np.sum(spec) + 1e-12
     for zone in CLP_ZONES:
         mask = (freqs >= zone.f_min) & (freqs <= zone.f_max)
-        zone_energy = np.sum(spec[mask])
+        zone_energy = float(np.sum(spec[mask]))
         zone_scores[zone.name] = float(np.clip(zone_energy / total * 5.0, 0.0, 1.0))
 
     # Vocal-Präsenz
@@ -399,7 +399,7 @@ def apply_clp_limited_gain(
     hop = n_fft // 4
     n_frames = (len(arr) - n_fft) // hop + 1
     if n_frames < 1:
-        return arr
+        return cast(np.ndarray, arr)
 
     result = np.zeros_like(arr)
     window = np.hanning(n_fft)
@@ -431,11 +431,11 @@ def apply_clp_limited_gain(
         spec = spec * gain_linear
         result[start : start + n_fft] += np.fft.irfft(spec).real * window
 
-    max_val = np.max(np.abs(result))
+    max_val = float(np.max(np.abs(result)))
     if max_val > 1.0:
         result /= max_val
 
-    return result.astype(audio.dtype)
+    return cast(np.ndarray, result.astype(audio.dtype))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

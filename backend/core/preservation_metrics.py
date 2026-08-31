@@ -20,6 +20,7 @@ Date: 2026-07-13
 """
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -259,13 +260,13 @@ def compute_transient_preservation_score(
             spec = np.abs(np.fft.rfft(frame))
             energy[i] = float(np.sum(spec[lo:hi] ** 2))
         if np.max(energy) < 1e-15:
-            return np.zeros(n_frames, dtype=np.float64)
+            return cast(np.ndarray, (np.zeros(n_frames, dtype=np.float64)))
         energy_db = 10.0 * np.log10(energy + 1e-15)
         # Onset = positive half-wave of first difference
         diff = np.diff(energy_db)
         onset = np.maximum(diff, 0.0)
         onset /= np.max(onset) + 1e-15
-        return onset
+        return cast(np.ndarray, onset)
 
     onset_o = onset_func(mono_orig)
     onset_p = onset_func(mono_proc)
@@ -295,12 +296,12 @@ def compute_transient_preservation_score(
 def _find_peaks(signal: np.ndarray, threshold: float = 0.0) -> np.ndarray:
     """Finde lokale Maxima über threshold."""
     if len(signal) < 3:
-        return np.array([], dtype=int)
+        return cast(np.ndarray, (np.array([], dtype=int)))
     peaks = []
     for i in range(1, len(signal) - 1):
         if signal[i] > threshold and signal[i] > signal[i - 1] and signal[i] > signal[i + 1]:
             peaks.append(i)
-    return np.array(peaks, dtype=int)
+    return cast(np.ndarray, (np.array(peaks, dtype=int)))
 
 
 # ── §G48 Vocal Formant Preservation ─────────────────────────────────────
@@ -436,7 +437,7 @@ def _extract_formants(audio: np.ndarray, sr: int, n_formants: int = 4) -> list[f
         if hi <= lo:
             return []
 
-        peaks = _find_peaks(H_db[lo:hi], threshold=np.mean(H_db[lo:hi]))
+        peaks = _find_peaks(H_db[lo:hi], threshold=float(np.mean(H_db[lo:hi])))
         peak_values = [(freqs[lo + p], H_db[lo + p]) for p in peaks if lo + p < len(freqs)]
         peak_values.sort(key=lambda x: -x[1])  # Sort by magnitude
         formants = [f for f, _ in peak_values[:n_formants]]

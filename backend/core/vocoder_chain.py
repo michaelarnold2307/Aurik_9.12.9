@@ -16,6 +16,7 @@ nicht verdrahtet.
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -62,7 +63,7 @@ def activate_vocoder_chain(
             out = getattr(res, "audio", None)
             if _ok(out):
                 logger.info("Vocoder-Kette: Vocos 48 kHz erfolgreich")
-                return np.asarray(out, dtype=np.float32)
+                return cast(np.ndarray | None, (np.asarray(out, dtype=np.float32)))
         except Exception as e:
             logger.warning("Vocos 48 kHz fehlgeschlagen: %s — Fallback zu BigVGAN-v2", e)
 
@@ -73,7 +74,7 @@ def activate_vocoder_chain(
         result = BigVGANv2Plugin().synthesize(arr, sample_rate)
         if _ok(result):
             logger.info("Vocoder-Kette: BigVGAN-v2 erfolgreich")
-            return np.asarray(result, dtype=np.float32)
+            return cast(np.ndarray | None, (np.asarray(result, dtype=np.float32)))
     except Exception as e:
         logger.warning("BigVGAN-v2 fehlgeschlagen: %s — Fallback zu HiFi-GAN", e)
 
@@ -81,10 +82,10 @@ def activate_vocoder_chain(
     try:
         from plugins.hifigan_plugin import HiFiGANPlugin
 
-        result = HiFiGANPlugin().synthesize(arr, sample_rate)
-        if _ok(result):
+        _hf_result = HiFiGANPlugin().reconstruct(arr, sample_rate)
+        if _ok(_hf_result):
             logger.info("Vocoder-Kette: HiFi-GAN Notfallstufe erfolgreich")
-            return np.asarray(result, dtype=np.float32)
+            return cast(np.ndarray | None, (np.asarray(_hf_result, dtype=np.float32)))
     except Exception as e:
         logger.warning("HiFi-GAN fehlgeschlagen: %s — Fallback zu PGHI-ISTFT", e)
 
@@ -104,7 +105,7 @@ def activate_vocoder_chain(
         else:
             out = out[: arr.shape[0]]
         logger.info("Vocoder-Kette: PGHI-DSP-Endfall erfolgreich")
-        return out
+        return cast(np.ndarray | None, out)
     except Exception as e:
         logger.error("Vocoder-Kette: ALLE Stufen fehlgeschlagen — Original zurueck: %s", e)
         return audio

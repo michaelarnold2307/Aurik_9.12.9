@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -210,7 +210,7 @@ class SibilanceMaxRepair:
             else:
                 result = repaired.astype(np.float32)
 
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     def _apply_ml_deesser(
         self, audio: np.ndarray, sr: int, freq_range: tuple[float, float], strength: float
@@ -231,7 +231,7 @@ class SibilanceMaxRepair:
         for sb_lo, sb_hi in sub_bands:
             result = self._apply_dsp_deesser(result, sr, (sb_lo, sb_hi), strength * 0.6)
 
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     def _check_vocal_formant_preservation(self, before: np.ndarray, after: np.ndarray, sr: int) -> bool:
         """Prüft ob die Gesangs-Formanten (F1–F4: 200–4000 Hz) erhalten blieben."""

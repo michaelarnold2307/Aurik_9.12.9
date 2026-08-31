@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 from scipy.signal import lfilter
@@ -103,7 +104,7 @@ class LoudnessResult:
 
 def _apply_filter(audio: np.ndarray, b: list[float], a: list[float]) -> np.ndarray:
     """Rund-Filter für das R‑ bzw. K‑Loudness."""
-    return lfilter(b, a, audio)
+    return cast(np.ndarray, (lfilter(b, a, audio)))
 
 
 def compute_loudness(audio: np.ndarray, sr: int) -> LoudnessResult:

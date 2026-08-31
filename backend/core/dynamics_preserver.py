@@ -23,7 +23,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -123,13 +123,13 @@ def capture_dynamics_profile(audio: np.ndarray, sr: int) -> DynamicsProfile:
     def _frame_rms(sig: np.ndarray, frame_len: int) -> np.ndarray:
         n_frames = (len(sig) - frame_len) // (frame_len // 2) + 1
         if n_frames < 2:
-            return np.array([float(np.sqrt(np.mean(sig**2) + 1e-12))])
+            return cast(np.ndarray, np.array([float(np.sqrt(np.mean(sig**2) + 1e-12))]))
         rms_vals = np.zeros(n_frames)
         for i in range(n_frames):
             start = i * (frame_len // 2)
             chunk = sig[start : start + frame_len]
             rms_vals[i] = float(np.sqrt(np.mean(chunk**2) + 1e-12))
-        return rms_vals
+        return cast(np.ndarray, rms_vals)
 
     micro_rms = _frame_rms(mono, micro_samples)
     macro_rms = _frame_rms(mono, macro_samples)
@@ -265,7 +265,7 @@ def restore_dynamics(
         result = result_channels[0]
 
     # Sanftes Clipping: nur extremes Overshoot begrenzen
-    max_val = np.max(np.abs(result))
+    max_val = float(np.max(np.abs(result)))
     if max_val > 1.2:
         result /= max_val * 0.95
 
@@ -341,7 +341,7 @@ def _restore_dynamics_mono(
             smooth_mask = np.convolve(transient_mask.astype(float), np.hanning(64), mode="same")
             result = result * (1.0 + (micro_boost - 1.0) * smooth_mask)
 
-    return result
+    return cast(np.ndarray, result)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

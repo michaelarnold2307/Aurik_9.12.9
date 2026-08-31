@@ -466,9 +466,10 @@ class SotaVocalModelRouter:
                     )
                     return EnhancementRouteResult(
                         audio=np.asarray(_dit_result.audio, dtype=np.float32),
-                        route_taken="miipher_dit",
-                        attempt_log=attempts,
-                        implicit_harmonic_recovery=True,
+                        success=True,
+                        model_used="miipher_dit",
+                        fallback_chain=list(attempts),
+                        metadata={"route_taken": "miipher_dit", "implicit_harmonic_recovery": True},
                     )
                 else:
                     attempts.append(f"miipher_dit:{_dit_result.model_used}")

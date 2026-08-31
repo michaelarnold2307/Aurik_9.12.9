@@ -20,6 +20,7 @@ API:
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -186,7 +187,7 @@ def detect_phoneme_protection_mask_dsp(
             start = max(0, idx * hop_length - guard)
             end = min(n_samples, idx * hop_length + hop_length * 2 + guard)
             mask[start:end] = True
-        return mask
+        return cast(np.ndarray, mask)
     except Exception as exc:  # pylint: disable=broad-except
         logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
         logger.debug("phoneme_protection_mask_dsp: Fehler (nicht blockierend): %s", exc)

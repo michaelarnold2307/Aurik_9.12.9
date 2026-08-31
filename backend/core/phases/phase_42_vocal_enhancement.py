@@ -46,7 +46,7 @@ Version: 2.0.0 Professional
 
 import logging
 import time
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from scipy import signal
@@ -393,9 +393,11 @@ class VocalEnhancement(PhaseInterface):
             logger.info("Phase 42: MIIPHER-DiT bereits in Phase 03 gelaufen — überspringe (kein Doppel-Enhancement)")
             return PhaseResult(
                 audio=audio,
-                sample_rate=sample_rate,
-                algorithm="skipped_miipher_dit_already_applied",
-                processing_time_ms=0.0,
+                metadata={
+                    "sample_rate": sample_rate,
+                    "algorithm": "skipped_miipher_dit_already_applied",
+                    "processing_time_ms": 0.0,
+                },
             )
         sample_rate = kwargs.get("sample_rate", 48000)
         assert sample_rate == 48000, f"SR muss 48000 Hz sein, erhalten: {sample_rate}"
@@ -1643,7 +1645,7 @@ class VocalEnhancement(PhaseInterface):
                     _hpss_max_s,
                 )
             _t0_hpss = time.monotonic()
-            harmonic_mono, _ = librosa.effects.hpss(mono_in)  # type: ignore[attr-defined]
+            harmonic_mono, _ = librosa.effects.hpss(mono_in)  # type: ignore[attr-defined]  # librosa-Stubs exportieren effects nicht
             _hpss_elapsed = time.monotonic() - _t0_hpss
             if _hpss_elapsed > _hpss_max_s:
                 logger.warning(
@@ -1680,7 +1682,7 @@ class VocalEnhancement(PhaseInterface):
             import librosa  # pylint: disable=import-outside-toplevel
 
             mono_in = audio_mono if audio.ndim == 2 else audio
-            harmonic_mono, _ = librosa.effects.hpss(mono_in)
+            harmonic_mono, _ = librosa.effects.hpss(mono_in)  # type: ignore[attr-defined]  # librosa-Stubs exportieren effects nicht
             n = min(len(audio_mono), len(harmonic_mono))
             if audio.ndim == 2:
                 vocals_out, instr_out = self._wiener_stereo_from_mono(audio[:n], harmonic_mono[:n], sr)
@@ -1889,7 +1891,7 @@ class VocalEnhancement(PhaseInterface):
                 EINEM Filterdurchlauf statt serieller filtfilt-Kaskade.
                 """
                 if abs(gain_db) < 0.05:
-                    return np.array([[1.0, 0.0, 0.0, 1.0, 0.0, 0.0]], dtype=np.float64)
+                    return cast(np.ndarray, (np.array([[1.0, 0.0, 0.0, 1.0, 0.0, 0.0]], dtype=np.float64)))
                 w0 = 2.0 * np.pi * center_hz / sample_rate
                 sin_w0 = float(np.sin(w0))
                 cos_w0 = float(np.cos(w0))
@@ -1901,7 +1903,9 @@ class VocalEnhancement(PhaseInterface):
                 a0 = 1.0 + alpha / A
                 a1 = -2.0 * cos_w0
                 a2 = 1.0 - alpha / A
-                return np.array([[b0 / a0, b1 / a0, b2 / a0, 1.0, a1 / a0, a2 / a0]], dtype=np.float64)
+                return cast(
+                    np.ndarray, (np.array([[b0 / a0, b1 / a0, b2 / a0, 1.0, a1 / a0, a2 / a0]], dtype=np.float64))
+                )
 
             # §v10.65: Sammle alle Formant-Korrekturen in einem SOS-Array
             # und wende sie in EINEM lfilter-Durchlauf an — kein serielles

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Any, cast
 
 import numpy as np
 
@@ -98,7 +99,7 @@ def enhance_music(audio: np.ndarray, sample_rate: int = 44100) -> np.ndarray:
             enhanced = enhanced[: len(audio)]
 
         logger.info("MelBandRoformer: enhancement applied")
-        return enhanced.astype(np.float32)
+        return cast(np.ndarray, enhanced.astype(np.float32))
 
     except Exception as e:
         logger.debug("MelBandRoformer nicht verfügbar: %s", e)
@@ -111,10 +112,9 @@ def enhance_vocals(audio: np.ndarray, sample_rate: int = 48000) -> np.ndarray:
         from backend.core.vocal_enhancer import enhance_vocals as _enhance_vocals
 
         result = _enhance_vocals(audio, sr=sample_rate, breath_reduction_db=3.0, sibilance_reduction_db=2.0)
-        if hasattr(result, "audio"):
-            result = result.audio
+        _audio_out = cast(Any, result).audio if hasattr(result, "audio") else cast(Any, result)
         logger.info("Vocal Enhancer: applied")
-        return result.astype(np.float32)
+        return cast(np.ndarray, _audio_out.astype(np.float32))
     except Exception as e:
         logger.debug("Vocal Enhancer DSP nicht verfügbar: %s", e)
         # Fallback: Aurik's built-in vocal enhancer
@@ -122,11 +122,10 @@ def enhance_vocals(audio: np.ndarray, sample_rate: int = 48000) -> np.ndarray:
             from backend.core.vocal_ai_enhancement import UnifiedVocalAIEnhancer
 
             ve = UnifiedVocalAIEnhancer(sample_rate=sample_rate)
-            result = ve.enhance(audio, breath_preservation=0.7, sibilance_reduction=True)
-            if hasattr(result, "audio"):
-                result = result.audio
+            result2 = ve.enhance(audio, breath_preservation=0.7, sibilance_reduction=True)
+            _audio_out = cast(Any, result2).audio if hasattr(result2, "audio") else cast(Any, result2)
             logger.info("Vocal Enhancer: Aurik fallback applied")
-            return result.astype(np.float32)
+            return cast(np.ndarray, _audio_out.astype(np.float32))
         except Exception as e2:
             logger.debug("Aurik Vocal Enhancer nicht verfügbar: %s", e2)
             return audio

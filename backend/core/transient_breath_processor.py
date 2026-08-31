@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -216,4 +217,4 @@ def process_breath_transient_aware(
     gain_env = uniform_filter1d(gain_env.astype(np.float64), smooth_samples).astype(np.float32)
     result = audio * gain_env
 
-    return result
+    return cast(np.ndarray, result)

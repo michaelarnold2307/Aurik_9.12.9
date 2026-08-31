@@ -162,7 +162,7 @@ def _check_transient_smear(mono: np.ndarray, sr: int) -> float:
 
     # Zähle scharfe Transienten (>10dB Anstieg)
     transients = jumps > 10.0
-    n_transients = np.sum(transients)
+    n_transients = int(np.sum(transients))
 
     if n_transients < 2:
         return 0.5  # Keine Transienten zum Beurteilen

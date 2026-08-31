@@ -3455,12 +3455,19 @@ def get_donation_reminder_info() -> dict:
 # ---------------------------------------------------------------------------
 
 
-def inject_cd_noise_profile(audio, sample_rate: int, material_type: str = "vinyl") -> object:
-    """Injiziert CD-Rauschprofil. Wrapper für backend.core.cd_noise_profile."""
+def inject_cd_noise_profile(
+    audio,
+    sample_rate: int,
+    *,
+    mode: str = "restoration",
+    bit_depth: int = 16,
+    seed: int | None = None,
+) -> object:
+    """Injiziert CD-Rauschprofil. Wrapper für backend.core.cd_noise_profile (§G4/§G63)."""
     try:
         from backend.core.cd_noise_profile import inject_cd_noise_profile as _inject
 
-        return _inject(audio, sample_rate, material_type)  # type: ignore[misc]
+        return _inject(audio, sample_rate, mode=mode, bit_depth=bit_depth, seed=seed)  # type: ignore[misc]
     except ImportError:
         return audio
 

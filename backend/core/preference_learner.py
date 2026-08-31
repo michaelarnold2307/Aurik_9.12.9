@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -74,8 +74,8 @@ class PreferenceLearner:
             return
 
         cat = FEEDBACK_CATEGORIES[feedback]
-        target = cat["target"]
-        adjust = cat["adjust"]
+        target = str(cat["target"])
+        adjust = cast(float, cat["adjust"])
 
         if target == "lock":
             self._gold_standards[material] = {

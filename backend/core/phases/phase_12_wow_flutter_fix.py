@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from typing import Any
+
 """
 Phase 12: Professional Wow & Flutter Correction v2.0
 =====================================================
@@ -73,7 +75,6 @@ Date: February 2026
 import logging
 import os
 import time
-from typing import Any
 
 import numpy as np
 from scipy import signal
@@ -908,7 +909,7 @@ class WowFlutterFix(PhaseInterface):
                                 _onset_mask = np.convolve(_onset_mask.astype(float), _kernel, mode="same") > 0.3
                             gain[_onset_mask] = 1.0
                             gain = np.clip(gain, 0.85, 1.30)  # Floor 0.85 statt 0.70
-                            return (sig.astype(np.float64) * gain).astype(np.float32)
+                            return cast(np.ndarray, (sig.astype(np.float64) * gain).astype(np.float32))
 
                         if audio.ndim == 2:
                             ch_first = audio.shape[0] == 2 and audio.shape[1] > 2
@@ -3271,7 +3272,7 @@ class WowFlutterFix(PhaseInterface):
                         _mat_key,
                         _wow_sev,
                     )
-                    return np.ones_like(pitch_trajectory)
+                    return cast(np.ndarray, np.ones_like(pitch_trajectory))
                 else:
                     logger.info(
                         "Verarbeitungsschritt 12 pitch span %.0f cents within limit %.0f (mat=%s wow=%.2f)",
@@ -3891,3 +3892,4 @@ def _run_test() -> None:  # pragma: no cover
 
 if __name__ == "__main__":
     _run_test()
+from typing import cast

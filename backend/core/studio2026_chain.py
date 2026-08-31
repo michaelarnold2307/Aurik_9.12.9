@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 
@@ -228,7 +229,7 @@ def _dynamic_eq(audio: np.ndarray, sr: int, material: str) -> np.ndarray:
         if audio.ndim == 2:
             ratio = np.clip(result / (mono + 1e-12), 0.8, 1.2)
             return (audio * ratio[:, np.newaxis]).astype(np.float32)  # type: ignore[no-any-return]
-        return np.clip(result, -1, 1).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1, 1).astype(np.float32)))
     except Exception as e:
         logger.warning("unknown: %s", e)
         return audio
@@ -417,7 +418,7 @@ def _dynamic_presence_air(audio: np.ndarray, sr: int) -> np.ndarray:
         if audio.ndim == 2:
             ratio = np.clip(result / (mono + 1e-12), 0.7, 1.3)
             return (audio * ratio[:, np.newaxis]).astype(np.float32)  # type: ignore[no-any-return]
-        return result.astype(np.float32)
+        return cast(np.ndarray, result.astype(np.float32))
     except Exception as e:
         logger.warning("_dynamic_presence_air: %s", e)
         return audio

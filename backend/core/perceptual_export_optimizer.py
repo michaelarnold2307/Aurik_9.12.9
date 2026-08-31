@@ -16,6 +16,7 @@ Architektur:
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 
@@ -71,7 +72,7 @@ class PerceptualExportOptimizer:
         # ── 5. Hörumgebungs-Adaption ──
         result = self._apply_listening_adaptation(result, sr, listening_mode)
 
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     def _apply_masking_gate(self, audio: np.ndarray, sr: int, material: str) -> np.ndarray:
         """Psychoakustisches Masking-Gate: entfernt nur hörbare Defekte."""
@@ -93,7 +94,7 @@ class PerceptualExportOptimizer:
             else:
                 processed = dfn.enhance(audio[np.newaxis, :])  # type: ignore[call-arg]
             logger.info("§AQ DeepFilterNet: ML noise/click repair angewendet")
-            return np.asarray(processed, dtype=np.float32)
+            return cast(np.ndarray, (np.asarray(processed, dtype=np.float32)))
         except Exception as e:
             logger.debug("§AQ DeepFilterNet nicht verfuegbar: %s", e)
             return audio
@@ -112,7 +113,7 @@ class PerceptualExportOptimizer:
                 # Sanfte Vocal-Anhebung (+1dB) für mehr Präsenz
                 result = other + vocals * 1.12
                 logger.info("§AQ Demucs: vocal isolation + presence boost angewendet")
-                return np.asarray(result, dtype=np.float32)
+                return cast(np.ndarray, (np.asarray(result, dtype=np.float32)))
         except Exception as e:
             logger.debug("§AQ Demucs nicht verfuegbar: %s", e)
         return audio
@@ -128,7 +129,7 @@ class PerceptualExportOptimizer:
             asr = FlashSRPlugin()
             result = asr.upsample(audio, sr)  # type: ignore[attr-defined]
             logger.info("§AQ FlashSR: ML bandwidth extension angewendet")
-            return np.asarray(result, dtype=np.float32)
+            return cast(np.ndarray, (np.asarray(result, dtype=np.float32)))
         except Exception as e:
             logger.debug("§AQ FlashSR nicht verfuegbar: %s", e)
         return audio
@@ -189,7 +190,7 @@ class PerceptualExportOptimizer:
         except Exception as e:
             logger.warning("perceptual_Ausgabe_optimizer.py::_anwenden_listening_adaptation Ersatzpfad: %s", e)
 
-        return np.clip(result, -1.0, 1.0).astype(np.float32)
+        return cast(np.ndarray, (np.clip(result, -1.0, 1.0).astype(np.float32)))
 
     @staticmethod
     def _get_available_ram() -> float:

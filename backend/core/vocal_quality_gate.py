@@ -175,7 +175,7 @@ class VocalDetector:
 
         # Energie im Stimmformant-Bereich (300–3400 Hz)
         voice_mask = (freqs >= 300) & (freqs <= 3400)
-        voice_energy = np.sum(spec[voice_mask])
+        voice_energy = float(np.sum(spec[voice_mask]))
         total_energy = np.sum(spec) + 1e-10
         voice_ratio = float(voice_energy / total_energy)
 
@@ -308,7 +308,7 @@ class VocalNaturalnessScorer:
 
         # Atembereich: 4–8 kHz
         breath_mask = (freqs >= 4000) & (freqs <= 8000)
-        breath_energy = np.sum(spec[breath_mask])
+        breath_energy = float(np.sum(spec[breath_mask]))
 
         if breath_energy < 1e-8:
             return 30.0  # Zu sauber — Atem wurde entfernt
@@ -341,7 +341,7 @@ class VocalNaturalnessScorer:
         spec = np.abs(np.fft.rfft(mono[:n_fft]))
 
         sib_mask = (freqs >= 5000) & (freqs <= 10000)
-        sib_energy = np.sum(spec[sib_mask])
+        sib_energy = float(np.sum(spec[sib_mask]))
         total_energy = np.sum(spec) + 1e-10
         sib_ratio = float(sib_energy / total_energy)
 
@@ -385,7 +385,7 @@ class VocalNaturalnessScorer:
         spec = np.abs(np.fft.rfft(mono[:n_fft]))
 
         critical_mask = (freqs >= _CRITICAL_FREQ_LOW) & (freqs <= _CRITICAL_FREQ_HIGH)
-        critical_energy = np.sum(spec[critical_mask])
+        critical_energy = float(np.sum(spec[critical_mask]))
         total_energy = np.sum(spec) + 1e-10
         sharpness = float(critical_energy / total_energy)
 
@@ -414,7 +414,7 @@ class VocalNaturalnessScorer:
         spec = np.abs(np.fft.rfft(mono[:n_fft]))
 
         warmth_mask = (freqs >= 100) & (freqs <= 500)
-        warmth_energy = np.sum(spec[warmth_mask])
+        warmth_energy = float(np.sum(spec[warmth_mask]))
         total_energy = np.sum(spec) + 1e-10
         warmth_ratio = float(warmth_energy / total_energy)
 

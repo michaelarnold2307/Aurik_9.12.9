@@ -30,7 +30,7 @@ import logging
 import math
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 import numpy as np
 import onnxruntime as ort
@@ -98,7 +98,7 @@ class MERTQualityGate:
         g = math.gcd(orig_sr, target_sr)
         up = target_sr // g
         down = orig_sr // g
-        return resample_poly(audio, up, down).astype(np.float32)
+        return cast(np.ndarray, (resample_poly(audio, up, down).astype(np.float32)))
 
     def _extract_features(self, audio_16k: np.ndarray) -> np.ndarray:
         """Extract MERT embeddings for audio chunk. Returns [T, 768]."""
@@ -107,7 +107,7 @@ class MERTQualityGate:
             None,
             {"input_values": audio_norm[np.newaxis, :].astype(np.float32)},
         )
-        return outputs[0][0].astype(np.float32)  # [T, 768]
+        return cast(np.ndarray, outputs[0][0].astype(np.float32))  # [T, 768]
 
     def score_chunk(self, audio: np.ndarray, sample_rate: int) -> float:
         """
@@ -153,7 +153,9 @@ class MERTQualityGate:
 
         # Frame-level variance: high variance = inconsistent quality
         feat_norm = feat / (np.linalg.norm(feat, axis=1, keepdims=True) + 1e-10)
-        centroid_norm = self._clean_centroid / (np.linalg.norm(self._clean_centroid) + 1e-10)
+        centroid_norm = cast(np.ndarray, self._clean_centroid) / (
+            np.linalg.norm(cast(np.ndarray, self._clean_centroid)) + 1e-10
+        )
         frame_sims = feat_norm @ centroid_norm  # [T]
         frame_scores = (frame_sims + 1) * 50
         consistency = float(100.0 - min(100.0, frame_scores.std() * 3))

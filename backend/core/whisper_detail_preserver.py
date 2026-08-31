@@ -28,7 +28,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -347,7 +347,7 @@ def apply_whisper_preservation(
         mask_2d = np.atleast_2d(mask_samples).T if mask_samples.ndim == 1 else mask_samples
         result = orig * mask_2d + proc * (1.0 - mask_2d)
 
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 # Singleton

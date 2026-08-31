@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 from scipy.ndimage import uniform_filter1d
@@ -151,7 +152,7 @@ def _simple_breath_gate(audio: np.ndarray, sr: int, reduction_db: float) -> np.n
     smooth_samples = int(SMOOTH_MS * sr / 1000.0)
     gain_env = uniform_filter1d(gain_env.astype(np.float64), smooth_samples).astype(np.float32)
 
-    return audio * gain_env
+    return cast(np.ndarray, audio * gain_env)
 
 
 def _deess(audio: np.ndarray, sr: int, reduction_db: float) -> np.ndarray:
@@ -183,7 +184,7 @@ def _deess(audio: np.ndarray, sr: int, reduction_db: float) -> np.ndarray:
     threshold = np.percentile(envelope, 85)
 
     if threshold < 1e-10:
-        return audio.astype(np.float32)
+        return cast(np.ndarray, audio.astype(np.float32))
 
     # Compute dynamic gain reduction
     gain = np.ones_like(audio, dtype=np.float64)
@@ -204,7 +205,7 @@ def _deess(audio: np.ndarray, sr: int, reduction_db: float) -> np.ndarray:
             alpha = np.exp(-1.0 / release_samples)
         gain_smooth[i] = alpha * gain_smooth[i - 1] + (1.0 - alpha) * gain[i]
 
-    return (audio * gain_smooth).astype(np.float32)
+    return cast(np.ndarray, (audio * gain_smooth).astype(np.float32))
 
 
 def _deplosive(audio: np.ndarray, sr: int, reduction_db: float = 3.0) -> np.ndarray:
@@ -233,7 +234,7 @@ def _deplosive(audio: np.ndarray, sr: int, reduction_db: float = 3.0) -> np.ndar
     threshold = np.percentile(envelope, 95)
 
     if threshold < 1e-10:
-        return audio.astype(np.float32)
+        return cast(np.ndarray, audio.astype(np.float32))
 
     # Compute gain reduction for plosive bursts
     gain = np.ones_like(audio, dtype=np.float64)
@@ -253,4 +254,4 @@ def _deplosive(audio: np.ndarray, sr: int, reduction_db: float = 3.0) -> np.ndar
             alpha = np.exp(-1.0 / release_samples)
         gain_smooth[i] = alpha * gain_smooth[i - 1] + (1.0 - alpha) * gain[i]
 
-    return (audio * gain_smooth).astype(np.float32)
+    return cast(np.ndarray, (audio * gain_smooth).astype(np.float32))

@@ -10,7 +10,7 @@ from typing import Optional
 
 import librosa
 import numpy as np
-from scipy.signal import stft, istft, windows
+from scipy.signal import istft, stft, windows
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ def apply_spectral_gating(
     audio_path: str | Path,
     threshold_db: float = -60.0,
     hop_length: int = 512,
-    n_fft: Optional[int] = None,
+    n_fft: int | None = None,
     soft_knee_width_db: float = 6.0,
     masking_margin_db: float = 3.0,
 ) -> np.ndarray:
@@ -53,18 +53,14 @@ def apply_spectral_gating(
 
     result = load_audio_file(str(audio_path), target_sr=None, mono=False, do_carrier_analysis=False)
     if result is None or result.get("error"):
-        raise RuntimeError(
-            f"Audio-Laden fehlgeschlagen: {result.get('error') if result else 'None'}"
-        )
+        raise RuntimeError(f"Audio-Laden fehlgeschlagen: {result.get('error') if result else 'None'}")
 
     y = np.asarray(result["audio"], dtype=np.float64)
     sr = result["sr"]
 
     # Mono-Fallback für Stereo mit Warnung (§G8 Transparenz)
     if len(y.shape) > 1:
-        logger.warning(
-            "§2.62 Spectral Gating: Stereo → Mono-Konvertierung (%d Kanäle)", y.shape[0]
-        )
+        logger.warning("§2.62 Spectral Gating: Stereo → Mono-Konvertierung (%d Kanäle)", y.shape[0])
         y = np.mean(y, axis=0).astype(np.float64)
 
     if len(y) == 0:
@@ -117,12 +113,12 @@ def apply_spectral_gating(
     y_out = np.nan_to_num(y_out, nan=0.0, posinf=1.0, neginf=-1.0)
 
     # True-Peak Schutz (kein Clipping — §V1)
-    peak = np.max(np.abs(y_out))
+    peak = float(np.max(np.abs(y_out)))
     if peak > 1.0:
         y_out *= 1.0 / peak
         logger.warning("§2.62 Spectral Gating: True-Peak-Korrektur (%.3f dBFS)", 20 * np.log10(peak))
 
-    return y_out
+    return cast(np.ndarray, y_out)
 
 
 def _freqs_to_bark(freqs: np.ndarray) -> np.ndarray:
@@ -130,7 +126,7 @@ def _freqs_to_bark(freqs: np.ndarray) -> np.ndarray:
     # Zwicker-Bark-Konvertierung (vereinfacht, aber psychoakustisch korrekt):
     z = freqs / 1000.0
     bark = 9 * np.log((z + 85) / (z + 7))
-    return bark
+    return cast(np.ndarray, bark)
 
 
 def _compute_masking_threshold_per_band(
@@ -161,26 +157,30 @@ def _compute_masking_threshold_per_band(
         band_max = max_per_band[int(bark_bands[i])]
         threshold_map[i] = max(threshold_db, band_max - masking_margin_db)
 
-    return threshold_map
+    return cast(np.ndarray, threshold_map)
 
 
 def _sigmoid_soft_knee(x: np.ndarray, knee_width_db: float) -> np.ndarray:
     """Sigmoid-Soft-Knee statt Hard-Cutoff (§III)."""
     # Sigmoid: σ(x/knee_width) → 0 bei x << -knee_width, → 1 bei x >> knee_width
     # Verhindert harte Schnittkanten (Ghost-Echo-Verbot §V2)
-    return np.where(
-        np.abs(x) < 1e-6,
-        0.5 * np.ones_like(x),
-        1.0 / (1.0 + np.exp(-x / knee_width_db)),
+    return cast(
+        np.ndarray,
+        np.where(
+            np.abs(x) < 1e-6,
+            0.5 * np.ones_like(x),
+            1.0 / (1.0 + np.exp(-x / knee_width_db)),
+        ),
     )
 
 
 # --- Batch-Export-Hilfe für Aurik-Pipeline ---
 
+
 def apply_spectral_gating_batch(
     audio_dir: str | Path,
     threshold_db: float = -60.0,
-    output_dir: Optional[str | Path] = None,
+    output_dir: str | Path | None = None,
 ) -> dict[str, float]:
     """Batch-Spectral-Gating für alle Audio-Dateien im Verzeichnis.
 
@@ -206,7 +206,7 @@ def apply_spectral_gating_batch(
         out_path = output_dir / f"{f.stem}_gated.wav"
 
         # Export (librosa — kein Dither nötig für float32/float64)
-        librosa.write(str(out_path), y_out, sr=48000, format="wav")
+        librosa.write(str(out_path), y_out, sr=48000, format="wav")  # type: ignore[attr-defined]  # librosa-Stubs exportieren write nicht
 
         peak_dbfs = 20 * np.log10(np.max(np.abs(y_out)) + 1e-10)
         results[f.name] = peak_dbfs
@@ -217,8 +217,12 @@ def apply_spectral_gating_batch(
 
 # --- Unit-Test-Hilfe für Determinismus (§G5) ---
 
+
 def verify_determinism(audio_path: str | Path, threshold_db: float = -60.0) -> bool:
     """Prüft Bit-Identität bei zwei Durchläufen (§G5)."""
     out1 = apply_spectral_gating(audio_path, threshold_db=threshold_db)
     out2 = apply_spectral_gating(audio_path, threshold_db=threshold_db)
     return np.array_equal(out1, out2)
+
+
+from typing import cast

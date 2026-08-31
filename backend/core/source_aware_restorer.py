@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -161,7 +161,7 @@ def restore_per_source(
 
     elapsed = time.perf_counter() - t0
     logger.info("§3.0 Source-aware restoration vollstaendig in %.1fs (%d stems)", elapsed, len(restored_stems))
-    return result.astype(np.float32)
+    return cast(np.ndarray, result.astype(np.float32))
 
 
 def _separate_sources(audio: np.ndarray, sr: int) -> dict[str, np.ndarray]:
@@ -262,7 +262,7 @@ def _restore_fullmix(
     """Fallback: UV3 auf Vollmix ohne Source-Separation."""
     result = restore_fn(audio, **restore_kwargs)
     if hasattr(result, "audio"):
-        return np.asarray(result.audio)
+        return cast(np.ndarray, np.asarray(result.audio))
     if isinstance(result, np.ndarray):
         return result
     return audio
@@ -279,7 +279,7 @@ def _remix_stems(
         result = np.zeros(target_shape, dtype=np.float32)
         for stem in original_stems.values():
             result += stem.astype(np.float32)
-        return result
+        return cast(np.ndarray, result)
 
     # Baue Mix aus verfügbaren Stems
     first_stem = next(iter(restored.values()))
@@ -297,7 +297,7 @@ def _remix_stems(
             else:
                 result += stem_audio[: result.shape[0]] if result.ndim == 1 else stem_audio[:, : result.shape[1]]
 
-    return np.clip(result, -1.0, 1.0)
+    return cast(np.ndarray, (np.clip(result, -1.0, 1.0)))
 
 
 def _emit_progress(cb: Any, pct: float, msg: str) -> None:

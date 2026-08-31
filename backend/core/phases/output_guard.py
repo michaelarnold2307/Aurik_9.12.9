@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -69,7 +70,7 @@ def evaluate_output_guard(
     def _is_stereo_2d(arr: np.ndarray) -> bool:
         if arr.ndim != 2:
             return False
-        return (arr.shape[1] == 2 and arr.shape[0] > 2) or (arr.shape[0] == 2 and arr.shape[1] > 2)
+        return cast(bool, (arr.shape[1] == 2 and arr.shape[0] > 2) or (arr.shape[0] == 2 and arr.shape[1] > 2))
 
     is_stereo = _is_stereo_2d(original) and _is_stereo_2d(candidate)
     if is_stereo:
