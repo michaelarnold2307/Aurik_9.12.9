@@ -1,0 +1,340 @@
+{
+  "generated_at": "2026-08-31T06:42:42.602906",
+  "duration_s": 5.128,
+  "totals": {
+    "error": 0,
+    "warning": 0,
+    "info": 47
+  },
+  "findings": [
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "10_lag_integrity_architecture.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "11_decision_intelligence.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "12_evolution_260_30.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "12_perceptual_optimization.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "14_completeness_and_perfection.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "16_phantom_rollout.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "18_depth_threshold_calibration_shift.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "18_non_plus_ultra_perceptual_fidelity.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "18_verification_plan.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "19_major_version_roadmap.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "19_non_plus_ultra_quality_ceiling_elimination.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "19_sota_export_gap_closure.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "20_fair_payment_model.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "20_log_analysis_optimal_values.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "20_predictive_quality_guard.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "21_pre_run_briefing.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "22_dataflow_audit.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "24_ml_fallback_architektur.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "CHANGELOG_2026-08-12.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "aurik_gesamtoekosystem_v10_17.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "bug_hunt_exception_forensics.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "praezisionsstandard_v10_16.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "preset_lernen_selbstkalibrierung_v10_18.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "selbstkalibrierung_v10_15.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.116-118_artifact_free_vocal_enhancement.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.14_durchblick_hoeherwertigkeit.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.14_miipher_dit_roadmap.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.15_non_plus_ultra_qualitaetsvertraege.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.18_onnx_export_roadmap.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.19_carrier_chain_reliability.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.19_resemble_ersatz_sota_roadmap.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.20_dit_post_mortem.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.21_swinir_musik_phase67.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.22_model_orchestration.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.23_album_prior.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.24_architecture_reference.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.303.23_fine_tuning_spec.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.307_oom_stability_chain_consistency.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.330_bayesian_precision_and_cross_validation.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.340_causal_material_and_ram_diagnostics.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.350_plm_singleton_and_chunked_streaming.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.600_sota_pipeline_architecture.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.650_contradiction_resolution.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.704_hpi_restorability_gate.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.706_denker_iq_material_awareness.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.900_sota_pipeline_architecture.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    },
+    {
+      "check": "spec_references",
+      "severity": "info",
+      "item": "v10.99x_stimmiges_gesamtsystem.md",
+      "detail": "Spec ist nur im Index verankert, sonst nirgendwo referenziert",
+      "recommendation": "Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren."
+    }
+  ]
+}

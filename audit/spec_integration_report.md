@@ -1,0 +1,102 @@
+# Spec-Integrations-Fehlerprotokoll
+
+- Erzeugt: 2026-08-31T06:42:42.603965
+- Fehler: **0** · Warnungen: 0
+
+## INFO (47)
+
+- **[spec_references]** `10_lag_integrity_architecture.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `11_decision_intelligence.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `12_evolution_260_30.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `12_perceptual_optimization.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `14_completeness_and_perfection.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `16_phantom_rollout.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `18_depth_threshold_calibration_shift.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `18_non_plus_ultra_perceptual_fidelity.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `18_verification_plan.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `19_major_version_roadmap.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `19_non_plus_ultra_quality_ceiling_elimination.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `19_sota_export_gap_closure.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `20_fair_payment_model.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `20_log_analysis_optimal_values.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `20_predictive_quality_guard.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `21_pre_run_briefing.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `22_dataflow_audit.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `24_ml_fallback_architektur.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `CHANGELOG_2026-08-12.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `aurik_gesamtoekosystem_v10_17.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `bug_hunt_exception_forensics.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `praezisionsstandard_v10_16.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `preset_lernen_selbstkalibrierung_v10_18.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `selbstkalibrierung_v10_15.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.116-118_artifact_free_vocal_enhancement.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.14_durchblick_hoeherwertigkeit.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.14_miipher_dit_roadmap.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.15_non_plus_ultra_qualitaetsvertraege.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.18_onnx_export_roadmap.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.19_carrier_chain_reliability.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.19_resemble_ersatz_sota_roadmap.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.20_dit_post_mortem.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.21_swinir_musik_phase67.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.22_model_orchestration.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.23_album_prior.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.24_architecture_reference.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.303.23_fine_tuning_spec.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.307_oom_stability_chain_consistency.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.330_bayesian_precision_and_cross_validation.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.340_causal_material_and_ram_diagnostics.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.350_plm_singleton_and_chunked_streaming.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.600_sota_pipeline_architecture.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.650_contradiction_resolution.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.704_hpi_restorability_gate.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.706_denker_iq_material_awareness.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.900_sota_pipeline_architecture.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+- **[spec_references]** `v10.99x_stimmiges_gesamtsystem.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
+  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+

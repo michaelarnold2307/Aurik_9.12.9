@@ -50,7 +50,11 @@ Die Markdown-Dokumente beschreiben die Regeln; die Gates sind:
   neue Code-Dateien ⇒ Eintrag in `.github/FILE_REGISTRY.md`),
   `aurik-symbol-duplicates` (`scripts/repo_graph.py --duplicates`),
   `aurik-horordnung-calibration` (psychoakustische Invarianten,
-  Hörordnung §8a) und rund 25 weitere `aurik-*`-Guards.
+  Hörordnung §8a), `aurik-code-weakness` (statischer Schwachstellen-Scan,
+  `--fail-on critical`), `aurik-spec-integration` (vollständige Integration
+  aller Vorgaben und Specs: GEBOTE/VERBOTEN-Matrix, Spec-Index,
+  normative Doku-Kette, Enforce-Gates — Fehlerprotokoll, `--fail-on error`)
+  und rund 25 weitere `aurik-*`-Guards.
 - **CI** (`.github/workflows/ci-lite.yml`, `nightly-quality.yml`,
   `solo-release-gate.yml`): `scripts/compliance_check.py` (R01–R18),
   `scripts/release_must_coverage_check.py` (jeder `[RELEASE_MUST]`-Header in
@@ -158,6 +162,10 @@ Kollisions-Karte und Bereinigungsplan `docs/ID_COLLISION_MAP.md`.
 - Repo-Karte & Lifecycle: `.github/FILE_REGISTRY.md` +
   `scripts/repo_graph.py` (`--write-json` → `.github/repo_graph.json`,
   `--check`, `--duplicates`)
+- Spec-Integration: `audit/spec_integration_scanner.py` (Fehlerprotokoll,
+  `--fail-on error`) mit `.github/GEBOTE_INTEGRATION_MATRIX.md`
+  (Regenerierung: `python scripts/gen_integration_matrix.py`) und
+  `.github/specs/00_SPEC_INDEX.md` (kanonischer Spec-Index).
 - Suche vor Dateianlage: `scripts/repo_search.py --before-create <pfad>`
 - Task-Ledger: `scripts/change_ledger.py snapshot` → `TASK_CHANGES.md`
 

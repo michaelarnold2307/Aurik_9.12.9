@@ -22,12 +22,30 @@ try:  # Package-Kontext (Tests/CI): audit.code_weakness_scanner
         write_json_report,
         write_markdown_report,
     )
+    from audit.spec_integration_scanner import (
+        scan_spec_integration,
+    )
+    from audit.spec_integration_scanner import (
+        write_json_report as write_spec_json_report,
+    )
+    from audit.spec_integration_scanner import (
+        write_markdown_report as write_spec_markdown_report,
+    )
 except ImportError:  # Direktskript-Start: python audit/live_intermediate_state_monitor.py
     from code_weakness_scanner import (
         scan_workspace,
         summarize_findings,
         write_json_report,
         write_markdown_report,
+    )
+    from spec_integration_scanner import (
+        scan_spec_integration,
+    )
+    from spec_integration_scanner import (
+        write_json_report as write_spec_json_report,
+    )
+    from spec_integration_scanner import (
+        write_markdown_report as write_spec_markdown_report,
     )
 
 EVENT_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
@@ -235,7 +253,7 @@ def _evaluate_final(workspace: Path) -> dict[str, Any]:
 def _scan_code_weaknesses(workspace: Path, json_out: Path, md_out: Path) -> dict[str, Any]:
     """Führt den statischen Code-Schwachstellen-Scan aus und schreibt die Reports.
 
-    Der Watchdog darf den Monitor nie stoppen (§V6): Fehler werden als
+    Der Watchdog darf den Monitor nie stoppen (§V6 (copilot-instructions.md)): Fehler werden als
     Warnung gemeldet und mit einer leeren Zusammenfassung weitergefahren.
     """
     try:
@@ -253,6 +271,32 @@ def _scan_code_weaknesses(workspace: Path, json_out: Path, md_out: Path) -> dict
         print(f"[intermediate-audit] WARNUNG code-weakness-report nicht schreibbar: {exc}")
 
     summary = summarize_findings(result)
+    summary["report_json"] = str(json_out)
+    summary["report_md"] = str(md_out)
+    return summary
+
+
+def _scan_spec_integration(workspace: Path, json_out: Path, md_out: Path) -> dict[str, Any]:
+    """Führt den Spec-Integrations-Scan aus und schreibt das Fehlerprotokoll.
+
+    Fehlende Integrationspunkte werden sofort als Protokoll gemeldet
+    (non-blocking, §V6 (copilot-instructions.md)): Der Watchdog darf den Monitor nie stoppen.
+    """
+    try:
+        result = scan_spec_integration(workspace)
+    except Exception as exc:
+        logger.warning("spec-integration-scan fehlgeschlagen: %s", exc)
+        print(f"[intermediate-audit] WARNUNG spec-integration-scan fehlgeschlagen: {exc}")
+        return {"error": str(exc), "totals": {"error": 0, "warning": 0, "info": 0}}
+
+    try:
+        write_spec_json_report(json_out, result)
+        write_spec_markdown_report(md_out, result)
+    except OSError as exc:
+        logger.warning("spec-integration-report nicht schreibbar: %s", exc)
+        print(f"[intermediate-audit] WARNUNG spec-integration-report nicht schreibbar: {exc}")
+
+    summary = dict(result.totals)
     summary["report_json"] = str(json_out)
     summary["report_md"] = str(md_out)
     return summary
@@ -430,6 +474,13 @@ def main() -> int:
     )
     parser.add_argument("--code-weakness-report-json", default="audit/code_weakness_report.json")
     parser.add_argument("--code-weakness-report-md", default="audit/code_weakness_report.md")
+    parser.add_argument(
+        "--no-scan-spec-integration",
+        action="store_true",
+        help="Spec-Integrations-Scan am Run-Start deaktivieren.",
+    )
+    parser.add_argument("--spec-integration-report-json", default="audit/spec_integration_report.json")
+    parser.add_argument("--spec-integration-report-md", default="audit/spec_integration_report.md")
     parser.add_argument("--max-events", type=int, default=1000)
     args = parser.parse_args()
 
@@ -445,6 +496,8 @@ def main() -> int:
 
     cw_report_json = _workspace_path(args.code_weakness_report_json)
     cw_report_md = _workspace_path(args.code_weakness_report_md)
+    si_report_json = _workspace_path(args.spec_integration_report_json)
+    si_report_md = _workspace_path(args.spec_integration_report_md)
 
     event_count = 0
     observed_spec_gaps: dict[str, dict[str, str]] = {}
@@ -453,6 +506,7 @@ def main() -> int:
     offtrack_latched = False
     warning_last_seen: dict[str, int] = {}
     code_weakness_summary: dict[str, Any] | None = None
+    spec_integration_summary: dict[str, Any] | None = None
 
     for raw_line in sys.stdin:
         line = raw_line.rstrip("\n")
@@ -495,6 +549,10 @@ def main() -> int:
             # Codeänderungen zwischen den Runs sofort ausgewiesen werden.
             if not args.no_scan_code_weaknesses:
                 code_weakness_summary = _scan_code_weaknesses(workspace, cw_report_json, cw_report_md)
+            # Spec-Integrations-Scan: fehlende Vorgaben-/Spec-Integration sofort
+            # als Fehlerprotokoll melden (an die Programmier-LLM).
+            if not args.no_scan_spec_integration:
+                spec_integration_summary = _scan_spec_integration(workspace, si_report_json, si_report_md)
 
         phase_id = _phase_from_line(line)
         if phase_id:
@@ -561,6 +619,8 @@ def main() -> int:
         }
         if code_weakness_summary is not None:
             event_payload["code_weaknesses"] = code_weakness_summary
+        if spec_integration_summary is not None:
+            event_payload["spec_integration"] = spec_integration_summary
 
         if event_id in TERMINAL_EVENTS:
             event_payload["final"] = _evaluate_final(workspace)
@@ -586,12 +646,18 @@ def main() -> int:
                 f"weakness_critical={code_weakness_summary.get('critical')} "
                 f"weakness_high={code_weakness_summary.get('high')}"
             )
+        spec_note = ""
+        if spec_integration_summary is not None and "report_md" in spec_integration_summary:
+            spec_note = (
+                f" spec_errors={spec_integration_summary.get('error')} "
+                f"spec_warnings={spec_integration_summary.get('warning')}"
+            )
         print(
             "[intermediate-audit] "
             f"event={event_id} severity={severity} "
             f"required={runtime_eval.get('required_passed')}/{runtime_eval.get('required_total')} "
             f"compliance={runtime_eval.get('compliance_ok')}"
-            f"{weakness_note}"
+            f"{weakness_note}{spec_note}"
         )
         sys.stdout.flush()
 

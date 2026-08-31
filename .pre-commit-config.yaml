@@ -290,6 +290,16 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # Spec-Integrations-Scan: vollständige Integration aller Vorgaben und
+      # Specs (GEBOTE/VERBOTEN-Matrix, Spec-Index, normative Doku-Kette,
+      # Enforce-Gates). Fehlende Punkte → Fehlerprotokoll + Blockade (error).
+      - id: aurik-spec-integration
+        name: "Spec-Integrations-Scan — ERROR blockiert (Report: audit/spec_integration_report.*)"
+        entry: .venv_aurik/bin/python audit/spec_integration_scanner.py --workspace . --fail-on error
+        language: system
+        pass_filenames: false
+        always_run: true
+
       # Hörordnung §8a: Psychoakustische Kalibrierungs-Invarianten
       # (Roughness/Sharpness/Residuum-Monotonie, Maskierungs-Richtung, Hörstufen)
       - id: aurik-horordnung-calibration

@@ -1,9 +1,9 @@
 {
-  "timestamp": "2026-08-31T05:42:19.966016",
-  "event_index": 2,
-  "event_id": "run_end",
+  "timestamp": "2026-08-31T06:29:47.440372",
+  "event_index": 1,
+  "event_id": "run_start",
   "severity": "info",
-  "log_line": "AurikDenker.denke() abgeschlossen",
+  "log_line": "AurikDenker.denke() gestartet",
   "runtime": {
     "exit_code": 1,
     "stdout": "Runtime-Spec-Report: /media/michael/Software 4TB/Aurik_Standalone/audit/runtime_spec_report_live.json\nRequired checks: 10/13 | compliance_ok=False\n[REQ][PASS] entry_denker: AurikDenker.denke() gestartet gefunden\n[REQ][FAIL] run_completed: Kein AurikDenker-Abschluss im Run-Window\n[REQ][FAIL] mode_contract: Kein erlaubter mode=... Eintrag\n[REQ][PASS] preanalysis_handover: Cached Defect/PreAnalysis im Lauf genutzt\n[REQ][PASS] medium_detect_single: 🔍 MediumDetector fresh_count=0 (cached ignoriert)\n[REQ][PASS] artifact_gate: artifact_freedom=1.000\n[REQ][PASS] hpi_gate: HPI-Eintrag vorhanden\n[REQ][PASS] exp_joy_runtime: Joy-Index-Signal gefunden\n[REQ][PASS] exp_auto_improve: Auto-Improve-Signal gefunden\n[REQ][PASS] exp_cluster_policy: cluster_policy gefunden\n[REQ][FAIL] dag_final_clean: Finale DAG-Validierung fehlt\n[REQ][PASS] phase12_effective_when_started: Phase 12 nicht im Laufplan\n[REQ][PASS] material_specificity_guard: Kein cassette→tape Downcast im Lauf\n[OPT][FAIL] exzellenz_api_contract: Kein expliziter Exzellenz-API-Hinweis im Log (inconclusive)",
@@ -29,21 +29,53 @@
       "intervention_rejected_rate": 0.0
     }
   },
-  "final": {
-    "release_exit_code": 1,
-    "release_stdout": "Release-Report generiert: /media/michael/Software 4TB/Aurik_Standalone/audit/release_report_live.json\nRelease-Score: 0.00/10\nWARNUNG: Release nicht freigegeben. Bitte Änderungen prüfen.\n- Quality-Gate 'features.quality_gates::lufs' nicht bestanden.\n- Quality-Gate 'release_result::status' nicht bestanden.\n- Quality-Gate 'scores.quality_gates::lufs' nicht bestanden.\n- Quality-Gate 'vocal_quality::authentizität' nicht bestanden.\n- Quality-Gate 'vocal_quality::emotionalität' nicht bestanden.\n- Quality-Gate 'vocal_quality::expressivität' nicht bestanden.\n- Quality-Gate 'vocal_quality::klarheit' nicht bestanden.\n- Quality-Gate 'vocal_quality::transparenz' nicht bestanden.\n- Voice-First-Blocker fehlen fuer vokalrelevante Runs: formant, micro_dynamics, vibrato, vqi (runs=71).",
-    "release_stderr": "",
-    "consolidated_exit_code": 1,
-    "consolidated_stdout": "Consolidated status: final_ready=False | release_ready=False | runtime_compliance_ok=False | coverage_drift_ok=True\nReasons:\n- release_not_ready\n- runtime_compliance_failed\n- runtime_required_failed:10/13",
-    "consolidated_stderr": "",
-    "final_ready": false,
-    "runtime_compliance_ok": false,
-    "required_passed": 10,
-    "required_total": 13,
-    "reasons": [
-      "release_not_ready",
-      "runtime_compliance_failed",
-      "runtime_required_failed:10/13"
-    ]
+  "code_weaknesses": {
+    "total": 172,
+    "critical": 0,
+    "high": 143,
+    "medium": 18,
+    "low": 11,
+    "files_scanned": 1530,
+    "top_findings": [
+      {
+        "rule_id": "dither_missing_int_conversion",
+        "severity": "high",
+        "file": "backend/core/dsp/powr_dither.py",
+        "line": 198
+      },
+      {
+        "rule_id": "silent_fallback_no_log",
+        "severity": "high",
+        "file": "backend/__init__.py",
+        "line": 123
+      },
+      {
+        "rule_id": "silent_fallback_no_log",
+        "severity": "high",
+        "file": "backend/api/bridge.py",
+        "line": 404
+      },
+      {
+        "rule_id": "silent_fallback_no_log",
+        "severity": "high",
+        "file": "backend/api/bridge.py",
+        "line": 426
+      },
+      {
+        "rule_id": "silent_fallback_no_log",
+        "severity": "high",
+        "file": "backend/api/bridge.py",
+        "line": 852
+      }
+    ],
+    "report_json": "/media/michael/Software 4TB/Aurik_Standalone/audit/code_weakness_report.json",
+    "report_md": "/media/michael/Software 4TB/Aurik_Standalone/audit/code_weakness_report.md"
+  },
+  "spec_integration": {
+    "error": 0,
+    "warning": 0,
+    "info": 47,
+    "report_json": "/media/michael/Software 4TB/Aurik_Standalone/audit/spec_integration_report.json",
+    "report_md": "/media/michael/Software 4TB/Aurik_Standalone/audit/spec_integration_report.md"
   }
 }

@@ -31,6 +31,9 @@ WATCHED_FILES = [
     "scripts/check_musical_goals.py",
     ".github/ID_REGISTRY.md",
     ".github/FILE_REGISTRY.md",
+    ".github/GEBOTE_INTEGRATION_MATRIX.md",
+    ".github/specs/00_SPEC_INDEX.md",
+    "scripts/gen_integration_matrix.py",
     "docs/ID_COLLISION_MAP.md",
     "AGENTS.md",
 ]
