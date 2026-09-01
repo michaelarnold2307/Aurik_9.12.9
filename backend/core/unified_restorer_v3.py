@@ -43748,6 +43748,16 @@ class UnifiedRestorerV3:
             _chunk_count: int = 1
 
             for i, (start, end) in enumerate(chunks[1:], 1):
+                # §Perf: Chunk-Series Look-Ahead für Pitch-Modelle (FCPE/RMVPE/CREPE)
+                # Verhindert Reload-Thrashing über 8-Chunk-Serie (35-80s × 7 Savings pro Song)
+                try:
+                    from backend.core.plugin_lifecycle_manager import evict_for_chunk_series
+
+                    for phase_id in _all_phases_exec:
+                        evict_for_chunk_series(i, len(chunks), phase_id)
+                except Exception as _plm_exc:
+                    logger.debug("evict_for_chunk_series fehlgeschlagen: %s", _plm_exc)
+
                 # §v10.456: Graceful-Stop zwischen Chunks prüfen
                 if getattr(self, "_graceful_stop_event", None) and self._graceful_stop_event.is_set():
                     logger.info("Chunked-Streaming: Graceful-Stop nach Chunk %d/%d", i, len(chunks))

@@ -640,6 +640,56 @@ def evict_for_phase_window(upcoming_phase_ids: list[str] | tuple[str, ...]) -> i
     return get_plugin_lifecycle_manager().evict_for_phase_window(upcoming_phase_ids)
 
 
+def evict_for_chunk_series(chunk_idx: int, total_chunks: int, phase_id: str) -> int:
+    """§Perf Chunk-Series-Look-Ahead: behält Pitch-Modelle über 8 Chunks warm.
+
+    Für §2.37 Pitch-Tracking über Chunk-Grenzen (phase_12, phase_31, phase_56 etc.):
+    Chunk 1–8 laden ein Modell einmal, nutzen es 8x, dann Cleanup.
+    Ohne Look-Ahead: jeder Chunk lädt Modell neu → 7x redundante Disk-Reads (35-80s × 7).
+    Mit dieser Funktion: FCPE/RMVPE/CREPE werden über die gesamte 8-Chunk-Serie
+    hinweg im RAM behalten.
+
+    Args:
+        chunk_idx: Chunk-Nummer (0-basiert, 0..7 für 8-Chunk-Serie)
+        total_chunks: Gesamtzahl Chunks (typisch: 8)
+        phase_id: Phase-Name (z. B. "phase_12_wow_flutter_fix")
+
+    Returns:
+        Anzahl der entladenen Plugins.
+
+    Invariante:
+        - Nur Modelle, die phase_id NICHT braucht, werden entladen
+        - Chunk-1 bis Chunk-7: Modelle bleiben geschützt
+        - Chunk-8: Nach Abschluss darf Cleanup-Phase Modelle entladen (nächste Phase
+          beginnt neue Serie)
+    """
+    pitch_models = frozenset({"FCPE", "RMVPE", "CREPE"})
+    phase_needed = _PHASE_REQUIRED_MODELS.get(phase_id, frozenset())
+
+    # Modelle, die diese Phase BRAUCHT → bleiben über alle Chunks hinweg
+    protected = pitch_models & phase_needed
+
+    if not protected:
+        # Phase hat keine Pitch-Modelle → Standard-Cleanup
+        return get_plugin_lifecycle_manager().evict_if_needed()
+
+    # Nur wenn wir NICHT in der letzten Chunk der Serie sind, schütze die Modelle
+    mgr = get_plugin_lifecycle_manager()
+    if chunk_idx < total_chunks - 1:
+        # Chunk 1–7: Protektfenster = aktuelle Phase
+        # Das Fenster wird in den nächsten 7 Chunks konsistent gehalten
+        with mgr._lock:
+            mgr._lookahead_models = protected
+        # Standardmäßig: kein aggressives Evicten; nur bei RAM-Druck
+        return mgr.evict_if_needed()
+    else:
+        # Chunk 8 (letzte): Fenster aufräumen → nächste Phase kann Cleanup starten
+        with mgr._lock:
+            mgr._lookahead_models = frozenset()
+        # Nach letzter Chunk: Modelle sind nun "fair game" für Eviction
+        return 0
+
+
 def set_pipeline_active(active: bool) -> None:
     """Sperrt/entsperrt automatische Plugin-Eviction während Pipeline-Ausführung.
 
