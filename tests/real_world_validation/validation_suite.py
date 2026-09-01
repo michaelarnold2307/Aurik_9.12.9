@@ -28,6 +28,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _workspace_output_path(path_value: Path) -> Path:
+    """Allow validation reports only below the caller's working directory."""
+    workspace = Path.cwd().resolve()
+    output_path = path_value.resolve()
+    try:
+        output_path.relative_to(workspace)
+    except ValueError as exc:
+        raise ValueError(f"Output path must be inside the working directory: {path_value}") from exc
+    return output_path
+
+
 class ValidationSuite:
     """Objective metrics validation for audio restoration."""
 
@@ -297,6 +308,7 @@ class ValidationSuite:
             input_dir: Directory with test files (organized by category)
             output_file: Output JSON report
         """
+        output_file = _workspace_output_path(output_file)
         logger.info(f"Validating directory: {input_dir}")
 
         results = {"validation_date": "2026-02-09", "input_directory": str(input_dir), "categories": {}}
@@ -335,6 +347,7 @@ class ValidationSuite:
                 }
 
         # Save results
+        output_file.parent.mkdir(parents=True, exist_ok=True)
         with open(output_file, "w") as f:
             json.dump(results, f, indent=2)
 
@@ -351,6 +364,7 @@ class ValidationSuite:
             test_dir: Directory with AURIK-processed files
             output_file: Output comparison report
         """
+        output_file = _workspace_output_path(output_file)
         logger.info("Comparing baseline vs test...")
 
         comparison: dict[str, Any] = {
@@ -413,6 +427,7 @@ class ValidationSuite:
             logger.info(f"✓ Average THD change: {avg_thd_change:.2f}%")
 
         # Save results
+        output_file.parent.mkdir(parents=True, exist_ok=True)
         with open(output_file, "w") as f:
             json.dump(comparison, f, indent=2)
 

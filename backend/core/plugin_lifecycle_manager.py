@@ -82,6 +82,7 @@ _PHASE_REQUIRED_MODELS: dict[str, frozenset[str]] = {
         {"CQTdiffPlus", "FlowMatching", "DiffWave", "ConsistencyInpaint", "DACInpaint"}
     ),
     "phase_56_spectral_band_gap_repair": frozenset({"FCPE", "RMVPE", "CREPE"}),  # §4.6c: f0-cascade FCPE→RMVPE→CREPE
+    "musical_goals_separation_fidelity": frozenset({"HTDemucs"}),  # §v10.0.0: Echte Stem-Separation für KPI
 }
 
 

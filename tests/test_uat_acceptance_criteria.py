@@ -25,6 +25,17 @@ import numpy as np
 import pytest
 
 logger = logging.getLogger(__name__)
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _repository_output_path(path_value: str) -> Path:
+    """Resolve optional test artifacts only within this checkout."""
+    output_path = Path(path_value).resolve()
+    try:
+        output_path.relative_to(_REPOSITORY_ROOT)
+    except ValueError as exc:
+        raise ValueError(f"UAT baseline path must be inside repository: {path_value}") from exc
+    return output_path
 
 
 def _run_real_audio_restore_child(
@@ -887,7 +898,9 @@ def real_audio_runtime_case(real_audio_gate_case: dict[str, object]) -> dict[str
     }
 
     # R5-R12 Auto-Delta gegen letzte stabile Baseline (non-blocking).
-    baseline_path = Path(os.environ.get("AURIK_R5_R12_BASELINE_PATH", "analysis_results/uat_r5_r12_baseline.json"))
+    baseline_path = _repository_output_path(
+        os.environ.get("AURIK_R5_R12_BASELINE_PATH", "analysis_results/uat_r5_r12_baseline.json")
+    )
     summary_delta: dict[str, float] = {}
     current_summary = _build_r5_r12_summary(case_payload) if not r5_only_fastpath else {}
     baseline_summary = _load_json_dict(baseline_path).get("summary", {}) if not r5_only_fastpath else {}

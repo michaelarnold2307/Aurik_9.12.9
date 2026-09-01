@@ -29,6 +29,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _workspace_directory(path_value: str) -> Path:
+    """Keep generated test datasets within the caller's working directory."""
+    workspace = Path.cwd().resolve()
+    library_path = Path(path_value).resolve()
+    try:
+        library_path.relative_to(workspace)
+    except ValueError as exc:
+        raise ValueError(f"Test library must be inside the working directory: {path_value}") from exc
+    return library_path
+
+
 class DatasetCreator:
     """Creates and validates test audio datasets."""
 
@@ -37,7 +48,7 @@ class DatasetCreator:
     TARGET_DURATION = 30.0  # seconds
 
     def __init__(self, library_path: str = "test_library"):
-        self.library_path = Path(library_path)
+        self.library_path = _workspace_directory(library_path)
         self.metadata: dict[Any, Any] = {}
 
     def create_placeholder_dataset(self, count_per_category: int = 3):

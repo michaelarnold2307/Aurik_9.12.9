@@ -381,10 +381,10 @@ def generate_audio_by_quality(
 
     spec = MATERIAL_QUALITY_SPECS[quality_level]
     n_samples = int(sr * duration)
-    # §AMRB-Seeding-Invariante: MD5-basierter Seed — kein hash() (prozessabhängig ohne PYTHONHASHSEED)
+    # §AMRB-Seeding-Invariante: stabiler Seed, kein prozessabhängiges hash().
     import hashlib as _hl
 
-    _seed = int(_hl.md5(str(quality_level).encode()).hexdigest()[:8], 16)
+    _seed = int.from_bytes(_hl.sha256(str(quality_level).encode()).digest()[:4], byteorder="big")
     rng = np.random.default_rng(seed=_seed)
 
     # Basiston: Mehrere Sinus-Komponenten (vereinfachtes Musiksignal)

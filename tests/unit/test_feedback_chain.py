@@ -210,6 +210,30 @@ class TestFeedbackChainRegressionGuard:
         sine_score = FeedbackChain.compute_perceptual_score(_sine())
         assert silence_score < sine_score
 
+    def test_21a_hard_runtime_cap_prevents_hours_long_loops(self, monkeypatch):
+        """FeedbackChain muss eine harte Laufzeitobergrenze erfüllen, auch bei pathologischen Iterationen."""
+        import backend.core.feedback_chain as fc_mod
+
+        fc = FeedbackChain(max_iterations=100, convergence_delta=1e-9, max_runtime_s=0.25)
+        audio = _sine(secs=0.5)
+        clock = {"t": 0.0}
+
+        def fake_perf_counter():
+            value = clock["t"]
+            clock["t"] += 0.05
+            return value
+
+        monkeypatch.setattr(fc_mod.time, "perf_counter", fake_perf_counter)
+
+        def noisy_fn(a: np.ndarray, sr: int) -> np.ndarray:
+            noisy_audio = a + 0.01 * np.random.randn(*a.shape).astype(np.float32)
+            return np.asarray(np.clip(noisy_audio, -1.0, 1.0), dtype=np.float32)
+
+        result = fc.run(audio, noisy_fn)
+
+        assert result.total_time_s <= 0.30
+        assert result.iterations < 10
+
 
 # ---------------------------------------------------------------------------
 # Klasse 6: Phasen-Listen-Modus

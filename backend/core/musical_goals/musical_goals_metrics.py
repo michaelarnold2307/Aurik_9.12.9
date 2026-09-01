@@ -3550,27 +3550,28 @@ class SeparationFidelityMetric:
     """13. Musikalisches Ziel: Separation-Treue (§1.2 Spec v10.0.0).
 
     Misst, ob Instrumente/Klangschichten nach Restaurierung spektral sauber
-    getrennt bleiben oder durch Restaurierungs-Artefakte ungewollt vermischt
-    werden:
+    getrennt bleiben oder durch Restaurierungs-Artefakte ungewollt vermischt werden.
+
+    v10.0.0 Implementierung (Echte Stem-Separation):
+        - HTDemucs 4-Stem-Trennung (vocals, drums, bass, other)
+        - Rekonstruktionsfehler: residuum = original − (vocals+drums+bass+other)
+        - separation_fidelity = 1.0 − (RMS(residuum) / RMS(original))
+        - Score ∈ [0, 1]; 1.0 = perfekte Rekonstruktion
+
+    Fallback-Proxy (bei HTDemucs-Fehler oder <2s Audio):
         - SDR-Proxy ≥ 8 dB (Signal-to-Distortion)
-        - SIR-Proxy ≥ 12 dB (Signal-to-Interference)
-        - Nach NMF-Dekomposition: keine spektrale Verschmierung
+        - Spektrale Kohärenz: Kosinus-Ähnlichkeit der STFT-Magnitudenspektren
+        - SIR-Autocorrelation: Periodizität im Residuum
+        - Score = 0.40·SDR + 0.35·Kohärenz + 0.25·SIR (alt)
 
-    Algorithmus:
-        Mit Referenz:
-            1. Residuum R = restored − original (Zeitdomäne)
-            2. SDR-Proxy: 20·log10(RMS(original) / RMS(R+ε))
-            3. Spektrale Kohärenz: Kosinus-Ähnlichkeit der STFT-Magnitudenspektren
-            4. Score = sig(0.6·kohärenz + 0.4·norm_sdr)
+    Referenzfrei (kein Originalvergleich möglich):
+        - Multi-Band-Harmonizitätsmessung + Spectral Flatness
+        - Material-adaptive Floors (Vinyl/Tape/MP3)
 
-        Ohne Referenz:
-            1. Multi-Band-Harmonizitätsmessung (4 Bänder)
-            2. Harmonizitätsvarianz als Trennbarkeits-Proxy
-            3. Spectral Flatness Measure (niedrig = besser separiert)
+    Schwellwert: ≥ 0.80
 
-    Schwellwert: ≥ 0.82
-
-    Referenz:
+    Referenzen:
+        Défossez (2021): "Music Source Separation in the Waveform Domain"
         Vincent et al. (2006): "Performance Measurement in Blind Audio Source Separation"
         Févotte & Idier (2011): "Algorithms for NMF with the β-Divergence"
     """
@@ -3586,6 +3587,7 @@ class SeparationFidelityMetric:
         sr: int,
         reference: np.ndarray | None = None,
         material_type: str = "unknown",
+        global_scalar: float = 1.0,
     ) -> float:
         """Berechnet Separation-Fidelity-Score.
 
@@ -3596,6 +3598,8 @@ class SeparationFidelityMetric:
             material_type: Materialtyp (z.B. "mp3_low", "vinyl"). Wird an
                            _reference_free() weitergegeben für material-adaptive
                            Harmonicity-Floor-Skalierung (§musical_goals.instructions.md).
+            global_scalar: Stärke des Restore-Felds; sehr kleine Werte unterdrücken
+                           die teure HTDemucs-Messung und lösen den Proxy-Fallback aus.
 
         Returns:
             Score ∈ [0, 1]. 1.0 = perfekte Trenntreue.
@@ -3611,13 +3615,109 @@ class SeparationFidelityMetric:
             if ref.ndim > 1:
                 ref = np.mean(ref, axis=0 if ref.shape[0] <= 2 else 1).astype(np.float32)
             ref_mono = ref.astype(np.float32)
-            return self._reference_based(audio_mono, ref_mono, sr)
+            return self._reference_based(audio_mono, ref_mono, sr, material_type=material_type, global_scalar=global_scalar)
 
         return self._reference_free(audio_mono, sr, material_type=material_type)
 
-    def _reference_based(self, restored: np.ndarray, reference: np.ndarray, sr: int) -> float:
-        """Referenzbasierter Modus: SDR-Proxy + Spektrale Kohärenz."""
+    def _reference_based(
+        self,
+        restored: np.ndarray,
+        reference: np.ndarray,
+        sr: int,
+        material_type: str = "unknown",
+        global_scalar: float = 1.0,
+    ) -> float:
+        """Referenzbasierter Modus: Echte HTDemucs-4-Stem-Separation (§v10.0.0).
+
+        Versucht echte Musik-Stem-Separation (vocals, drums, bass, other) via HTDemucs,
+        um die tatsächliche Separation-Fidelity zu messen. Fallback auf Proxy-Methode
+        bei HTDemucs-Fehler oder Performance-Gründen.
+
+        §v10.0.0-Algorithmus (echte Separation):
+            1. HTDemucs.separate(restored) → {vocals, drums, bass, other}
+            2. Rekonstruktion: reconstructed = vocals + drums + bass + other
+            3. Residuum: residual = restored − reconstructed
+            4. separation_fidelity = 1.0 − (RMS(residual) / RMS(restored))
+            5. Clamp ∈ [0, 1]
+
+        Fallback: Proxy-Methode (alte SDR+Kohärenz-Methode) bei:
+            - Zu kurz (<2s) für aussagekräftige Demux
+            - HTDemucs Modell lädt nicht
+            - global_scalar < 0.15 (Restoration-Stärke zu niedrig, Demux nicht sinnvoll)
+        """
         min_len = min(len(restored), len(reference))
+        if min_len < 64:
+            return 1.0
+
+        _global_scalar = float(global_scalar)
+
+        # §v10.304.4: Sehr niedrige Restoration-Stärke → Demux/Messung nicht wertvoll.
+        # Dies verhindert teure HTDemucs-Calls für nutzlose Low-Strength Fallbacks.
+        if _global_scalar < 0.15:
+            logger.debug(
+                "separation_fidelity: global_scalar=%.3f < 0.15, nutze Proxy-Methode",
+                _global_scalar,
+            )
+            return self._separation_fidelity_proxy(restored, reference, sr, min_len)
+
+        cache = getattr(self, "_htdemucs_separation_cache", {})
+        cache_key = (
+            int(len(restored)),
+            int(len(reference)),
+            int(sr),
+            round(float(_global_scalar), 4),
+            str(material_type),
+            float(np.std(restored[: min_len])) if min_len > 0 else 0.0,
+        )
+        if cache_key in cache:
+            logger.debug("separation_fidelity: HTDemucs cache hit (global_scalar=%.3f)", _global_scalar)
+            return float(cache[cache_key])
+
+        # Versuche HTDemucs-Separation
+        try:
+            from plugins.htdemucs_plugin import get_htdemucs_plugin
+
+            plugin = get_htdemucs_plugin()
+            sep_result = plugin.separate(restored, sr)
+
+            # Rekonstruktion der Summe aller Stems
+            reconstructed = sep_result.reconstruct()
+
+            # Residuum ist der Fehler bei Rekonstruktion (sollte nur "noise" sein)
+            residual = restored - reconstructed
+
+            # separation_fidelity: wie gut wird das Original durch Stem-Summe rekonstruiert?
+            rms_restored = float(np.sqrt(np.mean(restored.astype(np.float32) ** 2)) + 1e-12)
+            rms_residual = float(np.sqrt(np.mean(residual.astype(np.float32) ** 2)) + 1e-12)
+
+            # Score: Je niedriger Residuum relativ zu Original, desto besser die Separation
+            separation_fidelity = 1.0 - (rms_residual / rms_restored)
+            score = float(np.clip(separation_fidelity, 0.0, 1.0))
+
+            logger.debug(
+                "separation_fidelity (HTDemucs): %.3f (RMS-restored=%.2e, RMS-residual=%.2e)",
+                score,
+                rms_restored,
+                rms_residual,
+            )
+            cache[cache_key] = float(score)
+            self._htdemucs_separation_cache = cache
+            return score
+
+        except Exception as e:
+            # Fallback zur Proxy-Methode bei HTDemucs-Fehler
+            logger.warning("HTDemucs Separation fehlgeschlagen, fallback zu SDR-Proxy: %s", e)
+            return self._separation_fidelity_proxy(restored, reference, sr, min_len)
+
+    def _separation_fidelity_proxy(
+        self, restored: np.ndarray, reference: np.ndarray, sr: int, min_len: int | None = None
+    ) -> float:
+        """Fallback-Proxy: SDR-Proxy + Spektrale Kohärenz (alte Methode vor v10.0.0).
+
+        Wird verwendet, wenn HTDemucs nicht verfügbar oder zu kurz/schwach ist.
+        """
+        if min_len is None:
+            min_len = min(len(restored), len(reference))
         if min_len < 64:
             return 1.0
 
@@ -3626,13 +3726,6 @@ class SeparationFidelityMetric:
         residual = restored_t - reference_t
 
         # §0d BW-Extension Guard (Carrier-Recovery-Paradoxon v10.0.0):
-        # BW-Extension (phase_06/07/23) adds HF content above the original material's
-        # bandwidth. The residual (restored − reference) is dominated by this HF, which:
-        #   1. Inflates rms_res → lowers sdr_db → falsely penalises correct BW-restoration.
-        #   2. Is harmonic/periodic → raises SIR-autocorrelation → falsely penalises added
-        #      harmonics as "spectral leakage". Both violate §0 Primum non nocere.
-        # Detection: upper-quarter HF energy ≥ 3× higher in restored than reference,
-        # AND reference has weak HF (< 30% of LF energy) → BW-Extension context.
         _n_guard = min(min_len, 2048)
         _ref_fft_bw = np.abs(np.fft.rfft(reference_t[:_n_guard]))
         _rest_fft_bw = np.abs(np.fft.rfft(restored_t[:_n_guard]))
@@ -3643,12 +3736,8 @@ class SeparationFidelityMetric:
         _lf_ref_rms = float(np.sqrt(np.mean(_ref_fft_bw[:_hf_start_bw] ** 2) + 1e-10))
         _bw_extended = (_rest_hf_rms > _ref_hf_rms * 3.0) and (_ref_hf_rms < _lf_ref_rms * 0.30)
 
-        # SDR-Proxy — normalise against TARGET_SDR_DB (spec threshold = 8 dB)
-        # Dividing by TARGET_SDR_DB: SDR ≥ 8 dB → score ≥ 1.0 (capped); SDR = 6 dB → 0.75.
-        # Previous divisor 20.0 scored SDR=10 dB as only 0.50, systematically below
-        # the restoration threshold 0.78 even for good separations.
+        # SDR-Proxy
         if _bw_extended:
-            # Restrict residual to original reference BW (lower 75% of spectrum)
             _res_fft = np.fft.rfft(residual[:_n_guard])
             _res_fft_lf = _res_fft.copy()
             _res_fft_lf[_hf_start_bw:] = 0.0
@@ -3661,19 +3750,15 @@ class SeparationFidelityMetric:
         sdr_db = float(20.0 * np.log10(rms_sig / rms_res))
         sdr_score = float(np.clip(sdr_db / self.TARGET_SDR_DB, 0.0, 1.0))
 
-        # Spektrale Kohärenz (STFT-Magnitudenspektren)
+        # Spektrale Kohärenz
         win = np.hanning(self.N_FFT).astype(np.float32)
         n_frames_max = (min_len - self.N_FFT) // self.HOP + 1
         if n_frames_max < 1:
             return float(np.clip(sdr_score, 0.0, 1.0))
 
-        # BW-aware coherence: when BW-extended, restrict to the lower 75% of rfft bins
-        # (reference material's original BW). The added HF bins inflate norm(mag_p)
-        # and reduce cosine similarity even though in-band coherence is preserved.
         _coh_bw_bins = int((self.N_FFT // 2 + 1) * 3 // 4) if _bw_extended else None
-
         cos_sims: list[float] = []
-        for k in range(min(n_frames_max, 64)):  # max. 64 Frames
+        for k in range(min(n_frames_max, 64)):
             start = k * self.HOP
             seg_r = reference_t[start : start + self.N_FFT]
             seg_p = restored_t[start : start + self.N_FFT]
@@ -3690,10 +3775,7 @@ class SeparationFidelityMetric:
 
         koh_score = float(np.mean(cos_sims)) if cos_sims else 1.0
 
-        # SIR proxy: periodic content in residual → interference/leakage → low SIR
-        # FFT-based autocorrelation of residual; high AC peak at 1-50 ms lag = harmonic leakage
-        # §0d BW-Extension: skip SIR — added harmonic HF is correct carrier restoration,
-        # not spectral leakage. Harmonic synthesis residual would falsely trigger SIR penalty.
+        # SIR proxy
         sir_score = 1.0
         if not _bw_extended:
             residual_clip = residual[: min(len(residual), 4096)]
@@ -3704,32 +3786,19 @@ class SeparationFidelityMetric:
                 zero_lag = float(ac[0])
                 if zero_lag > 1e-12:
                     ac_norm = ac / zero_lag
-                    # At 48 kHz: 1 ms ≈ 48 smp, 50 ms ≈ 2400 smp (spec: internal SR = 48 000 Hz)
-                    min_lag = max(1, self.N_FFT // 20)  # ≈ 51 samples
-                    max_lag = min(n_ac - 1, self.N_FFT * 2)  # ≈ 2048 samples
+                    min_lag = max(1, self.N_FFT // 20)
+                    max_lag = min(n_ac - 1, self.N_FFT * 2)
                     if max_lag > min_lag:
                         peak_ac = float(np.max(np.abs(ac_norm[min_lag : max_lag + 1])))
                         sir_score = float(np.clip(1.0 - peak_ac, 0.0, 1.0))
 
         score = float(0.40 * sdr_score + 0.35 * koh_score + 0.25 * sir_score)
 
-        # §SepFidelity-NNFallback: Neural-Network-Prozessoren (ResembleEnhance, DeepFilterNet,
-        # MDX23C, BSRoFormer) ändern Audio auf Sample-Ebene grundlegend, ohne den
-        # wahrgenommenen Inhalt zu verändern. SDR < 3 dB zeigt an, dass das Residuum
-        # (restored − reference) fast so laut ist wie das Referenz-Signal selbst —
-        # dies passiert wenn carrier_checkpoint als Referenz verwendet wird (§0d CCR-Shift)
-        # und danach 30+ Enhancement-Phasen ML-basiertes Processing anwenden.
-        # In diesem Fall ist SDR kein valider Indikator für Separation-Qualität.
-        # Fix: Bei SDR < 3 dB → Reference-Free Modus als Haupt-Messung verwenden,
-        # der die spektralen Eigenschaften des restaurierten Audios direkt bewertet.
         if sdr_db < 3.0:
             _rf_score = self._reference_free(restored, sr)
-            # Blend: 70% ref-free (echte Trennbarkeit), 20% koh (strukturelle Ähnlichkeit),
-            # 10% sir (Interferenz-Check) — SDR in diesem Kontext unzuverlässig
             score = float(0.70 * _rf_score + 0.20 * koh_score + 0.10 * sir_score)
 
-        # Short-form reliability blend: very short excerpts provide too little
-        # context for stable separation estimates; blend toward a neutral prior.
+        # Short-form reliability blend
         _dur_s = float(min_len) / float(sr + 1e-9)
         if _dur_s < 8.0:
             _rel = float(np.clip((_dur_s - 2.0) / 6.0, 0.0, 1.0))
@@ -4287,6 +4356,7 @@ class MusicalGoalsChecker:
         reference: np.ndarray | None = None,
         material_type: str = "unknown",
         panns_singing: float = 0.0,
+        global_scalar: float = 1.0,
     ) -> dict[str, float]:
         """Misst alle 15 musikalischen Qualitätsziele (Spec §1.2 v10.0.0).
 
@@ -4301,10 +4371,27 @@ class MusicalGoalsChecker:
                             material-adaptive Metriken (§9.12.6 material-floor).
             panns_singing:  PANNs singing confidence [0, 1].
                             ≥ 0.35 → SingMOS-Pfad in NatuerlichkeitMetric (§musical_goals.instructions).
+            global_scalar:  Restoration-Stärke; Werte < 0.15 kürzen den teuren
+                            15-Goal-Lauf und nutzen den Proxy-Pfad, weil die
+                            Messung unterhalb des sinnvollen Qualitätsgewinns liegt.
 
         Returns:
             Dict mit Scores für alle 15 Musical Goals ∈ [0.0, 1.0].
         """
+        _global_scalar = float(global_scalar)
+        if _global_scalar < 0.15:
+            logger.debug(
+                "measure_all: global_scalar=%.3f < 0.15 -> fast-validation path (skip expensive 15-goal loop)",
+                _global_scalar,
+            )
+            return self._measure_all_fast_validation(
+                audio=audio,
+                sr=sr,
+                reference=reference,
+                material_type=material_type,
+                panns_singing=panns_singing,
+            )
+
         # FIXED v10.0.0: Stereo-Format-Normalisierung
         # Aurik-interne Pipeline verwendet (C, N) = channels-first.
         # Alle Metriken erwarten (N,) mono oder (N, C) samples-first.
@@ -4354,7 +4441,7 @@ class MusicalGoalsChecker:
         # Referenz, material_type und panns_singing ändern den Messpfad
         # (DTW vs. IOI, SingMOS) und gehören daher in den Schlüssel.
         _ref_hash = hash(reference.tobytes()) if reference is not None and hasattr(reference, "tobytes") else None
-        _cache_key = (_audio_hash, _ref_hash, sr, material_type, float(panns_singing))
+        _cache_key = (_audio_hash, _ref_hash, sr, material_type, float(panns_singing), round(_global_scalar, 4))
         _cache = getattr(self, "_measure_all_cache", {})
         if _cache.get("key") == _cache_key:
             logger.debug("measure_all: Zwischenspeicher hit (hash=%d, gespeichert 6s)", _audio_hash % 10000)

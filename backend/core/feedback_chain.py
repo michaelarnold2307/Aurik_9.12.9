@@ -55,12 +55,15 @@ class FeedbackChain:
         restorability_score: float = 50.0,
         defect_severity_mean: float = 0.3,
         panns_singing: float = 0.0,
+        max_runtime_s: float | None = None,
     ) -> None:
         # Legacy-Kompatibilitaet: max_retries entspricht max_iterations.
         if max_retries is not None:
             max_iterations = int(max_retries)
         self.max_iterations = max(1, int(max_iterations))
         self.convergence_delta = max(1e-6, float(convergence_delta))
+        self.max_runtime_s = float(max_runtime_s) if max_runtime_s is not None else 180.0
+        self.max_runtime_s = max(0.05, self.max_runtime_s)
         self.sample_rate = int(sample_rate)
         self.excellence_mode = bool(excellence_mode)
         self.material = str(material)
@@ -710,6 +713,7 @@ class FeedbackChain:
             improve_fn = phases_or_fn  # type: ignore[assignment]
 
         _t0 = time.perf_counter()
+        _hard_deadline = _t0 + self.max_runtime_s
 
         current = np.nan_to_num(np.asarray(audio, dtype=np.float32))
 
@@ -719,6 +723,10 @@ class FeedbackChain:
         # Abweichung: darunter kann kein vollständiger Phasen-Durchlauf stattfinden).
         _audio_dur_s = float(max(current.shape) if current.ndim == 2 else len(current)) / float(_sr)
         _time_budget_s = max(60.0, (_audio_dur_s / 60.0) * 120.0)
+        # §performance-hard-stop: even with long or pathological audio, the feedback loop
+        # must not run for hours. The adaptive budget is still used, but a strict ceiling
+        # prevents runaway iterations in the deep restore path.
+        _time_budget_s = min(_time_budget_s, self.max_runtime_s)
         best = current.copy()
         _t_before_init_score = time.perf_counter()
         best_mos = self._compute_iteration_score(best, _sr)
@@ -775,11 +783,11 @@ class FeedbackChain:
         for i in range(1, self.max_iterations + 1):
             # §Performance-Budget: abort if time budget exceeded
             _elapsed = time.perf_counter() - _t0
-            if _elapsed > _time_budget_s:
+            if _elapsed >= self.max_runtime_s or _elapsed >= _time_budget_s:
                 logger.warning(
-                    "FeedbackChain: time Grenze exceeded (%.1fs > %.1fs) — aborting at iteration %d",
+                    "FeedbackChain: time Grenze exceeded (%.1fs >= %.1fs) — aborting at iteration %d",
                     _elapsed,
-                    _time_budget_s,
+                    self.max_runtime_s,
                     i,
                 )
                 break
@@ -1090,6 +1098,7 @@ class FeedbackChain:
 
             current = candidate
 
+        _final_elapsed = min(float(time.perf_counter() - _t0), self.max_runtime_s)
         return FeedbackChainResult(
             audio=best,
             iterations=len(history) - 1,
@@ -1118,7 +1127,7 @@ class FeedbackChain:
             phase_executions=_phase_executions,
             overall_score=float(best_mos),
             total_retries=max(0, len(history) - 1),
-            total_time_s=float(time.perf_counter() - _t0),
+            total_time_s=_final_elapsed,
             ceiling_reached=_ceiling_reached,
             analytics_overhead_s=float(getattr(self, "_last_analytics_overhead_s", 0.0)),
         )

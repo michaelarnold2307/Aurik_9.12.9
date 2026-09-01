@@ -34,9 +34,49 @@ AUDIO_OUT_DIR = Path("output_audio")
 AUDIO_OUT_DIR.mkdir(exist_ok=True)
 
 logger = logging.getLogger(__name__)
+_ALLOWED_UPLOAD_EXTENSIONS = {
+    ".wav": ".wav",
+    ".flac": ".flac",
+    ".mp3": ".mp3",
+    ".ogg": ".ogg",
+}
 
 
-def batch_worker(batch_id: str, input_files: list[str]):
+def _sanitize_batch_filename(filename: str) -> str | None:
+    """Accept a plain filename only; batch paths must remain in managed directories."""
+    raw_path = Path(filename)
+    if not filename or "/" in filename or "\\" in filename or raw_path.name != filename or filename in {".", ".."}:
+        return None
+    return filename
+
+
+def _upload_storage_filename(filename: str) -> str | None:
+    """Allocate a server-owned filename; client names are metadata only."""
+    safe_name = _sanitize_batch_filename(filename)
+    if safe_name is None:
+        return None
+    suffix = Path(safe_name).suffix.lower()
+    extension = _ALLOWED_UPLOAD_EXTENSIONS.get(suffix)
+    if extension is None:
+        return None
+    return f"upload-{uuid.uuid4().hex}{extension}"
+
+
+def _batch_file_path(directory: Path, filename: str) -> Path:
+    """Resolve a sanitized batch filename beneath its managed directory."""
+    safe_name = _sanitize_batch_filename(filename)
+    if safe_name is None:
+        raise ValueError(f"Unsicherer Batch-Dateiname: {filename!r}")
+    base_dir = directory.resolve(strict=False)
+    candidate = (base_dir / safe_name).resolve(strict=False)
+    try:
+        candidate.relative_to(base_dir)
+    except ValueError as exc:
+        raise ValueError(f"Batch-Dateipfad ausserhalb des Arbeitsverzeichnisses: {filename!r}") from exc
+    return candidate
+
+
+def batch_worker(batch_id: str, input_files: list[str], source_filenames: dict[str, str] | None = None):
     """
     Worker-Thread für Batch-Verarbeitung via AurikDenker (UV3).
 
@@ -51,8 +91,9 @@ def batch_worker(batch_id: str, input_files: list[str]):
             batch_jobs[batch_id]["status"] = "processing"
 
         for idx, fname in enumerate(input_files):
-            in_path = AUDIO_IN_DIR / fname
-            out_path = AUDIO_OUT_DIR / fname
+            display_name = (source_filenames or {}).get(fname, fname)
+            in_path = _batch_file_path(AUDIO_IN_DIR, fname)
+            out_path = _batch_file_path(AUDIO_OUT_DIR, fname)
 
             with batch_lock:
                 batch_jobs[batch_id]["last_file"] = fname
@@ -86,7 +127,7 @@ def batch_worker(batch_id: str, input_files: list[str]):
                 with open(str(audit_path), "w", encoding="utf-8") as f:
                     json.dump(
                         {
-                            "filename": fname,
+                            "filename": display_name,
                             "quality_estimate": result_quality,
                             "material": result_material,
                             "deferred_phases": result_deferred,
@@ -95,14 +136,14 @@ def batch_worker(batch_id: str, input_files: list[str]):
                         indent=2,
                     )
 
-                logger.info("[Batch %s] verarbeitet: %s", batch_id, fname)
+                logger.info("[Batch %s] verarbeitet: %s", batch_id, display_name)
 
             except Exception as e:
-                logger.exception("[Batch %s] Error processing %s: %s", batch_id, fname, e)
+                logger.exception("[Batch %s] Error processing %s: %s", batch_id, display_name, e)
                 with batch_lock:
                     if "errors" not in batch_jobs[batch_id]:
                         batch_jobs[batch_id]["errors"] = []
-                    batch_jobs[batch_id]["errors"].append({"file": fname, "error": str(e)})
+                    batch_jobs[batch_id]["errors"].append({"file": display_name, "error": str(e)})
 
             with batch_lock:
                 batch_jobs[batch_id]["progress"] = idx + 1
@@ -133,26 +174,24 @@ async def start_batch(background_tasks: BackgroundTasks, files: list[UploadFile]
     """
     try:
         input_files = []
+        source_filenames: dict[str, str] = {}
 
         # Option 1: Files wurden hochgeladen
         if files and len(files) > 0:
             # Speichere hochgeladene Dateien temporär
             for upload_file in files:
                 if upload_file.filename and upload_file.filename.strip():
-                    # §Security: Path-Traversal verhindern — nur Dateiname, kein Pfad
-                    _safe_name = Path(upload_file.filename).name
-                    if not _safe_name:
+                    storage_name = _upload_storage_filename(upload_file.filename)
+                    if not storage_name:
+                        logger.warning("Skipping unsafe file name: %s", upload_file.filename)
                         continue
-                    # Validate safe name to prevent path traversal
-                    if "/" in _safe_name or "\\" in _safe_name or ".." in _safe_name:
-                        logger.warning("Skipping unsafe file name: %s", _safe_name)
-                        continue
-                    file_path = AUDIO_IN_DIR / _safe_name
+                    file_path = _batch_file_path(AUDIO_IN_DIR, storage_name)
                     with open(str(file_path), "wb") as f:
                         content = await upload_file.read()
                         f.write(content)
-                    input_files.append(_safe_name)
-                    logger.info("Uploaded file: %s", _safe_name)
+                    input_files.append(storage_name)
+                    source_filenames[storage_name] = upload_file.filename
+                    logger.info("Uploaded file: %s", upload_file.filename)
 
         # Option 2: Verwende existierende Dateien aus input_audio/
         if not input_files:
@@ -164,6 +203,7 @@ async def start_batch(background_tasks: BackgroundTasks, files: list[UploadFile]
                 for f in AUDIO_IN_DIR.iterdir()
                 if f.is_file() and f.suffix.lower() in [".wav", ".flac", ".mp3", ".ogg"]
             ]
+            source_filenames = {filename: filename for filename in input_files}
 
         if not input_files:
             raise HTTPException(
@@ -183,12 +223,13 @@ async def start_batch(background_tasks: BackgroundTasks, files: list[UploadFile]
                 "total": len(input_files),
                 "last_file": None,
                 "current_file": None,
-                "files": input_files,
+                "files": [source_filenames.get(filename, filename) for filename in input_files],
+                "storage_files": input_files,
                 "errors": [],
             }
 
         # Starte Batch-Worker in Background-Task
-        background_tasks.add_task(batch_worker, batch_id, input_files)
+        background_tasks.add_task(batch_worker, batch_id, input_files, source_filenames)
 
         logger.info("[Batch %s] gestartet with %s files", batch_id, len(input_files))
 

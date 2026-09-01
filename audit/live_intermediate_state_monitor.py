@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 from datetime import datetime
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
@@ -14,39 +15,11 @@ from typing import Any
 # stdout-Protokoll ([intermediate-audit] …) über den Standard-Logging-Kanal
 # ausgeben, damit Fehler in der zentralen Log-Kette sichtbar bleiben.
 logger = logging.getLogger(__name__)
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
-try:  # Package-Kontext (Tests/CI): audit.code_weakness_scanner
-    from audit.code_weakness_scanner import (
-        scan_workspace,
-        summarize_findings,
-        write_json_report,
-        write_markdown_report,
-    )
-    from audit.spec_integration_scanner import (
-        scan_spec_integration,
-    )
-    from audit.spec_integration_scanner import (
-        write_json_report as write_spec_json_report,
-    )
-    from audit.spec_integration_scanner import (
-        write_markdown_report as write_spec_markdown_report,
-    )
-except ImportError:  # Direktskript-Start: python audit/live_intermediate_state_monitor.py
-    from code_weakness_scanner import (
-        scan_workspace,
-        summarize_findings,
-        write_json_report,
-        write_markdown_report,
-    )
-    from spec_integration_scanner import (
-        scan_spec_integration,
-    )
-    from spec_integration_scanner import (
-        write_json_report as write_spec_json_report,
-    )
-    from spec_integration_scanner import (
-        write_markdown_report as write_spec_markdown_report,
-    )
+_MODULE_PREFIX = "audit." if __package__ else ""
+_code_weakness_scanner: Any = import_module(f"{_MODULE_PREFIX}code_weakness_scanner")
+_spec_integration_scanner: Any = import_module(f"{_MODULE_PREFIX}spec_integration_scanner")
 
 EVENT_PATTERNS: list[tuple[str, re.Pattern[str], str]] = [
     ("run_start", re.compile(r"AurikDenker\.denke\(\) gestartet", re.IGNORECASE), "info"),
@@ -164,12 +137,15 @@ def _warning_fingerprint(line: str) -> str:
 
 
 def _run_cmd(cmd: list[str], cwd: Path) -> tuple[int, str, str]:
+    if not cmd:
+        raise ValueError("Leerer Audit-Befehl")
     proc = subprocess.run(
         cmd,
         cwd=str(cwd),
         text=True,
         capture_output=True,
         check=False,
+        shell=False,
     )
     return proc.returncode, proc.stdout, proc.stderr
 
@@ -184,10 +160,20 @@ def _read_json(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _workspace_artifact_path(workspace: Path, raw_path: str) -> Path:
+    """Resolve monitor artifacts only below the selected workspace."""
+    candidate = (workspace / raw_path).resolve()
+    try:
+        candidate.relative_to(workspace)
+    except ValueError as exc:
+        raise ValueError(f"Audit-Pfad ausserhalb des Workspace: {raw_path!r}") from exc
+    return candidate
+
+
 def _evaluate_runtime(workspace: Path) -> dict[str, Any]:
     runtime_report = workspace / "audit/runtime_spec_report_live.json"
     cmd = [
-        str(workspace / ".venv_aurik/bin/python"),
+        sys.executable,
         "audit/runtime_spec_check.py",
         "--backend-log",
         "logs/aurik_backend.log",
@@ -213,7 +199,7 @@ def _evaluate_final(workspace: Path) -> dict[str, Any]:
     consolidated_report = workspace / "audit/consolidated_release_status_live.json"
 
     release_cmd = [
-        str(workspace / ".venv_aurik/bin/python"),
+        sys.executable,
         "audit/release_check.py",
         "--audit-path",
         "audit/audit_trail.json",
@@ -221,7 +207,7 @@ def _evaluate_final(workspace: Path) -> dict[str, Any]:
         str(release_report),
     ]
     cons_cmd = [
-        str(workspace / ".venv_aurik/bin/python"),
+        sys.executable,
         "audit/release_runtime_consistency.py",
         "--release-report",
         str(release_report),
@@ -257,20 +243,20 @@ def _scan_code_weaknesses(workspace: Path, json_out: Path, md_out: Path) -> dict
     Warnung gemeldet und mit einer leeren Zusammenfassung weitergefahren.
     """
     try:
-        result = scan_workspace(workspace)
+        result = _code_weakness_scanner.scan_workspace(workspace)
     except Exception as exc:
         logger.warning("code-weakness-scan fehlgeschlagen: %s", exc)
         print(f"[intermediate-audit] WARNUNG code-weakness-scan fehlgeschlagen: {exc}")
         return {"error": str(exc), "total": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
 
     try:
-        write_json_report(json_out, result)
-        write_markdown_report(md_out, result)
+        _code_weakness_scanner.write_json_report(json_out, result)
+        _code_weakness_scanner.write_markdown_report(md_out, result)
     except OSError as exc:
         logger.warning("code-weakness-report nicht schreibbar: %s", exc)
         print(f"[intermediate-audit] WARNUNG code-weakness-report nicht schreibbar: {exc}")
 
-    summary = summarize_findings(result)
+    summary: dict[str, Any] = dict(_code_weakness_scanner.summarize_findings(result))
     summary["report_json"] = str(json_out)
     summary["report_md"] = str(md_out)
     return summary
@@ -283,15 +269,15 @@ def _scan_spec_integration(workspace: Path, json_out: Path, md_out: Path) -> dic
     (non-blocking, §V6 (copilot-instructions.md)): Der Watchdog darf den Monitor nie stoppen.
     """
     try:
-        result = scan_spec_integration(workspace)
+        result = _spec_integration_scanner.scan_spec_integration(workspace)
     except Exception as exc:
         logger.warning("spec-integration-scan fehlgeschlagen: %s", exc)
         print(f"[intermediate-audit] WARNUNG spec-integration-scan fehlgeschlagen: {exc}")
         return {"error": str(exc), "totals": {"error": 0, "warning": 0, "info": 0}}
 
     try:
-        write_spec_json_report(json_out, result)
-        write_spec_markdown_report(md_out, result)
+        _spec_integration_scanner.write_json_report(json_out, result)
+        _spec_integration_scanner.write_markdown_report(md_out, result)
     except OSError as exc:
         logger.warning("spec-integration-report nicht schreibbar: %s", exc)
         print(f"[intermediate-audit] WARNUNG spec-integration-report nicht schreibbar: {exc}")
@@ -484,20 +470,18 @@ def main() -> int:
     parser.add_argument("--max-events", type=int, default=1000)
     args = parser.parse_args()
 
-    workspace = Path(args.workspace).resolve()
-    snapshot_jsonl = workspace / args.snapshot_jsonl
-    latest_json = workspace / args.latest_json
-    intervention_queue_json = workspace / args.intervention_queue_json
-    offtrack_stop_request_json = workspace / args.offtrack_stop_request_json
-
-    def _workspace_path(raw: str) -> Path:
-        p = Path(raw)
-        return p if p.is_absolute() else workspace / p
-
-    cw_report_json = _workspace_path(args.code_weakness_report_json)
-    cw_report_md = _workspace_path(args.code_weakness_report_md)
-    si_report_json = _workspace_path(args.spec_integration_report_json)
-    si_report_md = _workspace_path(args.spec_integration_report_md)
+    requested_workspace = Path(args.workspace).resolve()
+    if requested_workspace != _REPOSITORY_ROOT:
+        parser.error(f"--workspace muss dieses Aurik-Checkout referenzieren: {_REPOSITORY_ROOT}")
+    workspace = _REPOSITORY_ROOT
+    snapshot_jsonl = _workspace_artifact_path(workspace, args.snapshot_jsonl)
+    latest_json = _workspace_artifact_path(workspace, args.latest_json)
+    intervention_queue_json = _workspace_artifact_path(workspace, args.intervention_queue_json)
+    offtrack_stop_request_json = _workspace_artifact_path(workspace, args.offtrack_stop_request_json)
+    cw_report_json = _workspace_artifact_path(workspace, args.code_weakness_report_json)
+    cw_report_md = _workspace_artifact_path(workspace, args.code_weakness_report_md)
+    si_report_json = _workspace_artifact_path(workspace, args.spec_integration_report_json)
+    si_report_md = _workspace_artifact_path(workspace, args.spec_integration_report_md)
 
     event_count = 0
     observed_spec_gaps: dict[str, dict[str, str]] = {}

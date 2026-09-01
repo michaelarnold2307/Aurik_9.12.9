@@ -24,8 +24,21 @@ sys.path.insert(0, str(Path(__file__).parent))
 from validation_suite import ValidationSuite
 
 
+def _workspace_output_path(path_value: Path) -> Path:
+    """Allow generated validation reports only below the working directory."""
+    workspace = Path.cwd().resolve()
+    output_path = path_value.resolve()
+    try:
+        output_path.relative_to(workspace)
+    except ValueError as exc:
+        raise ValueError(f"Output path must be inside the working directory: {path_value}") from exc
+    return output_path
+
+
 def run_validation(test_library: Path, processed_dir: Path, output_file: Path, category: str = None):  # type: ignore[assignment]
     """Run validation on all files and generate comparison report."""
+
+    output_file = _workspace_output_path(output_file)
 
     # Initialize validation suite
     validator = ValidationSuite()
@@ -163,6 +176,7 @@ def run_validation(test_library: Path, processed_dir: Path, output_file: Path, c
         }
 
     # Save results
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)
 

@@ -34,6 +34,20 @@ logger = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parent.parent.parent
 
 
+def _workspace_python_file(filepath: str) -> Path | None:
+    """Return an existing Python file only when it is inside the repository."""
+    candidate = Path(filepath).resolve()
+    try:
+        candidate.relative_to(ROOT)
+    except ValueError:
+        logger.warning("Ignoring file outside repository: %s", filepath)
+        return None
+    if candidate.suffix != ".py" or not candidate.is_file():
+        logger.warning("Ignoring missing or non-Python file: %s", filepath)
+        return None
+    return candidate
+
+
 def _relpath(filepath: str) -> str:
     try:
         return str(Path(filepath).resolve().relative_to(ROOT))
@@ -450,23 +464,25 @@ def main() -> None:
 
     all_issues: list[str] = []
     for fp in changed:
-        if not fp.endswith(".py"):
+        safe_path = _workspace_python_file(fp)
+        if safe_path is None:
             continue
-        all_issues.extend(check_typo_double_prefix(fp))
-        all_issues.extend(check_preservation_mode_threshold(fp))
-        all_issues.extend(check_wrong_field_name(fp))
-        all_issues.extend(check_bare_except_pass(fp))
-        all_issues.extend(check_pruner_signature(fp))
-        all_issues.extend(check_sentinel_architecture(fp))
-        all_issues.extend(check_magic_numbers(fp))
-        all_issues.extend(check_absolute_bw_loss(fp))
-        all_issues.extend(check_defect_classification(fp))
-        all_issues.extend(check_surgical_architecture(fp))
-        all_issues.extend(check_hardcoded_venv_in_subprocess(fp))
-        all_issues.extend(check_missing_wav_retry(fp))
-        all_issues.extend(check_unsafe_wavfile_unpack(fp))
-        all_issues.extend(check_dual_path_audio_callback(fp))
-        all_issues.extend(check_name_error_risk(fp))
+        safe_filepath = str(safe_path)
+        all_issues.extend(check_typo_double_prefix(safe_filepath))
+        all_issues.extend(check_preservation_mode_threshold(safe_filepath))
+        all_issues.extend(check_wrong_field_name(safe_filepath))
+        all_issues.extend(check_bare_except_pass(safe_filepath))
+        all_issues.extend(check_pruner_signature(safe_filepath))
+        all_issues.extend(check_sentinel_architecture(safe_filepath))
+        all_issues.extend(check_magic_numbers(safe_filepath))
+        all_issues.extend(check_absolute_bw_loss(safe_filepath))
+        all_issues.extend(check_defect_classification(safe_filepath))
+        all_issues.extend(check_surgical_architecture(safe_filepath))
+        all_issues.extend(check_hardcoded_venv_in_subprocess(safe_filepath))
+        all_issues.extend(check_missing_wav_retry(safe_filepath))
+        all_issues.extend(check_unsafe_wavfile_unpack(safe_filepath))
+        all_issues.extend(check_dual_path_audio_callback(safe_filepath))
+        all_issues.extend(check_name_error_risk(safe_filepath))
 
     if all_issues:
         print(f"🛡️ Anti-Regression-Gate: {len(all_issues)} Verletzung(en)\n")
