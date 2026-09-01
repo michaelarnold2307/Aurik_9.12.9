@@ -27,6 +27,12 @@ import gc
 import importlib
 import logging
 
+# §v10.801 SOTA Warning Prevention — initialize before any imports
+from backend.core.sota_warning_prevention import configure_production_logging, initialize_warning_filters
+
+initialize_warning_filters()
+configure_production_logging()
+
 # Import Aurik 10.0.0 Core Components
 import logging as _uv3_logging
 import math
@@ -5334,13 +5340,11 @@ class UnifiedRestorerV3:
     @staticmethod
     def _compute_ms_ratio_separation_proxy(audio: np.ndarray, material_type: str = "unknown") -> float:
         """Compute separation_fidelity via MS-ratio heuristic (DSP-proxy mode, fast).
-        
         Used when reference audio is not available or as fallback for real measurement.
-        
         Returns score ∈ [0, 1]. Material-adapted for tape/cassette (×0.95).
         """
         _eps = 1e-12
-        
+
         if audio.ndim == 2 and audio.shape[0] != 2:
             # (N, 2) format
             if audio.shape[1] == 2:
@@ -5363,11 +5367,12 @@ class UnifiedRestorerV3:
         # überschätzt SDR-basierte Separation-Fidelity um ~0.041; Faktor × 0.95.
         if str(material_type or "").lower() in {"cassette", "tape", "reel_tape"}:
             _score = float(np.clip(_score * 0.95, 0.0, 1.0))
-        
+
         return _score
 
     @staticmethod
     def _fast_goal_snapshot(
+        self,
         audio: np.ndarray, sr: int, material_type: str = "unknown", reference: np.ndarray | None = None
     ) -> dict[str, float]:
         """§2.64 DSP-Proxy for per-phase goal measurement (≤200ms, no ML).
@@ -5706,10 +5711,10 @@ class UnifiedRestorerV3:
                         _sep_exc,
                     )
                     # Fallback to MS-ratio heuristic if HTDemucs unavailable
-                    _sep_fidelity_score = _compute_ms_ratio_separation_proxy(audio, material_type)
+                    _sep_fidelity_score = self._compute_ms_ratio_separation_proxy(audio, material_type)
             else:
                 # Proxy mode: use DSP-based MS-ratio heuristic (fast, no ML)
-                _sep_fidelity_score = _compute_ms_ratio_separation_proxy(audio, material_type)
+                _sep_fidelity_score = self._compute_ms_ratio_separation_proxy(audio, material_type)
 
             result["separation_fidelity"] = float(_np.clip(_sep_fidelity_score, 0.0, 1.0))
 
@@ -10300,6 +10305,16 @@ class UnifiedRestorerV3:
             except Exception as _ast_ctx_exc:
                 logger.debug("AST Instrument Context nicht verfügbar: %s", _ast_ctx_exc)
 
+            # §G1 Song-Isolation Guard: Material MUSS zu diesem Punkt bekannt sein.
+            # Wenn alle Detektoren fehlgeschlagen sind, ist das ein Warnfall —
+            # DefectScanner muss dann zu UNKNOWN fallback, was weniger präzise ist.
+            if _classified_material is None:
+                logger.warning(
+                    "🔍 DefectScanner.scan(): Material ist NULL — alle Detektoren (MediumDetector, EraClassifier) "
+                    "haben fehlgeschlagen oder zu niedriger Konfidenz. DefectScanner wird auf MaterialType.UNKNOWN "
+                    "fallback. Analyse-Präzision wird reduziert. Prüfe Pre-Analysis Logs."
+                )
+
             defect_result = self.defect_scanner.scan(
                 _defect_scan_audio,
                 analysis_sample_rate,
@@ -13151,7 +13166,9 @@ class UnifiedRestorerV3:
         # §2.45: Only ONE phase per goal is added (primary recovery phase, not the full list).
         # Non-blocking: any error leaves selected_phases unchanged.
         try:
-            from backend.core.calibration_matrix import get_goal_recovery_phases as _get_grp
+            from backend.core.calibration_matrix import (
+                get_goal_recovery_phases as _get_grp,
+            )
             from backend.core.calibration_matrix import (
                 resolve_effective_goal_targets as _gbc_resolve_egt,
             )
@@ -28073,9 +28090,8 @@ class UnifiedRestorerV3:
                         _foreign_inpaint_evidence,
                     )
                 if _injected:
-                    logger.warning(
-                        "§v10.705 B6 Material-Fremdlauf: Kettenglied '%s' (primär=%s) injiziert %d Pflichtphase(n): %s — "
-                        "Stärke-Reduktion via PhaseInteractionDenker (§v10.706)",
+                    logger.info(
+                        "§v10.705 B6 Material-Fremdlauf-Injektion (evidenzgeprüft): Kettenglied '%s' (primär=%s) injiziert %d Pflichtphase(n): %s",
                         _stage,
                         _mat_key,
                         len(_injected),
@@ -34101,8 +34117,12 @@ class UnifiedRestorerV3:
                 try:
                     _v20_panns = float(kwargs.get("panns_singing", kwargs.get("panns_singing_confidence", 0.0)) or 0.0)
                     if _v20_panns >= 0.25:
-                        from backend.core.dsp.mikrodynamik_guard import frame_energy_correlation as _mkk_corr
-                        from backend.core.dsp.mikrodynamik_guard import recommend_mikrodynamik_wet as _mkk_recommend_wet
+                        from backend.core.dsp.mikrodynamik_guard import (
+                            frame_energy_correlation as _mkk_corr,
+                        )
+                        from backend.core.dsp.mikrodynamik_guard import (
+                            recommend_mikrodynamik_wet as _mkk_recommend_wet,
+                        )
 
                         _mkk_corr_val = _mkk_corr(audio, result.audio, _sr_guards, frame_ms=10.0)
                         _mkk_need = 0.5

@@ -1916,9 +1916,9 @@ class EraClassifier:
                 hf_rolloff_hz=rolloff_hz,
             )
         except Exception as exc:
-            # §V6 (copilot-instructions.md): ML→DSP-Fallback — EINE Warnung mit
-            # Begründung, kein Traceback-Spam.
-            logger.warning("§G23 EraClassifier Tier-1 fehlgeschlagen — DSP-Ersatzpfad: %s", exc)
+            # §V6 (copilot-instructions.md): ML→DSP-Fallback — DEBUG-level Logging
+            # um zu zeigen, dass ein Fallback stattfand, aber keine Warnung für den User.
+            logger.debug("§G23 EraClassifier Tier-1 fallback (normal): %s", exc)
             return None
 
     def _tier2(

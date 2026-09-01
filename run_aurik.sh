@@ -182,11 +182,11 @@ fi
 
 # In VS Code-Terminals detach starten, damit VS Code den GUI-Prozess nicht verwaltet.
 if [[ "${TERM_PROGRAM:-}" == "vscode" ]]; then
-    nohup "$VENV_PYTHON" -B Aurik10/main.py "$@" >>"$LOG_FILE" 2>&1 &
+    nohup "$VENV_PYTHON" -B -W ignore::FutureWarning -W ignore::DeprecationWarning Aurik10/main.py "$@" >>"$LOG_FILE" 2>&1 &
     _pid="$!"
     echo "$_pid" >"$PID_FILE"
     echo "Aurik detached gestartet (PID ${_pid}). Log: $LOG_FILE"
     exit 0
 fi
 
-exec "$VENV_PYTHON" -B Aurik10/main.py "$@"
+exec "$VENV_PYTHON" -B -W ignore::FutureWarning -W ignore::DeprecationWarning Aurik10/main.py "$@"

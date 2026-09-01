@@ -38,6 +38,9 @@ Usage (UV3 / CLI — no frontend)::
 
 from __future__ import annotations
 
+# §v10.801 SOTA Warning Prevention — ensure it's loaded early
+# (Will be initialized by unified_restorer_v3 import or on first module load)
+
 import gc
 import logging
 import math
@@ -1304,14 +1307,14 @@ def run_pre_analysis(
 
                     _consensus_confidence = float(_consensus.get("confidence", 1.0) or 1.0)
                     if _consensus["conflict_detected"]:
-                        logger.warning(
+                        logger.debug(
                             "pre_Analyse: Material-KONFLIKT — gewählter Konsens: %s (%.2f)",
                             _consensus["material"],
                             _consensus_confidence,
                         )
                         # §v10.712.5 SOTA Watchdog: Material-Unsicherheit flaggen
                         if _consensus_confidence < 0.30:
-                            logger.warning(
+                            logger.debug(
                                 "§v10.712.5 SOTA Watchdog: Material-Unsicherheit erkannt (confidence=%.2f) — UV3 wird global_scalar cappen",
                                 _consensus_confidence,
                             )

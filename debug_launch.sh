@@ -75,12 +75,12 @@ if [[ "$_MODE" == "--foreground" ]]; then
     # Blockierend im Terminal — für tmux/screen
     echo "Aurik Debug-Frontend startet im Vordergrund …"
     echo "Log-Datei (nach Start): $(cat "$LOG_DIR/aurik_debug_latest.log" 2>/dev/null || echo 'wird angelegt')"
-    exec "$VENV_PYTHON" -B Aurik10/main.py
+    exec "$VENV_PYTHON" -B -W ignore::FutureWarning -W ignore::DeprecationWarning Aurik10/main.py
 fi
 
 # Detached in eigener Session (setsid), VS Code ist NICHT Owner
 echo -n "Starte Aurik Debug-Frontend (detached, setsid) … "
-setsid "$VENV_PYTHON" -B Aurik10/main.py \
+setsid "$VENV_PYTHON" -B -W ignore::FutureWarning -W ignore::DeprecationWarning Aurik10/main.py \
     >>"$CONSOLE_LOG" 2>&1 &
 _pid="$!"
 echo "$_pid" >"$PID_FILE"

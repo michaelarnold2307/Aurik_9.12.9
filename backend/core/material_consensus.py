@@ -156,7 +156,7 @@ def resolve_material_consensus(
     conflict_detected = len(unique_materials) > 1
 
     if conflict_detected:
-        logger.warning(
+        logger.debug(
             "Material-Konsens: KONFLIKT — %s (gewählt: %s, Konfidenz: %.2f)",
             {k: v["material"] for k, v in details.items()},
             best_material[0],

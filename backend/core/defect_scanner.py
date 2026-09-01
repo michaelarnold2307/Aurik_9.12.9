@@ -1553,7 +1553,16 @@ class DefectScanner:
             )
         )
 
-        logger.info("DefectScanner initialisiert: SR=%s, Material=%s", sample_rate, material_type)
+        # §G1 Song-Isolation: DefectScanner wird bei UV3.__init__() instantiiert (vor restore()),
+        # daher ist Material zu diesem Zeitpunkt noch nicht bekannt. Es wird später in
+        # restore() durch Material-Konsens ermittelt und an scan() übergeben (§9.7.2).
+        # Das ist kein Bug, sondern beabsichtiges Design — jeder Song bekommt seinen eigenen
+        # Material-Context. Log-Level: DEBUG, da es eine normale Initialisierung ist.
+        if material_type is not None:
+            logger.debug("DefectScanner initialisiert: SR=%s, Material=%s (vorgegeben)", sample_rate, material_type)
+        else:
+            logger.debug("DefectScanner initialisiert: SR=%s (Material wird in restore() auto-detected)", sample_rate)
+        
         # Welch-PSD-Cache (P1): gültig für Dauer eines scan()-Calls - wird in scan() gesetzt.
         self._scan_welch_cache: dict[tuple[object, ...], tuple[np.ndarray, np.ndarray]] = {}
 

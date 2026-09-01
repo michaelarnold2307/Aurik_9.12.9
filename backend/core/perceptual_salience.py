@@ -171,7 +171,7 @@ class PerceptualSalienceEstimator:
             _salient_ratio = n_salient / _n_ann
             if _salient_ratio >= 0.99 and result.mean_salience >= 0.99:
                 _pass_through = True
-                logger.warning(
+                logger.debug(
                     "Hörordnung Ebene 2: PerceptualSalience wirkt als Pass-Through "
                     "(%d/%d salient, mean=%.3f) — trägt keine Audibility-Entscheidung "
                     "(Defekt-Spitze ist lokales Maximum, Kontext maskiert nicht)",
