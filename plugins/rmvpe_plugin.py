@@ -18,13 +18,14 @@ Referenz:
     in Polyphonic Music" — ICASSP 2023
 
 Singleton-Pattern: get_rmvpe_plugin() verwenden.
-CPU-Only: CPUExecutionProvider, kein CUDA.
+Provider-Wahl: CPU Standard (§G5 Determinismus); GPU via AURIK_PITCH_GPU=1 optional.
 """
 
 from __future__ import annotations
 
 import logging
 import math
+import os
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -33,6 +34,9 @@ from typing import Any, cast
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# Feature-Flag: AURIK_PITCH_GPU=1 ermöglicht GPU-Provider für Pitch-Tracking
+_PITCH_GPU_ENABLED = os.getenv("AURIK_PITCH_GPU", "").lower() in ("1", "true", "yes")
 
 _ROOT = Path(__file__).parent.parent
 _ONNX_PATH = _ROOT / "models" / "rmvpe" / "rmvpe.onnx"
@@ -152,13 +156,24 @@ class RmvpePlugin:
 
             opts = ort.SessionOptions()
             opts.inter_op_num_threads = 2
+            # Wähle Provider: GPU wenn AURIK_PITCH_GPU=1, sonst CPU (§G5 Determinismus)
+            if _PITCH_GPU_ENABLED:
+                try:
+                    from backend.core.ml_device_manager import get_ort_providers
+                    providers = get_ort_providers("RMVPE")
+                    logger.info("RMVPE: GPU-Provider aktiviert via AURIK_PITCH_GPU=1")
+                except Exception as _e:
+                    logger.warning("RMVPE: GPU-Provider fehlgeschlagen (%s) — CPU-Fallback", _e)
+                    providers = ["CPUExecutionProvider"]
+            else:
+                providers = ["CPUExecutionProvider"]
             self._session = ort.InferenceSession(
                 str(_ONNX_PATH),
                 sess_options=opts,
-                providers=["CPUExecutionProvider"],
+                providers=providers,
             )
             self._model_loaded = True
-            logger.info("✅ RMVPE ONNX geladen: %s (§4.4 primärer Pitch-Tracker)", _ONNX_PATH.name)
+            logger.info("✅ RMVPE ONNX geladen: %s (provider=%s, §4.4 primärer Pitch-Tracker)", _ONNX_PATH.name, providers[0])
             try:
                 from backend.core.plugin_lifecycle_manager import register_plugin as _reg_plm
 

@@ -25,8 +25,9 @@ Referenz:
 Invarianten (§3.1, §3.2, §3.7 Aurik-Spec):
     - Thread-sicherer Singleton mit Double-Checked Locking
     - NaN/Inf in keiner Ausgabe (nan_to_num)
-    - providers=["CPUExecutionProvider"] — kein GPU (§9.5 Aurik-Spec)
+    - Provider-Wahl über get_ort_providers() oder CPU-Fallback (§G5 Determinismus)
     - Alle öffentlichen Methoden vollständig typisiert (PEP 484)
+    - GPU-Support via AURIK_PITCH_GPU=1 optional; CPU ist Default für §G5 Reproduzierbarkeit
 """
 
 # pylint: disable=import-outside-toplevel
@@ -35,6 +36,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import threading
 from pathlib import Path
 from typing import Any, cast
@@ -43,6 +45,9 @@ import numpy as np
 
 # Re-export CrepeResult for full API compatibility
 from plugins.crepe_plugin import CrepeResult, get_crepe_plugin
+
+# Feature-Flag: AURIK_PITCH_GPU=1 ermöglicht GPU-Provider für Pitch-Tracking
+_PITCH_GPU_ENABLED = os.getenv("AURIK_PITCH_GPU", "").lower() in ("1", "true", "yes")
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +79,7 @@ _MEL_BASIS_LOCK = threading.Lock()
 
 
 def _get_mel_basis() -> np.ndarray:
-    """Lazy-init des Mel-Filter-Basismatrix (128×513, float32)."""
+    """Lazy-init des Mel-Filter-Basismatrix (128x513, float32)."""
     if _MEL_BASIS_HOLDER[0] is None:
         with _MEL_BASIS_LOCK:
             if _MEL_BASIS_HOLDER[0] is None:
@@ -148,7 +153,7 @@ def _local_argmax_decode(salience: np.ndarray, threshold: float = _VOICED_THRESH
     Returns:
         (f0_hz, voiced_prob) je als (T,) float32-Array.
     """
-    T, C = salience.shape
+    T, C = salience.shape  # noqa: N806 (DSP-Konvention: T=Zeit, C=Klassen)
     # Maximale Salience und Peak-Index pro Frame
     voiced_prob = salience.max(axis=-1).astype(np.float32)  # (T,)
     max_idx = salience.argmax(axis=-1)  # (T,) int
@@ -217,12 +222,23 @@ class FcpePlugin:
                 opts.inter_op_num_threads = 1
                 opts.intra_op_num_threads = 4
                 opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+                # Wähle Provider: GPU wenn AURIK_PITCH_GPU=1, sonst CPU (§G5 Determinismus)
+                if _PITCH_GPU_ENABLED:
+                    try:
+                        from backend.core.ml_device_manager import get_ort_providers
+                        providers = get_ort_providers("FCPE")
+                        logger.info("FCPE: GPU-Provider aktiviert via AURIK_PITCH_GPU=1")
+                    except Exception as _e:
+                        logger.warning("FCPE: GPU-Provider fehlgeschlagen (%s) — CPU-Fallback", _e)
+                        providers = ["CPUExecutionProvider"]
+                else:
+                    providers = ["CPUExecutionProvider"]
                 self._session = ort.InferenceSession(
                     str(_FCPE_ONNX_PATH),
                     sess_options=opts,
-                    providers=["CPUExecutionProvider"],
+                    providers=providers,
                 )
-                logger.info("fcpe_plugin: ONNX model loaded: %s", _FCPE_ONNX_PATH.name)
+                logger.info("fcpe_plugin: ONNX model loaded: %s (provider=%s)", _FCPE_ONNX_PATH.name, providers[0])
                 try:
                     from backend.core.plugin_lifecycle_manager import register_plugin as _reg_plm
 

@@ -22,14 +22,16 @@ bei fehlender ONNX-Laufzeit oder pYIN-Fehlern.
 Invarianten (§3.1, §3.2, §3.7 Aurik-Spec):
     - Thread-sicherer Singleton mit Double-Checked Locking
     - NaN/Inf in keiner Ausgabe (nan_to_num)
-    - providers=["CPUExecutionProvider"] — kein GPU (§9.5 Aurik-Spec)
+    - Provider-Wahl über get_ort_providers() oder CPU-Fallback (§G5 Determinismus)
     - Alle öffentlichen Methoden vollständig typisiert (PEP 484)
+    - GPU-Support via AURIK_PITCH_GPU=1 optional; CPU ist Default für Reproduzierbarkeit
 """
 # pylint: disable=import-outside-toplevel
 
 import hashlib
 import logging
 import math
+import os
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,6 +39,9 @@ from pathlib import Path
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# Feature-Flag: AURIK_PITCH_GPU=1 ermöglicht GPU-Provider für Pitch-Tracking
+_PITCH_GPU_ENABLED = os.getenv("AURIK_PITCH_GPU", "").lower() in ("1", "true", "yes")
 
 # ---------------------------------------------------------------------------
 # Modell-Pfad (relativ zur Projektwurzel)
@@ -161,15 +166,27 @@ class CrepePlugin:
             opts.inter_op_num_threads = 1
             opts.intra_op_num_threads = 4
             opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            # Wähle Provider: GPU wenn AURIK_PITCH_GPU=1, sonst CPU (§G5 Determinismus)
+            if _PITCH_GPU_ENABLED:
+                try:
+                    from backend.core.ml_device_manager import get_ort_providers
+                    providers = get_ort_providers("CREPE")
+                    logger.info("CREPE: GPU-Provider aktiviert via AURIK_PITCH_GPU=1")
+                except Exception as _e:
+                    logger.warning("CREPE: GPU-Provider fehlgeschlagen (%s) — CPU-Fallback", _e)
+                    providers = ["CPUExecutionProvider"]
+            else:
+                providers = ["CPUExecutionProvider"]
             self._session = ort.InferenceSession(
                 str(_CREPE_ONNX_PATH),
                 sess_options=opts,
-                providers=["CPUExecutionProvider"],  # §9.5: ausschließlich CPU
+                providers=providers,
             )
             self._model_used = "crepe_onnx"
             logger.info(
-                "crepe_plugin: ONNX model loaded: %s",
+                "crepe_plugin: ONNX model loaded: %s (provider=%s)",
                 _CREPE_ONNX_PATH.name,
+                providers[0],
             )
             # Warmup-Inference: erste ONNX-Inferenz ist langsam (JIT/Graph-Optimierung).
             # Ein Dummy-Run mit kleinem Batch eliminiert den 13s→6s Kaltstart-Nachteil.
@@ -243,7 +260,7 @@ class CrepePlugin:
         return result
 
     def _analyze_onnx(self, audio: np.ndarray, sr: int) -> CrepeResult:
-        """CREPE-Inferenz via onnxruntime (CPUExecutionProvider)."""
+        """CREPE-Inferenz via onnxruntime (Fallback zu pYIN bei ONNX-Fehler)."""
         _plm = None
         try:
             from backend.core.plugin_lifecycle_manager import get_plugin_lifecycle_manager
