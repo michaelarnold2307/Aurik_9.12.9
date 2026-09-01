@@ -204,7 +204,7 @@ def _apply_carrier_depth_cap(_md_result: Any) -> None:
             _trimmed = [_chain[0], _chain[-1]]
         else:
             _trimmed = _chain[:2]
-        logger.warning(
+        logger.info(
             "§v10.712 Chain-Depth-Cap (früh): confidence=%.2f → Kette von %d auf %d Träger gekürzt [%s] ⇒ [%s]",
             _conf,
             len(_chain),

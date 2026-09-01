@@ -31,6 +31,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
@@ -38,6 +39,7 @@ from pathlib import Path
 from typing import Any
 
 _SEVERITY_RANK: dict[str, int] = {"error": 3, "warning": 2, "info": 1}
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 _NORMATIVE_DOCS: tuple[str, ...] = (
     ".github/copilot-instructions.md",
@@ -90,6 +92,19 @@ class IntegrationResult:
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
+
+
+def _repository_artifact_path(raw_path: str) -> Path:
+    """Resolve scanner reports only below the checkout or system temp directory."""
+    path = (_REPOSITORY_ROOT / raw_path).resolve()
+    approved_roots = (_REPOSITORY_ROOT, Path(tempfile.gettempdir()).resolve())
+    for root in approved_roots:
+        try:
+            path.relative_to(root)
+            return path
+        except ValueError:
+            continue
+    raise ValueError(f"Report-Pfad ausserhalb erlaubter Wurzeln: {raw_path!r}")
 
 
 def _iter_code_texts(workspace: Path) -> tuple[list[str], str]:
@@ -376,7 +391,7 @@ def check_verboten_linter_coverage(workspace: Path) -> list[IntegrationFinding]:
 
 def _run_gate(name: str, cmd: list[str], workspace: Path) -> IntegrationFinding | None:
     try:
-        proc = subprocess.run(cmd, cwd=str(workspace), text=True, capture_output=True, check=False)
+        proc = subprocess.run(cmd, cwd=str(workspace), text=True, capture_output=True, check=False, shell=False)
     except OSError as exc:
         return IntegrationFinding(
             check="enforce_gates",
@@ -399,7 +414,7 @@ def _run_gate(name: str, cmd: list[str], workspace: Path) -> IntegrationFinding 
 
 def check_enforce_gates(workspace: Path) -> list[IntegrationFinding]:
     out: list[IntegrationFinding] = []
-    py = str(workspace / ".venv_aurik/bin/python")
+    py = sys.executable
     gates = [
         ("release_must_coverage", [py, "scripts/release_must_coverage_check.py"]),
         ("id_registry", [py, "scripts/id_registry_check.py"]),
@@ -475,11 +490,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--fail-on", choices=("error", "warning", "none"), default="none")
     args = parser.parse_args(argv)
 
-    workspace = Path(args.workspace).resolve()
+    requested_workspace = Path(args.workspace).resolve()
+    if requested_workspace != _REPOSITORY_ROOT:
+        parser.error(f"--workspace muss dieses Aurik-Checkout referenzieren: {_REPOSITORY_ROOT}")
+    workspace = _REPOSITORY_ROOT
     result = scan_spec_integration(workspace)
 
-    json_out = workspace / args.json_out if not Path(args.json_out).is_absolute() else Path(args.json_out)
-    md_out = workspace / args.md_out if not Path(args.md_out).is_absolute() else Path(args.md_out)
+    json_out = _repository_artifact_path(args.json_out)
+    md_out = _repository_artifact_path(args.md_out)
     write_json_report(json_out, result)
     write_markdown_report(md_out, result)
 
