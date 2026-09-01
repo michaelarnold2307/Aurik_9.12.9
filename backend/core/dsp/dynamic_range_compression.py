@@ -71,7 +71,7 @@ from .zwicker_metrics import compute_roughness_asper
 
 
 def _adaptive_params(audio: np.ndarray, sr: int) -> dict[str, BandParams]:
-    loud = compute_loudness(audio, sr)
+    # Roughness-based adaptive thresholds (loudness already incorporated in caller)
     rough = compute_roughness_asper(audio, sr)
     # Beispiel‑Logik: bei hoher Roughness senken wir Thresholds
     factor = 1.0 + 0.05 * rough  # 5 % pro asper

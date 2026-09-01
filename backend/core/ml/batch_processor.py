@@ -76,7 +76,7 @@ class BatchProcessor:
     def _process_single(self, idx: int, path: str, sr: int) -> BatchTrackResult:
         t0 = time.monotonic()
         try:
-            audio = self._process(path, sr)
+            self._process(path, sr)  # Process and validate; return status only
             return BatchTrackResult(
                 track_index=idx, track_path=path, success=True, processing_time_s=time.monotonic() - t0
             )

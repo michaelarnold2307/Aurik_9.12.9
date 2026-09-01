@@ -1022,7 +1022,7 @@ class PhaseProgressNarrator:
     def recommendation(self, was_reverted: bool = False, quality_score: float = 0.0) -> str | None:
         """Liefert eine kontext-bewusste Handlungsempfehlung für den nächsten Lauf."""
         ctx = self._context
-        material = ctx.get("material", "")
+        # material and chain context (material not yet used in current logic)
         chain = ctx.get("transfer_chain") or []
         era = ctx.get("era_decade")
 

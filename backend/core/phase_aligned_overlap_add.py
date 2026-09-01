@@ -157,7 +157,7 @@ def apply_phase_aligned_crossfade(
     # Standard COLA-compliant Hann crossfade (preserved from original)
     _t = np.arange(fade_samples, dtype=np.float64) / max(fade_samples, 1)
     fade_in = (0.5 * (1.0 - np.cos(np.pi * _t))).astype(np.float32)
-    fade_out = (1.0 - fade_in).astype(np.float32)
+    # Complementary fade (not currently used but available for future optimization)
 
     # Apply crossfade
     result = np.zeros(len(chunk_a) + len(chunk_b) - fade_samples, dtype=np.float32)

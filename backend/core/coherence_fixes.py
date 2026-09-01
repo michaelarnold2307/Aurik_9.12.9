@@ -46,9 +46,8 @@ def smooth_stereo_correction(audio: np.ndarray, delay_samples: int, sr: int, smo
         return audio
 
     smooth_frames = int(smooth_s * sr)
-    n = audio.shape[0]
-    if smooth_frames < 16:
-        return audio
+    if smooth_frames < 16 or audio.shape[0] < smooth_frames * 2:
+        return audio  # Audio too short for smooth transition
 
     l = audio[:, 0].copy()
     r = audio[:, 1].copy()

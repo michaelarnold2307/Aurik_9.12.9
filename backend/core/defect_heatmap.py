@@ -22,7 +22,6 @@ def compute(audio: np.ndarray, sr: int, time_resolution_s: float = 1.0) -> dict[
     hop = int(sr * time_resolution_s)
     n_segments = max(1, n // hop)
     n_fft = 2048
-    n_bins = n_fft // 2 + 1
     freqs = np.fft.rfftfreq(n_fft, d=1.0 / sr)
 
     heatmap = np.zeros((n_segments, 6), dtype=np.float32)  # 6 Defekt-Typen

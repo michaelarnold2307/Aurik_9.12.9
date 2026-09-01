@@ -4447,7 +4447,7 @@ class MusicalGoalsChecker:
             logger.debug("measure_all: Zwischenspeicher hit (hash=%d, gespeichert 6s)", _audio_hash % 10000)
             return dict(_cache["result"])
         if _is_fast_validation_context():
-            result = self._measure_all_fast_validation(
+            return self._measure_all_fast_validation(
                 audio=audio,
                 sr=sr,
                 reference=reference,

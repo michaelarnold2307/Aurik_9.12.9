@@ -337,7 +337,6 @@ def _compute_temporal_masking_boost(audio: np.ndarray, sr: int, defect_band: tup
         rms_frames[i] = float(np.sqrt(np.mean(audio[s : s + frame_len] ** 2) + 1e-12))
 
     rms_db = 20.0 * np.log10(rms_frames + 1e-10)
-    median_rms = float(np.median(rms_db))
 
     # Transienten finden: Peaks > 15 dB über lokalem Median
     local_median = np.zeros(n_frames)

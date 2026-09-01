@@ -85,8 +85,7 @@ class FastGoalProxy:
         # ── Frequenzbereichs-Merkmale ──────────────────────────
         n_fft = min(4096, len(audio_f64))
         spec = np.abs(np.fft.rfft(audio_f64[:n_fft]))
-        spec_db = 20 * np.log10(spec + 1e-10)
-
+        # Spectral centroid in Hz (used for brillanz estimation)
         spectral_centroid = float(np.sum(np.arange(len(spec)) * spec) / (np.sum(spec) + 1e-10))
         spectral_flatness = float(np.exp(np.mean(np.log(spec + 1e-10))) / (np.mean(spec) + 1e-10))
 

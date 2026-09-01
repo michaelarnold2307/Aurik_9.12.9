@@ -5332,7 +5332,44 @@ class UnifiedRestorerV3:
         return UnifiedRestorerV3._pullback_from_bounds(_bounded, 0.30, 1.80, margin_frac=0.03)
 
     @staticmethod
-    def _fast_goal_snapshot(audio: np.ndarray, sr: int, material_type: str = "unknown") -> dict[str, float]:
+    def _compute_ms_ratio_separation_proxy(audio: np.ndarray, material_type: str = "unknown") -> float:
+        """Compute separation_fidelity via MS-ratio heuristic (DSP-proxy mode, fast).
+        
+        Used when reference audio is not available or as fallback for real measurement.
+        
+        Returns score ∈ [0, 1]. Material-adapted for tape/cassette (×0.95).
+        """
+        _eps = 1e-12
+        
+        if audio.ndim == 2 and audio.shape[0] != 2:
+            # (N, 2) format
+            if audio.shape[1] == 2:
+                _m = (audio[:, 0] + audio[:, 1]) / 2.0
+                _s = (audio[:, 0] - audio[:, 1]) / 2.0
+                _ms_ratio = float(np.sqrt(np.mean(_s**2)) / (np.sqrt(np.mean(_m**2)) + _eps))
+                _score = float(np.clip(1.0 - abs(_ms_ratio - 0.3) * 2.0, 0.0, 1.0))
+            else:
+                _score = 0.5
+        elif audio.ndim == 2 and audio.shape[0] == 2:
+            # (2, N) format
+            _m = (audio[0] + audio[1]) / 2.0
+            _s = (audio[0] - audio[1]) / 2.0
+            _ms_ratio = float(np.sqrt(np.mean(_s**2)) / (np.sqrt(np.mean(_m**2)) + _eps))
+            _score = float(np.clip(1.0 - abs(_ms_ratio - 0.3) * 2.0, 0.0, 1.0))
+        else:
+            _score = 0.5
+
+        # §2.64 v10.0.0d: Kassette/Tape — NR korrelliert Stereokanäle → Proxy
+        # überschätzt SDR-basierte Separation-Fidelity um ~0.041; Faktor × 0.95.
+        if str(material_type or "").lower() in {"cassette", "tape", "reel_tape"}:
+            _score = float(np.clip(_score * 0.95, 0.0, 1.0))
+        
+        return _score
+
+    @staticmethod
+    def _fast_goal_snapshot(
+        audio: np.ndarray, sr: int, material_type: str = "unknown", reference: np.ndarray | None = None
+    ) -> dict[str, float]:
         """§2.64 DSP-Proxy for per-phase goal measurement (≤200ms, no ML).
 
         Computes lightweight proxies for all 15 Musical Goals using only
@@ -5340,6 +5377,9 @@ class UnifiedRestorerV3:
         _profiled_phase_call to compute per-phase deltas.
         material_type: §9.12.7 — tape/cassette use lower natuerlichkeit floor
         (hiss spreads spectral energy → lower apparent concentration).
+        reference: Optional original audio for real separation_fidelity measurement
+                   via HTDemucs. When provided, uses ChunkedProcessor for full-song
+                   analysis. When None, uses MS-ratio heuristic (DSP-proxy mode).
 
         Returns a dict mapping goal name → proxy score [0, 1].
         Non-blocking: returns empty dict on any error.
@@ -5635,28 +5675,43 @@ class UnifiedRestorerV3:
             _bass = _band_energy(30.0, 200.0) / (_band_energy(30.0, 8000.0) + _eps)
             result["bass_kraft"] = float(_np.clip(_bass * 5.0, 0.0, 1.0))
 
-            # --- P4: SepFidelity proxy — stereo width consistency (or 0.5 for mono)
-            if audio.ndim == 2 and audio.shape[0] != 2:
-                # (N, 2) format
-                if audio.shape[1] == 2:
-                    _m = (audio[:, 0] + audio[:, 1]) / 2.0
-                    _s = (audio[:, 0] - audio[:, 1]) / 2.0
-                    _ms_ratio = float(_np.sqrt(_np.mean(_s**2)) / (_np.sqrt(_np.mean(_m**2)) + _eps))
-                    result["separation_fidelity"] = float(_np.clip(1.0 - abs(_ms_ratio - 0.3) * 2.0, 0.0, 1.0))
-                else:
-                    result["separation_fidelity"] = 0.5
-            elif audio.ndim == 2 and audio.shape[0] == 2:
-                # (2, N) format
-                _m = (audio[0] + audio[1]) / 2.0
-                _s = (audio[0] - audio[1]) / 2.0
-                _ms_ratio = float(_np.sqrt(_np.mean(_s**2)) / (_np.sqrt(_np.mean(_m**2)) + _eps))
-                result["separation_fidelity"] = float(_np.clip(1.0 - abs(_ms_ratio - 0.3) * 2.0, 0.0, 1.0))
+            # --- P4: SepFidelity measurement — Real HTDemucs (reference mode) or MS-ratio heuristic (proxy mode)
+            # v10.0.0 Phase 2 Integration: When reference audio is provided, use real SeparationFidelityMetric
+            # with ChunkedProcessor for full-song analysis. Otherwise, fall back to DSP-proxy (MS-ratio).
+            _sep_fidelity_score: float = 0.5
+            if reference is not None:
+                # Real measurement mode: use HTDemucs-based separation fidelity
+                try:
+                    from backend.core.musical_goals.musical_goals_metrics import SeparationFidelityMetric
+
+                    _sep_metric = SeparationFidelityMetric()
+                    # Use reference-based mode: measures actual stem separation quality
+                    # ChunkedProcessor transparently handles audio > 343980 samples
+                    _sep_fidelity_score = float(
+                        _sep_metric.measure(
+                            audio.astype(np.float32),
+                            sr,
+                            reference=reference.astype(np.float32),
+                            material_type=material_type,
+                            global_scalar=1.0,  # Use full strength for baseline measurement
+                        )
+                    )
+                    logger.debug(
+                        "§v10 Phase2: Real separation_fidelity via HTDemucs (ChunkedProcessor): %.3f",
+                        _sep_fidelity_score,
+                    )
+                except Exception as _sep_exc:
+                    logger.debug(
+                        "§v10 Phase2: Real separation_fidelity failed, using MS-ratio fallback: %s",
+                        _sep_exc,
+                    )
+                    # Fallback to MS-ratio heuristic if HTDemucs unavailable
+                    _sep_fidelity_score = _compute_ms_ratio_separation_proxy(audio, material_type)
             else:
-                result["separation_fidelity"] = 0.5
-            # §2.64 v10.0.0d: Kassette/Tape — NR korrelliert Stereokanäle → Proxy
-            # überschätzt SDR-basierte Separation-Fidelity um ~0.041; Faktor × 0.95.
-            if str(material_type or "").lower() in {"cassette", "tape", "reel_tape"}:
-                result["separation_fidelity"] = float(_np.clip(result["separation_fidelity"] * 0.95, 0.0, 1.0))
+                # Proxy mode: use DSP-based MS-ratio heuristic (fast, no ML)
+                _sep_fidelity_score = _compute_ms_ratio_separation_proxy(audio, material_type)
+
+            result["separation_fidelity"] = float(_np.clip(_sep_fidelity_score, 0.0, 1.0))
 
             # --- P5: Brillanz proxy — HF spectral crest factor (§2.64 v10.0.0 FIX)
             # §2.64 v10.0.0 BUG-FIX: Previous band-energy-ratio proxy systematically over-

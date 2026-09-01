@@ -117,8 +117,7 @@ def perceptual_blend(
     D_wet = librosa.stft(wet_mono.astype(np.float32), n_fft=_N_FFT, hop_length=_HOP)
 
     mag_dry = np.abs(D_dry)  # (n_freq, n_frames)
-    mag_wet = np.abs(D_wet)
-    mag_delta = np.abs(D_wet - D_dry)
+    mag_delta = np.abs(D_wet - D_dry)  # Magnitude difference (perceptual blending metric)
 
     n_freq, n_frames = mag_dry.shape
     freqs = np.fft.rfftfreq(_N_FFT, d=1.0 / sr)
