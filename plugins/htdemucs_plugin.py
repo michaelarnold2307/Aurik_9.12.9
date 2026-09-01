@@ -36,6 +36,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+from importlib import import_module
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +55,7 @@ _singleton_lock = threading.Lock()
 class SeparationResult:
     """Holder für 4 Stems nach HTDemucs-Separation."""
 
-    __slots__ = ("vocals", "drums", "bass", "other", "sr")
+    __slots__ = ("bass", "drums", "other", "sr", "vocals")
 
     def __init__(
         self,
@@ -128,12 +129,12 @@ class HtdemucsPlugin:
         # Resampling zu 48 kHz (HTDemucs-Standard)
         if sr != 48000:
             try:
-                import julius
+                julius_forward: Any = import_module("julius")
                 import torch
 
                 input_tensor = torch.from_numpy(np.ascontiguousarray(audio_2ch, dtype=np.float32)).unsqueeze(0)
-                audio_2ch = julius.resample_frac(
-                    julius.ResampleFrac(sr, 48000),
+                audio_2ch = julius_forward.resample_frac(
+                    julius_forward.ResampleFrac(sr, 48000),
                     input_tensor,
                 ).squeeze(0).cpu().numpy()
             except Exception as e:
@@ -165,14 +166,14 @@ class HtdemucsPlugin:
         # Resampling zurück zu Eingabe-SR
         if sr != 48000:
             try:
-                import julius
+                julius_reverse: Any = import_module("julius")
                 import torch
 
                 stems_list_rs = []
                 for stem in stems_list:
                     stem_tensor = torch.as_tensor(np.asarray(stem, dtype=np.float32)).unsqueeze(0)
-                    stem_rs = julius.resample_frac(
-                        julius.ResampleFrac(48000, sr),
+                    stem_rs = julius_reverse.resample_frac(
+                        julius_reverse.ResampleFrac(48000, sr),
                         stem_tensor,
                     ).squeeze(0).cpu().numpy()
                     stems_list_rs.append(stem_rs)
@@ -202,20 +203,19 @@ class HtdemucsPlugin:
         if self._model is not None:
             return
 
-        demucs_pretrained = None
+        demucs_pretrained: Any | None = None
         if _DEMUX_GPU_ENABLED:
             try:
-                import demucs.pretrained as demucs_pretrained
+                demucs_pretrained = import_module("demucs.pretrained")
             except Exception as e:
                 logger.debug("HTDemucs PyTorch-Import fehlgeschlagen, versuche ONNX: %s", e)
 
+        ort: Any | None = None
+        onnx_import_error: Exception | None = None
         try:
-            import onnxruntime as ort
+            ort = import_module("onnxruntime")
         except Exception as e:
-            ort = None
             onnx_import_error = e
-        else:
-            onnx_import_error = None
 
         with self._lock:
             if self._model is not None:
