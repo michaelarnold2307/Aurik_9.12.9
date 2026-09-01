@@ -121,6 +121,11 @@ class PreAnalysisResult:
     # Per-step error messages (populated on exception, step still gets None above)
     errors: dict[str, str] = field(default_factory=dict)
 
+    # §v10.712.5 SOTA Material-Unsicherheits-Watchdog: Flag für UV3 global_scalar Capping
+    # Gesetzt wenn material_consensus_confidence < 0.30 und Konflikt erkannt
+    material_uncertainty_flag: bool = False
+    material_uncertainty_confidence: float = 1.0
+
 
 _run_lock = threading.Lock()
 
@@ -1297,12 +1302,19 @@ def run_pre_analysis(
                         else None,
                     )
 
+                    _consensus_confidence = float(_consensus.get("confidence", 1.0) or 1.0)
                     if _consensus["conflict_detected"]:
                         logger.warning(
                             "pre_Analyse: Material-KONFLIKT — gewählter Konsens: %s (%.2f)",
                             _consensus["material"],
-                            _consensus["confidence"],
+                            _consensus_confidence,
                         )
+                        # §v10.712.5 SOTA Watchdog: Material-Unsicherheit flaggen
+                        if _consensus_confidence < 0.30:
+                            logger.warning(
+                                "§v10.712.5 SOTA Watchdog: Material-Unsicherheit erkannt (confidence=%.2f) — UV3 wird global_scalar cappen",
+                                _consensus_confidence,
+                            )
                         # Korrigiere die Kette mit allen Detektor-Ergebnissen
                         _all_materials = []
                         for _det, _info in _consensus["all_votes"].items():
@@ -1347,10 +1359,11 @@ def run_pre_analysis(
                         except Exception:
                             logger.debug("pre_Analyse: final_chain write-back fehlgeschlagen", exc_info=True)
                     logger.info(
-                        "pre_Analyse: Material-Konsens final — primary=%s, consensus=%s, chain=%s",
+                        "pre_Analyse: Material-Konsens final — primary=%s, consensus=%s, chain=%s, confidence=%.2f",
                         str(getattr(_md, "primary_material", "unknown")),
                         _cons_mat,
                         " → ".join(_chain),
+                        _consensus_confidence,
                     )
 
                     # Ära und Kette sind KOMPLEMENTÄR, nicht widersprüchlich.

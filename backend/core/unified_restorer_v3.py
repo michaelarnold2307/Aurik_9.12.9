@@ -30251,6 +30251,19 @@ class UnifiedRestorerV3:
         _event_scalar = float(np.clip(1.0 - 0.28 * _pressure, 0.70, 1.0))
         _global_scalar = float(np.clip(min(_base_scalar, _base_floor, _event_scalar), 0.70, 1.0))
 
+        # §v10.712.5 SOTA Material-Unsicherheits-Watchdog: Reduziere global_scalar bei niedriger Konfidenz
+        _material_conf = float(_rctx.get("material_confidence", 1.0) or 1.0)
+        if _material_conf < 0.30:
+            _material_cap = float(np.clip(0.75, 0.70, _global_scalar))  # Cap bei 0.75
+            if _material_cap < _global_scalar:
+                logger.warning(
+                    "§v10.712.5 SOTA Watchdog: Material-Unsicherheit (confidence=%.2f) → global_scalar gekürzt %.3f → %.3f",
+                    _material_conf,
+                    _global_scalar,
+                    _material_cap,
+                )
+                _global_scalar = _material_cap
+
         _profile["global_strength_scalar"] = _global_scalar
         _profile["subtractive_scalar"] = float(np.clip(_global_scalar + 0.06, 0.74, 1.0))
         _profile["additive_scalar"] = float(np.clip(_global_scalar - 0.08, 0.58, 1.0))
