@@ -2,7 +2,7 @@
 """Objektiver Pitch-Tracker-Benchmark: CREPE (2018) vs. FCPE (2023) vs. RMVPE (2023).
 
 Pitch-Tracking ist der eine ML-Task mit objektiver Ground-Truth: synthetische
-Signale mit bekannter F0-Trajektorie (deterministisch, §G5). Kein Hörtest nötig —
+Signale mit bekannter F0-Trajektorie (deterministisch, §G5 (GEBOTE.md)). Kein Hörtest nötig —
 die Zahlen entscheiden die Challenger-Runde für die Wow/Flutter- und
 Speed/Pitch-Pfade (CREPE ist dort 12-fach verdrahtet, Spec-verworfen,
 Nachfolger FCPE/RMVPE sind im Haus).
@@ -16,6 +16,7 @@ Metriken (auf gemeinsamen Zeitraster, nur beidseitig voiced Frames):
 Usage:
     python scripts/pitch_tracker_benchmark.py [--out models/pitch_benchmark_report.json]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -79,12 +80,16 @@ def synth(case: str, condition: str, dur: float = 5.0, seed: int = _SEED) -> tup
     return np.clip(sig, -1.0, 1.0).astype(np.float32), f0.astype(np.float64)
 
 
-def _common_grid(times: np.ndarray, f0: np.ndarray, truth_t: np.ndarray, truth_f0: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _common_grid(
+    times: np.ndarray, f0: np.ndarray, truth_t: np.ndarray, truth_f0: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     """Interpoliert Truth auf das Zeitraster des Trackers."""
     return times, np.interp(times, truth_t, truth_f0)
 
 
-def _metrics(est_times: np.ndarray, est_f0: np.ndarray, est_voiced: np.ndarray, truth_f0: np.ndarray) -> dict[str, float] | None:
+def _metrics(
+    est_times: np.ndarray, est_f0: np.ndarray, est_voiced: np.ndarray, truth_f0: np.ndarray
+) -> dict[str, float] | None:
     both = est_voiced & np.isfinite(est_f0) & (truth_f0 > 0)
     if int(both.sum()) < 20:
         return None
@@ -149,16 +154,25 @@ def main(argv: list[str] | None = None) -> int:
                     times, f0, voiced, model = run_tracker(tracker, audio)
                     grid, truth = _common_grid(np.asarray(times, dtype=np.float64), f0, t_all, truth_f0)
                     m = _metrics(grid, np.asarray(f0, dtype=np.float64), np.asarray(voiced, dtype=bool), truth)
-                    results.append({
-                        "case": case, "condition": cond, "tracker": tracker,
-                        "model": model, "runtime_s": round(time.time() - t0, 2),
-                        "metrics": m,
-                    })
+                    results.append(
+                        {
+                            "case": case,
+                            "condition": cond,
+                            "tracker": tracker,
+                            "model": model,
+                            "runtime_s": round(time.time() - t0, 2),
+                            "metrics": m,
+                        }
+                    )
                 except Exception as exc:
-                    results.append({
-                        "case": case, "condition": cond, "tracker": tracker,
-                        "error": str(exc)[:120],
-                    })
+                    results.append(
+                        {
+                            "case": case,
+                            "condition": cond,
+                            "tracker": tracker,
+                            "error": str(exc)[:120],
+                        }
+                    )
 
     # Zusammenfassung pro Tracker
     summary: dict[str, Any] = {}
@@ -173,7 +187,9 @@ def main(argv: list[str] | None = None) -> int:
             "gpe_rate_mean": round(float(np.mean([r["gpe_rate"] for r in rows])), 4),
             "octave_rate_mean": round(float(np.mean([r["octave_rate"] for r in rows])), 4),
             "voiced_f1_mean": round(float(np.mean([r["voiced_f1"] for r in rows])), 3),
-            "runtime_s_mean": round(float(np.mean([r["runtime_s"] for r in results if r.get("tracker") == tracker and "runtime_s" in r])), 2),
+            "runtime_s_mean": round(
+                float(np.mean([r["runtime_s"] for r in results if r.get("tracker") == tracker and "runtime_s" in r])), 2
+            ),
         }
 
     report = {"summary": summary, "results": results}

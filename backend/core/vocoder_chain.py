@@ -65,7 +65,7 @@ def activate_vocoder_chain(
                 logger.info("Vocoder-Kette: Vocos 48 kHz erfolgreich")
                 return cast(np.ndarray | None, (np.asarray(out, dtype=np.float32)))
         except Exception as e:
-            logger.warning("Vocos 48 kHz fehlgeschlagen: %s — Fallback zu BigVGAN-v2", e)
+            logger.warning("Vocos 48 kHz fehlgeschlagen: %s — Rückfall zu BigVGAN-v2", e)
 
     # Stufe 2: BigVGAN-v2 (primär im Restoration-Modus)
     try:
@@ -76,7 +76,7 @@ def activate_vocoder_chain(
             logger.info("Vocoder-Kette: BigVGAN-v2 erfolgreich")
             return cast(np.ndarray | None, (np.asarray(result, dtype=np.float32)))
     except Exception as e:
-        logger.warning("BigVGAN-v2 fehlgeschlagen: %s — Fallback zu HiFi-GAN", e)
+        logger.warning("BigVGAN-v2 fehlgeschlagen: %s — Rückfall zu HiFi-GAN", e)
 
     # Stufe 3: HiFi-GAN (Tertiär-Notfallstufe, Spec 04)
     try:
@@ -87,7 +87,7 @@ def activate_vocoder_chain(
             logger.info("Vocoder-Kette: HiFi-GAN Notfallstufe erfolgreich")
             return cast(np.ndarray | None, (np.asarray(_hf_result, dtype=np.float32)))
     except Exception as e:
-        logger.warning("HiFi-GAN fehlgeschlagen: %s — Fallback zu PGHI-ISTFT", e)
+        logger.warning("HiFi-GAN fehlgeschlagen: %s — Rückfall zu PGHI-ISTFT", e)
 
     # Stufe 4: PGHI (deterministischer DSP-Endfall, Spec 04; §4.5 pghi_reconstruct)
     try:
@@ -97,9 +97,9 @@ def activate_vocoder_chain(
 
         _, _, z_stft = scipy_stft(arr, fs=sample_rate, nperseg=2048, noverlap=2048 - 256)
         mag = np.abs(z_stft).astype(np.float32)
-        result = pghi_reconstruct(mag, sr=sample_rate, win_size=2048, hop=256)
-        out = np.asarray(result, dtype=np.float32)
-        # Längen-Invariante: Resynthese auf Eingangslänge trimmen/paden (§G5)
+        _pghi_raw = pghi_reconstruct(mag, sr=sample_rate, win_size=2048, hop=256)
+        out = np.asarray(_pghi_raw, dtype=np.float32)
+        # Längen-Invariante: Resynthese auf Eingangslänge trimmen/paden (§G5 (GEBOTE.md))
         if out.shape[0] < arr.shape[0]:
             out = np.pad(out, (0, arr.shape[0] - out.shape[0]))
         else:
@@ -107,7 +107,7 @@ def activate_vocoder_chain(
         logger.info("Vocoder-Kette: PGHI-DSP-Endfall erfolgreich")
         return cast(np.ndarray | None, out)
     except Exception as e:
-        logger.error("Vocoder-Kette: ALLE Stufen fehlgeschlagen — Original zurueck: %s", e)
+        logger.error("Vocoder-Kette: ALLE Stufen fehlgeschlagen — Ursprung zurück: %s", e)
         return audio
 
 
@@ -117,12 +117,12 @@ def is_vocoder_available() -> bool:
         from plugins.bigvgan_v2_plugin import BigVGANv2Plugin
 
         return True
-    except ImportError:
-        pass
+    except ImportError as _vocos_exc:
+        logger.debug("Vocos nicht verfügbar: %s", _vocos_exc)
     try:
         from plugins.hifigan_plugin import HiFiGANPlugin
 
         return True
-    except ImportError:
-        pass
+    except ImportError as _bgv_exc:
+        logger.debug("BigVGAN-v2 nicht verfügbar: %s", _bgv_exc)
     return False

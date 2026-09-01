@@ -717,8 +717,8 @@ class WowFlutterFix(PhaseInterface):
                             try:
                                 _plm12.set_active("CREPE", False)
                                 _plm12.set_active("FCPE", False)
-                            except Exception:
-                                pass
+                            except Exception as _plm_exc:
+                                logger.debug("PLM-Deaktivierung nicht möglich: %s", _plm_exc)
                     if len(_PYIN_CACHE) >= _PYIN_CACHE_MAX:
                         _PYIN_CACHE.pop(next(iter(_PYIN_CACHE)))
                     _PYIN_CACHE[_audio_hash] = ml_result  # type: ignore[index]
@@ -3272,7 +3272,8 @@ class WowFlutterFix(PhaseInterface):
                         _mat_key,
                         _wow_sev,
                     )
-                    return cast(np.ndarray, np.ones_like(pitch_trajectory))
+                    _res_typed_3275: np.ndarray = np.ones_like(pitch_trajectory)
+                    return _res_typed_3275
                 else:
                     logger.info(
                         "Verarbeitungsschritt 12 pitch span %.0f cents within limit %.0f (mat=%s wow=%.2f)",

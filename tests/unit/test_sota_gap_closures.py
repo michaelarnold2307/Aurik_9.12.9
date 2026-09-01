@@ -1,7 +1,7 @@
 """Regressionstests: SOTA-Lückenschluss Rev. 2026-08-16.
 
 Deckt die vier geschlossenen Lücken ab (siehe docs/guides/SOTA_MIGRATION_PLAN.md):
-  1. RMVPE: ONNX-Session-Selbstheilung nach PLM-Unload (§V6 — kein stiller DSP-Downgrade)
+  1. RMVPE: ONNX-Session-Selbstheilung nach PLM-Unload (§V6 (copilot-instructions.md) — kein stiller DSP-Downgrade)
   2. phase_56: RMVPE-Stufe nutzt korrekte RmvpeResult-Attribute (f0/voiced_flag)
   3. vocal_harmonic_decomp: FCPE primär statt CREPE (Spec 04, Z. 1129: CREPE verboten)
   4. phase_66: Whisper-Denoiser nicht mehr in der NR-Fallback-Kette (deprecated)
@@ -21,7 +21,8 @@ SR = 48000
 
 def _sine(dur_s: float = 1.0, freq: float = 440.0) -> np.ndarray:
     t = np.arange(int(dur_s * SR)) / SR
-    return (0.3 * np.sin(2 * np.pi * freq * t)).astype(np.float32)
+    _tone: np.ndarray = (0.3 * np.sin(2 * np.pi * freq * t)).astype(np.float32)
+    return _tone
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +73,7 @@ class TestRmvpeSessionSelfHealing:
             result = p.analyze(audio, SR)
             assert result.model_used == "rmvpe_onnx", (
                 "Selbstheilung fehlgeschlagen: nach Session-Unload degradiert "
-                f"der §4.4-Tracker still auf {result.model_used} (§V6)."
+                f"der §4.4-Tracker still auf {result.model_used} (§V6 (copilot-instructions.md))."
             )
         finally:
             release("RMVPE")

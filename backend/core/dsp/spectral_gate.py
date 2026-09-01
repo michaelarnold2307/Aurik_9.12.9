@@ -1,7 +1,7 @@
 """Spectral Gating mit psychoakustischem Masking-Guard.
 
 §2.62: Bark-basierte Maskierung (ISO 11172-3) verhindert Musical Noise.
-Soft-Knee statt Hard-Cutoff (§III). NaN/Inf-Schutz (§0a). Deterministisch (§G5).
+Soft-Knee statt Hard-Cutoff (§III). NaN/Inf-Schutz (§0a). Deterministisch (§G5 (GEBOTE.md)).
 """
 
 import logging
@@ -56,9 +56,8 @@ def apply_spectral_gating(
         raise RuntimeError(f"Audio-Laden fehlgeschlagen: {result.get('error') if result else 'None'}")
 
     y = np.asarray(result["audio"], dtype=np.float64)
-    sr = result["sr"]
 
-    # Mono-Fallback für Stereo mit Warnung (§G8 Transparenz)
+    # Mono-Fallback für Stereo mit Warnung (§G8 (GEBOTE.md) Transparenz)
     if len(y.shape) > 1:
         logger.warning("§2.62 Spectral Gating: Stereo → Mono-Konvertierung (%d Kanäle)", y.shape[0])
         y = np.mean(y, axis=0).astype(np.float64)
@@ -66,7 +65,7 @@ def apply_spectral_gating(
     if len(y) == 0:
         raise ValueError("Audio ist leer")
 
-    # Deterministischer Seed (§G5) — für nachfolgende Random-Operationen
+    # Deterministischer Seed (§G5 (GEBOTE.md)) — für nachfolgende Random-Operationen
     seed = hash(str(audio_path)) % (2**31 - 1)
     np.random.seed(seed)
 
@@ -92,7 +91,6 @@ def apply_spectral_gating(
     mag_db = 20 * np.log10(mag + 1e-10)
 
     # Bark-basierte Maskierungsschwelle (ISO 11172-3 Approximation)
-    bark_bands = _freqs_to_bark(freqs)
     masking_threshold_db = _compute_masking_threshold_per_band(
         mag_db, freqs, threshold_db, soft_knee_width_db, masking_margin_db
     )
@@ -103,7 +101,7 @@ def apply_spectral_gating(
     # Frequenz-basierte Maskierung: kein Gating über der Maskierungsschwelle (§2.62)
     gain[mag_db > masking_threshold_db + masking_margin_db] = 1.0
 
-    # Spektrum anwenden (Phase bleibt erhalten — §V1 Vocal-Distortion-Verbot)
+    # Spektrum anwenden (Phase bleibt erhalten — §V1 (copilot-instructions.md) Vocal-Distortion-Verbot)
     Z_gated = mag * gain * np.exp(1j * np.angle(Z))
 
     # ISTFT zurückkonvertieren
@@ -112,7 +110,7 @@ def apply_spectral_gating(
     # NaN/Inf-Schutz (§0a) — Defense-in-Depth
     y_out = np.nan_to_num(y_out, nan=0.0, posinf=1.0, neginf=-1.0)
 
-    # True-Peak Schutz (kein Clipping — §V1)
+    # True-Peak Schutz (kein Clipping — §V1 (copilot-instructions.md))
     peak = float(np.max(np.abs(y_out)))
     if peak > 1.0:
         y_out *= 1.0 / peak
@@ -157,13 +155,14 @@ def _compute_masking_threshold_per_band(
         band_max = max_per_band[int(bark_bands[i])]
         threshold_map[i] = max(threshold_db, band_max - masking_margin_db)
 
-    return cast(np.ndarray, threshold_map)
+    _res_typed_160: np.ndarray = threshold_map
+    return _res_typed_160
 
 
 def _sigmoid_soft_knee(x: np.ndarray, knee_width_db: float) -> np.ndarray:
     """Sigmoid-Soft-Knee statt Hard-Cutoff (§III)."""
     # Sigmoid: σ(x/knee_width) → 0 bei x << -knee_width, → 1 bei x >> knee_width
-    # Verhindert harte Schnittkanten (Ghost-Echo-Verbot §V2)
+    # Verhindert harte Schnittkanten (Ghost-Echo-Verbot §V2 (copilot-instructions.md))
     return cast(
         np.ndarray,
         np.where(
@@ -184,8 +183,8 @@ def apply_spectral_gating_batch(
 ) -> dict[str, float]:
     """Batch-Spectral-Gating für alle Audio-Dateien im Verzeichnis.
 
-    §G1 Song-Isolation: Jeder Song wird isoliert verarbeitet (keine Cross-Contamination).
-    Deterministisch (§G5): Hash-basierter Seed pro Datei.
+    §G1 (GEBOTE.md) Song-Isolation: Jeder Song wird isoliert verarbeitet (keine Cross-Contamination).
+    Deterministisch (§G5 (GEBOTE.md)): Hash-basierter Seed pro Datei.
 
     Args:
         audio_dir: Verzeichnis mit Audio-Dateien.
@@ -193,7 +192,7 @@ def apply_spectral_gating_batch(
         output_dir: Ausgabe-Verzeichnis. Standard: input_dir + "_gated".
 
     Returns:
-        dict[str, float]: {dateiname: peak_dbfs} für Audit-Log (§G8).
+        dict[str, float]: {dateiname: peak_dbfs} für Audit-Log (§G8 (GEBOTE.md)).
     """
     audio_dir = Path(audio_dir)
     output_dir = Path(output_dir or str(audio_dir) + "_gated")
@@ -215,11 +214,11 @@ def apply_spectral_gating_batch(
     return results
 
 
-# --- Unit-Test-Hilfe für Determinismus (§G5) ---
+# --- Unit-Test-Hilfe für Determinismus (§G5 (GEBOTE.md)) ---
 
 
 def verify_determinism(audio_path: str | Path, threshold_db: float = -60.0) -> bool:
-    """Prüft Bit-Identität bei zwei Durchläufen (§G5)."""
+    """Prüft Bit-Identität bei zwei Durchläufen (§G5 (GEBOTE.md))."""
     out1 = apply_spectral_gating(audio_path, threshold_db=threshold_db)
     out2 = apply_spectral_gating(audio_path, threshold_db=threshold_db)
     return np.array_equal(out1, out2)

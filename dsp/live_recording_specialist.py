@@ -20,12 +20,15 @@ Version: v8
 Status: Production Ready
 """
 
+import logging
 from typing import Any
 
 import numpy as np
 from scipy import signal
 from scipy.fft import rfft
 from scipy.signal import butter, find_peaks, hilbert, istft, sosfilt, stft
+
+logger = logging.getLogger(__name__)
 
 
 class CrowdNoiseIsolator:

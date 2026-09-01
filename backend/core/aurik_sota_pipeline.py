@@ -98,7 +98,7 @@ def enhance_music(audio: np.ndarray, sample_rate: int = 44100) -> np.ndarray:
         else:
             enhanced = enhanced[: len(audio)]
 
-        logger.info("MelBandRoformer: enhancement applied")
+        logger.info("MelBandRoformer: Verbesserung angewendet")
         return cast(np.ndarray, enhanced.astype(np.float32))
 
     except Exception as e:
@@ -113,7 +113,7 @@ def enhance_vocals(audio: np.ndarray, sample_rate: int = 48000) -> np.ndarray:
 
         result = _enhance_vocals(audio, sr=sample_rate, breath_reduction_db=3.0, sibilance_reduction_db=2.0)
         _audio_out = cast(Any, result).audio if hasattr(result, "audio") else cast(Any, result)
-        logger.info("Vocal Enhancer: applied")
+        logger.info("Vocal Enhancer: angewendet")
         return cast(np.ndarray, _audio_out.astype(np.float32))
     except Exception as e:
         logger.debug("Vocal Enhancer DSP nicht verfügbar: %s", e)
@@ -124,7 +124,7 @@ def enhance_vocals(audio: np.ndarray, sample_rate: int = 48000) -> np.ndarray:
             ve = UnifiedVocalAIEnhancer(sample_rate=sample_rate)
             result2 = ve.enhance(audio, breath_preservation=0.7, sibilance_reduction=True)
             _audio_out = cast(Any, result2).audio if hasattr(result2, "audio") else cast(Any, result2)
-            logger.info("Vocal Enhancer: Aurik fallback applied")
+            logger.info("Vocal Enhancer: Aurik-Rückfall angewendet")
             return cast(np.ndarray, _audio_out.astype(np.float32))
         except Exception as e2:
             logger.debug("Aurik Vocal Enhancer nicht verfügbar: %s", e2)

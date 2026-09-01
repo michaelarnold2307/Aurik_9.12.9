@@ -7,12 +7,13 @@ Spec 04 „Last-Resort“). Incumbent ist der offene Flow-Matching-DiT
 Kandidat ist SGMSE+ (plugins/sgmse_plugin.py, Richter et al. 2022, lokal
 finetunet). Bewertung über die Hörrunde (challenger_round.py decide).
 
-Deterministisch (§G5): fixe Seeds für Rausch-Mischung, feste Reihenfolge.
-Fehlende Modelle werden als Probleme protokolliert (§V6), nie still ersetzt.
+Deterministisch (§G5 (GEBOTE.md)): fixe Seeds für Rausch-Mischung, feste Reihenfolge.
+Fehlende Modelle werden als Probleme protokolliert (§V6 (copilot-instructions.md)), nie still ersetzt.
 
 Usage:
     python scripts/prepare_vocal_snr_round.py [--out <dir>] [--snr-db 5.0]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -134,9 +135,7 @@ def run_models(
         if dit is not None and not getattr(dit, "_fallback_active", True):
             t0 = time.time()
             try:
-                res_dit = dit.enhance(
-                    task_audio, _SR, material=material, restorability_score=restorability
-                )
+                res_dit = dit.enhance(task_audio, _SR, material=material, restorability_score=restorability)
                 out_dit = np.asarray(getattr(res_dit, "audio", res_dit), dtype=np.float32)
                 p = out_dir / "incumbent_dit" / f"{iid}_dit.wav"
                 sf.write(str(p), out_dit, _SR)

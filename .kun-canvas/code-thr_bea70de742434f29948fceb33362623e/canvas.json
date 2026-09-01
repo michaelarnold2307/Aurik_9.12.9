@@ -4180,8 +4180,8 @@
       "name": "row10",
       "parentId": "__root__",
       "frameId": null,
-      "x": 40,
-      "y": 738,
+      "x": 39.999999999999886,
+      "y": 713,
       "width": 1330,
       "height": 60,
       "rotation": 0,
@@ -4212,7 +4212,7 @@
       "name": "row10-name",
       "parentId": "__root__",
       "frameId": null,
-      "x": 52,
+      "x": 48,
       "y": 757,
       "width": 244,
       "height": 22,
@@ -6420,5 +6420,5 @@
   "rendererReplayKeys": [
     "thr_bea70de742434f29948fceb33362623e\u0000turn_5359f36df93346aabd26d691d343caeb\u0000code-canvas\u0000tool:tool_call_00_5Is2A67nfF8fnaP63GqO2490"
   ],
-  "rendererReplayWatermarkTurnId": "turn_395971b8d99c43859086f4178d38eab6"
+  "rendererReplayWatermarkTurnId": "turn_bf7843a264114304bd74500ccaae7215"
 }

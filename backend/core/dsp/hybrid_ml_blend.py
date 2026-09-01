@@ -56,7 +56,7 @@ def hybrid_ml_apply(
 
     # Shape-/Finite-Guards (§3.1)
     if dry.shape != wet.shape:
-        logger.debug("hybrid_ml_apply: Shape-Mismatch dry %s vs wet %s — dry zurück", dry.shape, wet.shape)
+        logger.debug("hybrid_ml_blend: Shape-Mismatch dry %s vs wet %s — dry zurück", dry.shape, wet.shape)
         return dry.copy()
     dry = np.nan_to_num(dry, nan=0.0, posinf=0.0, neginf=0.0)
     wet = np.nan_to_num(wet, nan=0.0, posinf=0.0, neginf=0.0)
@@ -113,10 +113,10 @@ def hybrid_ml_apply(
             material_type=material_type,
             genre=genre,
         ):
-            logger.debug("hybrid_ml_apply: JND-Gate — Änderung unhörbar → dry")
+            logger.debug("hybrid_ml_blend: JND-Gate — Änderung unhörbar → dry")
             return dry.copy()
     except Exception as _jnd_exc:  # nicht blockierend
-        logger.debug("hybrid_ml_apply: JND-Gate nicht verfügbar: %s", _jnd_exc)
+        logger.debug("hybrid_ml_blend: JND-Gate nicht verfügbar: %s", _jnd_exc)
 
     # §8.2 Energie-Guard: ML darf das Signal nicht in Stille verwandeln.
     _rms_dry = float(np.sqrt(np.mean(dry**2)) + 1e-12)
@@ -141,7 +141,7 @@ def hybrid_ml_apply(
 
         out = perceptual_blend(dry, wet, sr, scalar_wet=float(scalar_wet))
     except Exception as _pb_exc:
-        logger.debug("hybrid_ml_apply: perceptual_blend nicht verfügbar (%s) — skalarer Fallback", _pb_exc)
+        logger.debug("hybrid_ml_blend: perceptual_blend nicht verfügbar (%s) — skalarer Rückfall", _pb_exc)
         out = dry + float(np.clip(scalar_wet, 0.0, 1.0)) * (wet - dry)
 
     return cast(

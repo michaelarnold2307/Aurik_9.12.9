@@ -1011,7 +1011,7 @@ def get_experience_insights(result: Any) -> dict[str, Any]:
     try:
         _cnt = int(_cnt_raw)
     except Exception:
-        logger.debug("bridge: auto-improvement count parse failed, using len(recommendations)")
+        logger.debug("bridge: Auto-Improvement-Zählung konnte nicht geparst werden, nutze len(recommendations)")
         _cnt = len(_normalized_recommendations)
     _cnt = max(_cnt, len(_normalized_recommendations), 0)
 
@@ -1033,7 +1033,7 @@ def get_experience_insights(result: Any) -> dict[str, Any]:
     try:
         _tc_count = int(_tc.get("event_count", len(_tc_events)))
     except Exception:
-        logger.debug("bridge: team coordination event_count parse failed, using len(events)")
+        logger.debug("bridge: Team-Koordination event_count konnte nicht geparst werden, nutze len(events)")
         _tc_count = len(_tc_events)
     _pt_summary = dict(_tc.get("phase_type_summary", {}) or {})
     _fqf_trace_raw_val = _fqf.get("recovery_trace")
@@ -1704,7 +1704,7 @@ def build_export_quality_gate_payload(result: object) -> dict[str, Any]:
         try:
             _gap = max(0.0, float(_thr_val) - float(_goal_scores.get(_goal_name, 0.0)))
         except Exception:
-            logger.debug("bridge: goal gap calculation failed for '%s', using 0.0", _goal_name)
+            logger.debug("bridge: Goal-Gap-Berechnung für '%s' fehlgeschlagen, nutze 0.0", _goal_name)
             _gap = 0.0
         if _gap > 0.0:
             _goal_gaps.append({"goal": str(_goal_name), "gap": round(float(_gap), 4)})
@@ -1719,7 +1719,9 @@ def build_export_quality_gate_payload(result: object) -> dict[str, Any]:
             _gain_step = float(_entry.get("gain_step_db", 0.0) or 0.0)
             _variance_ratio = float(_entry.get("variance_ratio", 1.0) or 1.0)
         except Exception:
-            logger.debug("bridge: temporal continuity parse failed for '%s', using defaults", _phase_id)
+            logger.debug(
+                "bridge: Temporal-Continuity für '%s' konnte nicht geparst werden, nutze Standardwerte", _phase_id
+            )
             _gain_step = 0.0
             _variance_ratio = 1.0
         _hot = (abs(_gain_step) > 1.5) or (_variance_ratio > 2.5)
@@ -1990,7 +1992,10 @@ def warmup_models_background() -> None:
     _plugins_tier1 = [
         ("plugins.silero_plugin", "get_silero_plugin"),  # VAD (~1 MB)
         ("plugins.fcpe_plugin", "get_fcpe_plugin"),  # Pitch (~7 MB)
-        ("plugins.crepe_plugin", "get_crepe_plugin"),  # Pitch Fallback (~10 MB)
+        (
+            "plugins.crepe_plugin",
+            "get_crepe_plugin",
+        ),  # Pitch-Rückfall-Kaskade FCPE→RMVPE→PESTO→pYIN (RMVPE Tier-2, §4.4)
         ("plugins.beats_plugin", "get_beats_plugin"),  # Audio-Tagging (~10 MB)
         ("backend.core.noise_reduction", "get_noise_reducer"),  # DeepFilterNet v3.II (~15 MB)
         ("plugins.panns_plugin", "get_panns_plugin"),  # Audio-Tagging Primär (~66 MB)
@@ -2620,25 +2625,18 @@ def _get_ml_availability() -> dict[str, Any]:
     # PANNs (Genre/Audio tagging)
     try:
         pass
-
     except ImportError:
         logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
-    except ImportError:
         models["panns"] = "dsp"
-    # LAION-CLAP
-    try:
-        import torch
+    # LAION-CLAP und SGMSE+ Dereverb: Torch-Verfügbarkeit via find_spec prüfen
+    # (kein doppeltes `import torch` im selben Scope — flake8 F811/B025).
+    import importlib.util as _ilu
 
+    if _ilu.find_spec("torch") is not None:
         models["laion_clap"] = "torch"
-    except ImportError:
+    else:
         models["laion_clap"] = "unavailable"
-    # SGMSE+ Dereverb
-    try:
-        import torch
-    except ImportError:
         logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
-        models["sgmse_dereverb"] = "torchscript" if torch else "dsp_wpe"
-    except ImportError:
         models["sgmse_dereverb"] = "dsp_wpe"
     # RMVPE Pitch
     try:
@@ -3463,7 +3461,7 @@ def inject_cd_noise_profile(
     bit_depth: int = 16,
     seed: int | None = None,
 ) -> object:
-    """Injiziert CD-Rauschprofil. Wrapper für backend.core.cd_noise_profile (§G4/§G63)."""
+    """Injiziert CD-Rauschprofil. Wrapper für backend.core.cd_noise_profile (§G4 (GEBOTE.md)/§G63)."""
     try:
         from backend.core.cd_noise_profile import inject_cd_noise_profile as _inject
 
@@ -3740,8 +3738,8 @@ def mark_crash_reports_seen() -> None:
         from backend.core.crash_reporter import mark_reports_seen as _mark
 
         _mark()
-    except Exception:
-        pass
+    except Exception as _mark_exc:
+        logger.debug("bridge: Markierung nicht möglich: %s", _mark_exc)
 
 
 def install_crash_handler() -> None:
@@ -3750,8 +3748,8 @@ def install_crash_handler() -> None:
         from backend.core.crash_reporter import install_crash_handler as _install
 
         _install()
-    except Exception:
-        pass
+    except Exception as _inst_exc:
+        logger.debug("bridge: Installation nicht möglich: %s", _inst_exc)
 
 
 def get_guard_report(result: object) -> dict:

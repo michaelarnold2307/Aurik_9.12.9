@@ -290,7 +290,8 @@ class OneTakeExport:
             gain = min(gain, 1.0)
             gain = max(gain, 0.1)  # max −20 dB reduction
             out[i] = ch[i] * gain
-        return cast(np.ndarray, out)
+        _res_typed_293: np.ndarray = out
+        return _res_typed_293
 
 
 # ── Convenience ────────────────────────────────────────────────────────

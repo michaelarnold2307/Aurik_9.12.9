@@ -743,7 +743,7 @@ class SemanticGoalsEngine:
                 self._structure_fallback_logged = True
             # Fallback-Marker statt None: Der Engine-Vertrag verlangt immer einen
             # Struktur-Analysator; available=False routet analyze_structure()
-            # deterministisch auf den librosa-Ersatzpfad (§V6, Rev. 2026-08-16).
+            # deterministisch auf den librosa-Ersatzpfad (§V6 (copilot-instructions.md), Rev. 2026-08-16).
             return type("LibrosaStructureAnalyzer", (), {"available": False, "backend": "librosa"})()
 
     def detect_instruments(

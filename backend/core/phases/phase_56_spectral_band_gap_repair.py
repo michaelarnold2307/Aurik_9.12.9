@@ -191,7 +191,7 @@ def _estimate_f0(mono: np.ndarray, sr: int) -> float | None:
         _rmvpe_result = get_rmvpe_plugin().analyze(mono, sr)
         # §v10.40-Rev. 2026-08-16: RmvpeResult liefert f0/voiced_flag/confidence —
         # NICHT f0_hz/voiced_prob (CrepeResult-API). Der Zugriff hier warf zuvor
-        # AttributeError → Stufe fiel immer durch (stiller DSP-Downgrade, §V6).
+        # AttributeError → Stufe fiel immer durch (stiller DSP-Downgrade, §V6 (copilot-instructions.md)).
         voiced_mask = np.asarray(_rmvpe_result.voiced_flag, dtype=bool)
         voiced = np.asarray(_rmvpe_result.f0, dtype=np.float64)[voiced_mask]
         if len(voiced) > 5:

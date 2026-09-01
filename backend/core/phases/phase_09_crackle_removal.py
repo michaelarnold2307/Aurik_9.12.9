@@ -208,7 +208,7 @@ def _hf_noise_floor_db(audio: np.ndarray, sr: int) -> float:
 
 
 def _apply_b11_hf_guard(dry: np.ndarray, wet: np.ndarray, sr: int) -> tuple[np.ndarray, float, bool]:
-    """Vergleicht HF-Rauschfloor vor/nach; Rollback bei starkem Anstieg (§V6)."""
+    """Vergleicht HF-Rauschfloor vor/nach; Rollback bei starkem Anstieg (§V6 (copilot-instructions.md))."""
     _pre = _hf_noise_floor_db(dry, sr)
     _post = _hf_noise_floor_db(wet, sr)
     _delta = float(_post - _pre)
@@ -225,7 +225,7 @@ def _apply_b11_hf_guard(dry: np.ndarray, wet: np.ndarray, sr: int) -> tuple[np.n
         )
         return np.asarray(dry, dtype=np.float32), _delta, True
     if _delta > _B11_HF_FLOOR_WARN_DB:
-        logger.warning("B11 HF-Rauschfloor-Anstieg %+.1f dB — Banquet-Output flagiert (§v10.900)", _delta)
+        logger.warning("B11 HF-Rauschfloor-Anstieg %+.1f dB — Banquet-Ausgabe flagiert (§v10.900)", _delta)
     return np.asarray(wet, dtype=np.float32), _delta, False
 
 

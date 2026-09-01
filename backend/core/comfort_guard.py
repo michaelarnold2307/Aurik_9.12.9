@@ -122,7 +122,8 @@ def _apply_high_shelf(
 
     if was_mono:
         result = result[0]
-    return cast(np.ndarray, result)
+    _res_typed_125: np.ndarray = result
+    return _res_typed_125
 
 
 def apply_comfort_guard(audio: np.ndarray, sr: int = 48000) -> np.ndarray:

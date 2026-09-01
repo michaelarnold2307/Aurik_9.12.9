@@ -15,6 +15,8 @@ Best Val Loss: 0.0001 (normalized STFT MSE).
 import io
 import logging
 import math
+import os
+import tempfile
 import time
 from pathlib import Path
 from typing import Optional, Tuple, Union, cast
@@ -237,13 +239,24 @@ class MERTDenoiserPlugin:
 
         §11 VERBOTEN: sf.read direkt — kanonischer Import über backend.file_import.
         """
+        from backend.file_import import load_audio_file
+
         if isinstance(data, np.ndarray):
             return data, sample_rate
         if isinstance(data, bytes):
-            data = io.BytesIO(data)  # type: ignore[assignment]  # Bytes→BytesIO für load_audio_file
-        from backend.file_import import load_audio_file
-
-        loaded = load_audio_file(data, target_sr=sample_rate, mono=False, do_carrier_analysis=False)
+            # load_audio_file() erwartet einen echten Dateipfad (os.path.isfile-Check) —
+            # BytesIO ist hier nicht kompatibel, daher über eine Temp-Datei laden.
+            tmp_path = ""
+            try:
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                    tmp.write(data)
+                    tmp_path = tmp.name
+                loaded = load_audio_file(tmp_path, target_sr=sample_rate, mono=False, do_carrier_analysis=False)
+            finally:
+                if tmp_path and os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+        else:
+            loaded = load_audio_file(data, target_sr=sample_rate, mono=False, do_carrier_analysis=False)
         if loaded and loaded.get("audio") is not None:
             return np.asarray(loaded["audio"], dtype=np.float32), int(loaded.get("sr") or sample_rate)
         raise ValueError("Audio konnte nicht geladen werden (load_audio_file leer)")

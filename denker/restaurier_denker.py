@@ -21,7 +21,7 @@ import os
 import threading
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -525,9 +525,9 @@ class RestaurierDenker:
                         # §v10.990: Plan auf dem Defekt-Ergebnis ablegen, damit das
                         # Frontend ihn via bridge.get_repair_plan_summary sehen kann.
                         try:
-                            cached_defect_result.repair_plan = _repair_plan  # type: ignore[attr-defined]
-                        except Exception:
-                            pass
+                            cast(Any, cached_defect_result).repair_plan = _repair_plan  # type: ignore[attr-defined]
+                        except Exception as _rp_exc:
+                            logger.debug("RepairPlan-Ablage nicht möglich: %s", _rp_exc)
                         logger.info(
                             "RestaurierDenker: RepairPlan übergeben (%d Schritte: %s)",
                             len(_repair_plan.steps),

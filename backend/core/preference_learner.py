@@ -53,8 +53,8 @@ class PreferenceLearner:
                 self._prefs = data.get("preferences", {})
                 self._history = data.get("history", [])
                 self._gold_standards = data.get("gold_standards", {})
-            except Exception:
-                pass
+            except Exception as _load_exc:
+                logger.debug("Präferenz-Datei nicht lesbar: %s", _load_exc)
 
     def _save(self) -> None:
         PREF_PATH.parent.mkdir(exist_ok=True)

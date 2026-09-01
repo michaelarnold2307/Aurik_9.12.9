@@ -21,7 +21,7 @@ import math
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -188,7 +188,7 @@ class DefektDenker:
                 self._consensus = DefectConsensusPipeline()
                 logger.info("DefektDenker: DefectConsensusPipeline geladen (30 Module).")
             except Exception as exc:
-                self._consensus = None
+                self._consensus = cast(Any, None)
                 logger.debug("DefektDenker: Consensus nicht verfügbar (%s).", exc)
 
             # --- CausalDefectReasoner ---

@@ -180,7 +180,7 @@ class HybridSpeedPitch:
             logger.debug("PESTO nicht verfügbar (%s) — pYIN-DSP-Ersatzpfad (§4.4 Tier-4)", e)
         # Tier-4: pYIN (DSP-Endfall, §4.4). CREPE als Produktions-Tier VERBOTEN
         # (Spec 04, Z. 1129) — Rev. 2026-08-16.
-        logger.warning("Kein Pitch-ML-Plugin verfügbar — pYIN-DSP-Ersatzpfad (§V6)")
+        logger.warning("Kein Pitch-ML-Plugin verfügbar — pYIN-DSP-Ersatzpfad (§V6 (copilot-instructions.md))")
         try:
             from backend.core.fallback_auditor import get_fallback_auditor
 

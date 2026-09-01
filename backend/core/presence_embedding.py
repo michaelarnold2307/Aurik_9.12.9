@@ -229,7 +229,7 @@ class PresenceEmbedding:
             return float(np.mean(coherence_scores))
         except Exception as e:
             logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
-            logger.debug("PresenceEmbedding: vocal_formant_coherence fallback: %s", e)
+            logger.debug("PresenceEmbedding: vocal_formant_coherence Rückfall: %s", e)
             return 0.5
 
     def _compute_transient_immediacy(self, audio: np.ndarray, sr: int) -> float:
@@ -264,7 +264,7 @@ class PresenceEmbedding:
             iqr_score = 1.0 - abs(iqr_onset - 3.0) / 6.0
             return float(np.clip((median_score * 0.7 + iqr_score * 0.3), 0.0, 1.0))
         except Exception as e:
-            logger.debug("PresenceEmbedding: transient_immediacy fallback: %s", e)
+            logger.debug("PresenceEmbedding: transient_immediacy Rückfall: %s", e)
             return 0.5
 
     def _compute_room_tone_continuity(self, restored: np.ndarray, original: np.ndarray | None, sr: int) -> float:
@@ -309,7 +309,7 @@ class PresenceEmbedding:
                     score = min(1.0, score * 1.1)
             return float(np.clip(score, 0.0, 1.0))
         except Exception as e:
-            logger.debug("PresenceEmbedding: room_tone_continuity fallback: %s", e)
+            logger.debug("PresenceEmbedding: room_tone_continuity Rückfall: %s", e)
             return 0.5
 
     def _compute_microdynamic_liveliness(self, audio: np.ndarray, sr: int) -> float:
@@ -340,7 +340,7 @@ class PresenceEmbedding:
             std_score = min(std_cf / 3.0, 1.0)  # Hoehere Std = mehr Dynamik-Varianz = lebendiger
             return float(np.clip((median_score * 0.6 + std_score * 0.4), 0.0, 1.0))
         except Exception as e:
-            logger.debug("PresenceEmbedding: microdynamic_liveliness fallback: %s", e)
+            logger.debug("PresenceEmbedding: microdynamic_liveliness Rückfall: %s", e)
             return 0.5
 
     def _compute_spectral_air_authenticity(self, audio: np.ndarray, sr: int) -> float:

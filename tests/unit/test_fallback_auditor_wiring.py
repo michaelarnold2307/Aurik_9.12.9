@@ -1,7 +1,7 @@
 """Regressionstests: FallbackAuditor-Verdrahtung (§v10.17, Rev. 2026-08-16).
 
 Deckt ab:
-  1. FallbackAuditor.reset() (Song-Scope, §V8/§G1) + Kaskaden-Block
+  1. FallbackAuditor.reset() (Song-Scope, §V8 (copilot-instructions.md)/§G1 (GEBOTE.md)) + Kaskaden-Block
   2. Alle sechs verdrahteten Sites registrieren Events im zentralen Auditor
   3. Denker-Reset und PreExport-Report sind verdrahtet (Quelltext-Vertrag)
 """
@@ -21,7 +21,8 @@ _ROOT = Path(__file__).resolve().parents[2]
 
 def _sine(dur_s: float = 0.5, freq: float = 440.0) -> np.ndarray:
     t = np.arange(int(dur_s * SR)) / SR
-    return (0.2 * np.sin(2 * np.pi * freq * t)).astype(np.float32)
+    _tone: np.ndarray = (0.2 * np.sin(2 * np.pi * freq * t)).astype(np.float32)
+    return _tone
 
 
 class _ImportErrorModule:
@@ -81,9 +82,9 @@ class TestFallbackAuditorWiring:
         fa = _fresh_auditor()
         ar.restaurierung(_sine(), SR)
         events = fa.summary()["events"]
-        assert any(
-            e["component"] == "aurik_restore" and e["fallback"] == "dry_passthrough" for e in events
-        ), f"aurik_restore-DFN-Fallback nicht registriert: {events}"
+        assert any(e["component"] == "aurik_restore" and e["fallback"] == "dry_passthrough" for e in events), (
+            f"aurik_restore-DFN-Fallback nicht registriert: {events}"
+        )
 
     def test_stem_level_restorer_router_decline_records(self, monkeypatch):
         class _DecliningRouter:
@@ -100,9 +101,9 @@ class TestFallbackAuditorWiring:
         fa = _fresh_auditor()
         StemLevelRestorer()._separate_stems(_sine(), SR)
         events = fa.summary()["events"]
-        assert any(
-            e["component"] == "StemLevelRestorer" and e["fallback"] == "dsp_bandpass" for e in events
-        ), f"SLR-Router-Ablehnung nicht registriert: {events}"
+        assert any(e["component"] == "StemLevelRestorer" and e["fallback"] == "dsp_bandpass" for e in events), (
+            f"SLR-Router-Ablehnung nicht registriert: {events}"
+        )
 
     def test_feedback_chain_versa_load_failure_records(self, monkeypatch):
         monkeypatch.setitem(sys.modules, "plugins.versa_plugin", _ImportErrorModule())
@@ -111,9 +112,9 @@ class TestFallbackAuditorWiring:
         fa = _fresh_auditor()
         FeedbackChain(use_versa_in_loop=True)
         events = fa.summary()["events"]
-        assert any(
-            e["component"] == "FeedbackChain" and e["fallback"] == "pqs_rms_dsp" for e in events
-        ), f"VERSA-Ladefehler nicht registriert: {events}"
+        assert any(e["component"] == "FeedbackChain" and e["fallback"] == "pqs_rms_dsp" for e in events), (
+            f"VERSA-Ladefehler nicht registriert: {events}"
+        )
 
     @pytest.mark.parametrize(
         "module_path, class_name",
@@ -127,16 +128,16 @@ class TestFallbackAuditorWiring:
             monkeypatch.setitem(sys.modules, mod, _ImportErrorModule())
         import importlib
 
-        mod = importlib.import_module(module_path)
-        cls = getattr(mod, class_name)
+        _mod = importlib.import_module(module_path)
+        cls = getattr(_mod, class_name)
 
         fa = _fresh_auditor()
         inst = cls()
         inst._init_crepe()
         events = fa.summary()["events"]
-        assert any(
-            e["component"] == "PitchDetection" and e["fallback"] == "pyin_dsp" for e in events
-        ), f"{class_name}: pYIN-DSP-Endfall nicht registriert: {events}"
+        assert any(e["component"] == "PitchDetection" and e["fallback"] == "pyin_dsp" for e in events), (
+            f"{class_name}: pYIN-DSP-Endfall nicht registriert: {events}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +149,7 @@ class TestAuditorSongScopeContract:
     def test_denker_resets_auditor_per_song(self):
         src = (_ROOT / "denker" / "aurik_denker.py").read_text(encoding="utf-8")
         assert "get_fallback_auditor().reset()" in src, (
-            "Denker muss den FallbackAuditor pro Song zurücksetzen (§V8/§G1, Rev. 2026-08-16)"
+            "Denker muss den FallbackAuditor pro Song zurücksetzen (§V8 (copilot-instructions.md)/§G1 (GEBOTE.md), Rev. 2026-08-16)"
         )
 
     def test_pre_export_validator_reports_degraded(self):

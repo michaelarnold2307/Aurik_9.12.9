@@ -1,8 +1,8 @@
-"""GPU-Determinismus-Gate (§G5, Rev. 2026-08-16).
+"""GPU-Determinismus-Gate (§G5 (GEBOTE.md), Rev. 2026-08-16).
 
 Beantwortet die §G5-Frage auf GPU-Hardware mit Messung statt Annahme:
 
-  1. Basis (läuft überall): Der CPU-Pfad ist bit-deterministisch (§G5).
+  1. Basis (läuft überall): Der CPU-Pfad ist bit-deterministisch (§G5 (GEBOTE.md)).
   2. GPU-Capability (nur auf GPU-Hardware): Der MLDeviceManager meldet das
      Backend korrekt, und warmup_rocm_gpu() hängt nicht (§v10.304.30).
   3. GPU-Inferenz (nur auf GPU-Hardware): Toleranz-equal zum CPU-Pfad,
@@ -52,16 +52,16 @@ def _deterministic_dsp_chain(seed: int = 7) -> np.ndarray:
 
 @pytest.mark.unit
 def test_g5_cpu_reference_bit_identical() -> None:
-    """Zwei Läufe des kanonischen DSP-Pfads müssen bit-identisch sein (§G5)."""
+    """Zwei Läufe des kanonischen DSP-Pfads müssen bit-identisch sein (§G5 (GEBOTE.md))."""
     a = _deterministic_dsp_chain()
     b = _deterministic_dsp_chain()
     assert a.dtype == b.dtype == np.float32
-    assert np.array_equal(a, b), "CPU-Pfad ist nicht bit-deterministisch — §G5 verletzt"
+    assert np.array_equal(a, b), "CPU-Pfad ist nicht bit-deterministisch — §G5 (GEBOTE.md) verletzt"
 
 
 @pytest.mark.unit
 def test_g5_cpu_reference_bit_identical_after_seed_reset() -> None:
-    """Gleicher Seed zweimal frisch gesetzt → bit-identisch (Seeds pro Session, §G5)."""
+    """Gleicher Seed zweimal frisch gesetzt → bit-identisch (Seeds pro Session, §G5 (GEBOTE.md))."""
     a = _deterministic_dsp_chain(seed=11)
     b = _deterministic_dsp_chain(seed=11)
     assert np.array_equal(a, b)
@@ -113,7 +113,7 @@ def test_warmup_rocm_does_not_hang() -> None:
 def test_gpu_inference_tolerance_equal_to_cpu() -> None:
     """GPU-Inferenz muss numerisch gleichwertig (1e-5), aber darf NICHT als
     bit-identisch angenommen werden — deshalb führt Aurik export- und
-    entscheidungskritische Pfade deterministisch auf der CPU (§G5)."""
+    entscheidungskritische Pfade deterministisch auf der CPU (§G5 (GEBOTE.md))."""
     import torch
 
     dev = torch.device("cuda")

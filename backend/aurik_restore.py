@@ -5,7 +5,7 @@ LEGACY_NON_RELEASE: Historischer Aurik-6-E2E-Pfad. Desktop-/CLI-/Batch-Release
 muss den Canonical Contract über backend.api.bridge + AurikDenker.denke() nutzen.
 
 Rev. 2026-08-16 (UV3-Angleich): ML-Plugins lazy geladen (kein Import-seitiger
-Modell-Load), alle ML→DSP-Fallbacks warnen mit Begründung (§V6), Dry-Passthrough
+Modell-Load), alle ML→DSP-Fallbacks warnen mit Begründung (§V6 (copilot-instructions.md)), Dry-Passthrough
 nie still. Produktions-Inpainting läuft über phase_55
 (CQTdiff+ → DiffWave → NMF-β, Spec 04) — DiffWave hier nur als Legacy-Demo.
 
@@ -50,7 +50,7 @@ def _record_fallback(component: str, gold: str, fallback: str, reason: str) -> N
 
         get_fallback_auditor().record(component, gold, fallback, reason)
     except Exception as _fa_exc:
-        logger.debug("FallbackAuditor.record nicht möglich (unkritisch): %s", _fa_exc)
+        logger.debug("FallbackAuditor: Aufzeichnung nicht möglich (unkritisch): %s", _fa_exc)
 
 
 def _mos_payload(mos_result: Any) -> dict[str, Any]:
@@ -207,11 +207,13 @@ def restaurierung(audio: np.ndarray, sr: int) -> tuple[np.ndarray, int]:
         audio = hybrid_ml_apply(_dry, np.asarray(_wet, dtype=np.float32), sr, scalar_wet=0.9)
     else:
         if _wet is None:
-            logger.warning("restaurierung: DFN lieferte kein Ergebnis — Dry-Passthrough (§V6)")
+            logger.warning(
+                "restaurierung: DFN lieferte kein Ergebnis — Dry-Passthrough (§V6 (copilot-instructions.md))"
+            )
             _record_fallback("aurik_restore", "deepfilternet", "dry_passthrough", "dfn_no_result")
         else:
             logger.warning(
-                "restaurierung: DFN-Shape-Mismatch (%s vs %s) — Dry-Passthrough (§V6)",
+                "restaurierung: DFN-Shape-Mismatch (%s vs %s) — Dry-Passthrough (§V6 (copilot-instructions.md))",
                 np.asarray(_wet).shape,
                 _dry.shape,
             )
@@ -252,11 +254,13 @@ def reparatur(audio: np.ndarray, sr: int) -> tuple[np.ndarray, int]:
         audio = hybrid_ml_apply(_dry_r4, np.asarray(_wet_r4, dtype=np.float32), sr, scalar_wet=1.0)
     else:
         if _wet_r4 is None:
-            logger.warning("reparatur: DiffWave lieferte kein Ergebnis — Dry-Passthrough (§V6)")
+            logger.warning(
+                "reparatur: DiffWave lieferte kein Ergebnis — Dry-Passthrough (§V6 (copilot-instructions.md))"
+            )
             _record_fallback("aurik_restore", "diffwave", "dry_passthrough", "diffwave_no_result")
         else:
             logger.warning(
-                "reparatur: DiffWave-Shape-Mismatch (%s vs %s) — Dry-Passthrough (§V6)",
+                "reparatur: DiffWave-Shape-Mismatch (%s vs %s) — Dry-Passthrough (§V6 (copilot-instructions.md))",
                 np.asarray(_wet_r4).shape,
                 _dry_r4.shape,
             )
@@ -289,7 +293,9 @@ def rekonstruktion(audio: np.ndarray, sr: int) -> tuple[np.ndarray, int]:
         logger.debug("rekonstruktion: MDX23C nicht verfügbar (%s) — Dry-Passthrough", _mdx_exc)
         _record_fallback("aurik_restore", "mdx23c", "dry_passthrough", "mdx23c_unavailable")
     if vocals is None:
-        logger.warning("rekonstruktion: MDX23C lieferte keinen Vocal-Stem — Dry-Passthrough (§V6)")
+        logger.warning(
+            "rekonstruktion: MDX23C lieferte keinen Vocal-Stem — Dry-Passthrough (§V6 (copilot-instructions.md))"
+        )
         _record_fallback("aurik_restore", "mdx23c", "dry_passthrough", "mdx23c_no_result")
         vocals = audio
     audio = vocals
@@ -356,7 +362,9 @@ def quality_gates(audio: np.ndarray, sr: int) -> bool:
 
         mos_result = estimate_mos(audio, sr)
     except Exception as _mos_exc:
-        logger.warning("quality_gates: UTMOS nicht verfügbar (%s) — Gate fail-closed (§V6)", _mos_exc)
+        logger.warning(
+            "quality_gates: UTMOS nicht verfügbar (%s) — Gate fail-closed (§V6 (copilot-instructions.md))", _mos_exc
+        )
         _record_fallback("aurik_restore", "utmos", "gate_fail_closed", "utmos_unavailable")
         mos_result = None
     results["UTMOS"] = _mos_payload(mos_result)
@@ -601,7 +609,10 @@ def main(importfile_path: str, out_path: str) -> None:
 
                     remaster_mos_result = _est_mos(audio, sr)
                 except Exception as _mos_exc:
-                    logger.warning("remastering: UTMOS nicht verfügbar (%s) — MOS-Ausweis übersprungen (§V6)", _mos_exc)
+                    logger.warning(
+                        "remastering: UTMOS nicht verfügbar (%s) — MOS-Ausweis übersprungen (§V6 (copilot-instructions.md))",
+                        _mos_exc,
+                    )
                     remaster_mos_result = None
                 mos_score = _mos_score(remaster_mos_result)
                 logger.info("        Quality Gate: UTMOS=%.3f", mos_score)

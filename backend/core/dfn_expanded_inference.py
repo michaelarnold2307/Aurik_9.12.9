@@ -148,4 +148,5 @@ class DFNExpandedDenoiser:
 
         enhanced = torch.complex(enh[0, 0, :, :, 0], enh[0, 0, :, :, 1]).T.unsqueeze(0)
         out = torch.istft(enhanced, n_fft=N_FFT, hop_length=HOP, window=self._window, length=target_len)
-        return cast(np.ndarray, out.cpu().numpy().squeeze())
+        _res_typed_151: np.ndarray = out.cpu().numpy().squeeze()
+        return _res_typed_151

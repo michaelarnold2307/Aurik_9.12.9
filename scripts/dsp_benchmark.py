@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Objektiver DSP-Benchmark: veraltete vs. moderne Rauschunterdrückungs-Stufen.
 
-Analog zum Pitch-Benchmark: synthetische Ground-Truth (deterministisch, §G5),
+Analog zum Pitch-Benchmark: synthetische Ground-Truth (deterministisch, §G5 (GEBOTE.md)),
 referenzbasierte Metriken — kein Hörtest nötig. Misst die verworfenen DSPs
 (Spec 04: ~~Spectral Subtraction~~, ~~Wiener 1984~~) gegen ihre Referenz-
 Implementierungen UND gegen Auriks operative Fallbacks
@@ -18,6 +18,7 @@ Metriken:
 Usage:
     python scripts/dsp_benchmark.py [--out models/dsp_benchmark_report.json]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -40,7 +41,9 @@ _SR = 48000
 _EDGE = 1024
 
 
-def synth_degraded(sr: int = _SR, dur: float = 2.0, snr_db: float = 5.0, seed: int = 11) -> tuple[np.ndarray, np.ndarray]:
+def synth_degraded(
+    sr: int = _SR, dur: float = 2.0, snr_db: float = 5.0, seed: int = 11
+) -> tuple[np.ndarray, np.ndarray]:
     """Clean-Referenz (Harmonik + Vibrato) + degradiert (Rauschen + Crackles)."""
     rng = np.random.RandomState(seed)
     t = np.arange(int(dur * sr)) / sr
@@ -159,13 +162,17 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     out = METHODS[name](deg, _SR)
                     ref_snr, lsd, edge_ratio = metrics(clean, out, _SR)
-                    results.append({
-                        "snr_db": snr_db, "seed": seed, "method": name,
-                        "runtime_s": round(time.time() - t0, 2),
-                        "ref_snr_db": round(ref_snr, 1),
-                        "lsd_db": round(lsd, 1),
-                        "edge_peak_ratio": round(edge_ratio, 1),
-                    })
+                    results.append(
+                        {
+                            "snr_db": snr_db,
+                            "seed": seed,
+                            "method": name,
+                            "runtime_s": round(time.time() - t0, 2),
+                            "ref_snr_db": round(ref_snr, 1),
+                            "lsd_db": round(lsd, 1),
+                            "edge_peak_ratio": round(edge_ratio, 1),
+                        }
+                    )
                 except Exception as exc:
                     results.append({"snr_db": snr_db, "seed": seed, "method": name, "error": str(exc)[:120]})
 

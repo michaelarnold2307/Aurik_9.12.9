@@ -212,7 +212,7 @@ class MicroDynamicsEnvelopeMorphing:
         # §v10.x Degenerate-Guard (Befund 2026-08-22): „cannot reshape array of
         # size 2 into shape (1,480)“ — ein 2-Sample-Signal (Layout-Mix-Fehler
         # upstream) darf nicht in die Frame-Reshapes laufen. Morphing ist dann
-        # sinnlos; Eingabe unverändert zurückgeben (Non-Blocking, §V6 mit Log).
+        # sinnlos; Eingabe unverändert zurückgeben (Non-Blocking, §V6 (copilot-instructions.md) mit Log).
         if res_mono.size < self.FRAME_SIZE_SAMPLES or orig_mono.size < self.FRAME_SIZE_SAMPLES:
             logger.warning(
                 "MDEM: degenerierte Eingabe (res=%d, orig=%d Samples) — Morphing übersprungen, Eingabe unverändert",

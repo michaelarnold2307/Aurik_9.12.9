@@ -18,7 +18,7 @@ reine sys.modules-Lookups — kein Import, keine Kompilierung, kein Race.
 
 ``ensure_librosa_ready()`` ist idempotent und thread-sicher (Lock + Flag).
 Ein Aufruf aus einem Worker-Thread ist ein No-Op, wenn der Hauptthread bereits
-fertig war. Ein fehlgeschlagenes Submodul degradiert einzeln (§V6), nie das
+fertig war. Ein fehlgeschlagenes Submodul degradiert einzeln (§V6 (copilot-instructions.md)), nie das
 Ganze — die DSP-Ersatzpfade der Aufrufer bleiben intakt.
 """
 
@@ -120,7 +120,7 @@ def ensure_librosa_ready() -> bool:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     _fn(*_args, **_kwargs)
-            except Exception as exc:  # noqa: BLE001 — Degradation, kein Crash (§V6)
+            except Exception as exc:
                 logger.warning("librosa-Bootstrap: Warmup %s fehlgeschlagen (%s)", getattr(_fn, "__name__", _fn), exc)
 
         _LIBROSA_READY = True

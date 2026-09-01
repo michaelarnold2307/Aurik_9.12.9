@@ -225,7 +225,7 @@ def _get_gpu_name_cuda() -> str:
     try:
         import torch  # type: ignore[import]
 
-        return cast(str, torch.cuda.get_device_name(0))
+        return torch.cuda.get_device_name(0)
     except Exception:
         return "NVIDIA GPU (CUDA)"
 
@@ -235,7 +235,7 @@ def _get_vram_cuda(device_id: int = 0) -> float:
         import torch  # type: ignore[import]
 
         props = torch.cuda.get_device_properties(device_id)
-        return cast(float, props.total_memory / (1024 * 1024))
+        return props.total_memory / (1024 * 1024)
     except Exception:
         return 0.0
 
@@ -244,7 +244,7 @@ def _get_gpu_name_rocm() -> str:
     try:
         import torch  # type: ignore[import]
 
-        return cast(str, torch.cuda.get_device_name(0))
+        return torch.cuda.get_device_name(0)
     except Exception:
         return "AMD GPU (ROCm)"
 
@@ -254,11 +254,10 @@ def _get_vram_rocm(device_id: int = 0) -> float:
         import torch  # type: ignore[import]
 
         props = torch.cuda.get_device_properties(device_id)
-        return cast(float, props.total_memory / (1024 * 1024))
+        return props.total_memory / (1024 * 1024)
     except Exception:
         return 0.0
 
 
 # Benötigt für _cpu_thread_count
 import os
-from typing import cast

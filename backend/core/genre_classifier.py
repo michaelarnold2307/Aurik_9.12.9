@@ -2034,7 +2034,7 @@ class GermanSchlagerClassifier:
                     for v in _neg_dict.values():
                         neg_scores.append(float(v))
                 except Exception as _neg_exc:
-                    # §V6: Negativ-Tag-Fehler sichtbar machen (sonst neg_mean=0.0
+                    # §V6 (copilot-instructions.md): Negativ-Tag-Fehler sichtbar machen (sonst neg_mean=0.0
                     # ohne Spur — optimistischer Margin ohne Evidenz).
                     logger.warning(
                         "GenreClassifier CLAP: Tag-Inferenz (negativ) fehlgeschlagen (%s) — neg_mean=0.0",

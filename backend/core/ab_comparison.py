@@ -205,7 +205,8 @@ class ABComparison:
         """
         src = {"A": self._a, "B": self._b, "current": self.current_audio}[which]
         s, e = self._segment_start, min(self._segment_end, len(src))
-        return cast(np.ndarray, src[s:e])
+        _res_typed_208: np.ndarray = src[s:e]
+        return _res_typed_208
 
     def get_current_slice(self, position_sample: int, length_samples: int) -> np.ndarray:
         """Gibt einen Slice des aktuell aktiven Audios zurück."""
@@ -353,7 +354,7 @@ class ABBlindTest:
                 }
             )
         self._current_trial = 0
-        logger.info("Blindtest-Session gestartet: %d Trials", n_trials)
+        logger.info("Blindtest-Sitzung gestartet: %d Trials", n_trials)
 
     def get_current_trial(self) -> dict[str, Any] | None:
         """Gibt den aktuellen Trial zurück oder None wenn fertig."""

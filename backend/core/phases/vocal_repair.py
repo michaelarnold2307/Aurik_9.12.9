@@ -165,7 +165,8 @@ def _extend_bandwidth(mono: np.ndarray, sr: int, bandwidth_hz: float) -> np.ndar
     # Mix at very low level (-20 dB)
     mono_out = mono.astype(np.float64) + harmonics.astype(np.float64) * 0.1
 
-    return cast(np.ndarray, mono_out)
+    _res_typed_168: np.ndarray = mono_out
+    return _res_typed_168
 
 
 def _repair_distortion(mono: np.ndarray) -> np.ndarray:

@@ -23,7 +23,7 @@ ROCm-Versionskope (Rev. 2026-08-16):
   bis 2.11.0 verfügbar — neuere bräuchten Eigenbau.
   GPU-Gate tests/unit/test_gpu_determinism_gate.py: 6/6 grün auf der Hardware
   (Backend-Erkennung, kein §v10.304.30-Hang, GPU=CPU innerhalb 1e-5).
-  §G5: Bit-Determinismus ist nur für den CPU-Pfad garantiert; GPU-Inferenz
+  §G5 (GEBOTE.md): Bit-Determinismus ist nur für den CPU-Pfad garantiert; GPU-Inferenz
   ist Toleranz-equal, nicht bit-identisch (keine deterministischen Kernel konfiguriert).
 
 VRAM budget (§GPU-VRAM-Guard):
@@ -1409,7 +1409,7 @@ def ort_run_with_cpu_fallback(
         if rebuild_cpu_factory is None:
             raise
         # §V6 (copilot-instructions.md): ML→DSP/CPU-Fallback mit Warnung + Begründung.
-        logger.warning("%s: ONNX-Inferenz fehlgeschlagen (%s) — CPU-Fallback-Retry", label, exc)
+        logger.warning("%s: ONNX-Inferenz fehlgeschlagen (%s) — CPU-Rückfall-Versuch", label, exc)
         cpu_session = rebuild_cpu_factory()
         if cpu_session is None:
             raise

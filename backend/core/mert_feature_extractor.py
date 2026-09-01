@@ -134,5 +134,5 @@ def compute_music_context(audio: np.ndarray, sample_rate: int = 48000) -> dict:
             "genre_proxy": float(1.0 - np.clip(np.std(high_dim) * 2.0, 0.0, 1.0)),
         }
     except Exception as e:
-        logger.debug("MERT context analysis failed: %s", e)
+        logger.debug("MERT-Kontext-Analyse fehlgeschlagen: %s", e)
         return {"density": 0.5, "brightness": 0.5, "is_vocal": 0.5, "genre_proxy": 0.5}

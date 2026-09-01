@@ -1,4 +1,5 @@
 """Tests für plugins/aero_plugin.py — Challenger-Kandidat (12→48 kHz BWE)."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -31,4 +32,4 @@ def test_plugin_loads_and_upsamples_deterministically() -> None:
     assert out1.shape == (12000 * (_HR_SR // _LR_SR),)
     assert np.all(np.isfinite(out1))
     assert np.max(np.abs(out1)) <= 1.0 + 1e-6
-    np.testing.assert_array_equal(out1, out2)  # deterministisch (§G5)
+    np.testing.assert_array_equal(out1, out2)  # deterministisch (§G5 (GEBOTE.md))

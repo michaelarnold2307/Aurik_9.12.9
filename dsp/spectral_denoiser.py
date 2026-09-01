@@ -27,6 +27,7 @@ Aurik-konforme Neuimplementierung des spektralen Denoisers:
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 import numpy as np
 import numpy.typing as npt
@@ -143,7 +144,7 @@ class SpectralDenoiser:
         specs = [stft(ch, **_stft_kw)[2] for ch in channels]
 
         # Gain aus Mono-Mix (Stereo: verlinkte Kanäle, kein unabhängiges Gating)
-        mix = channels[0] if len(channels) == 1 else np.mean(np.stack(channels, axis=0), axis=0)
+        mix = channels[0] if len(channels) == 1 else np.mean(cast(npt.NDArray[np.floating], np.stack(channels, axis=0)), axis=0)
         _, _, Z_mix = stft(mix, **_stft_kw)
         gain = self._compute_omlsa_gain(np.abs(Z_mix) ** 2)
 

@@ -7668,7 +7668,7 @@ class UnifiedRestorerV3:
             self._wohlklang_retry_count = 0
             self._wohlklang_best_mushra = 0.0
             self._wohlklang_best_audio = None
-        # §v10.x Song-Isolation (§V8): MQA-Forwarding-Werte pro restore()-Aufruf
+        # §v10.x Song-Isolation (§V8 (copilot-instructions.md)): MQA-Forwarding-Werte pro restore()-Aufruf
         # zurücksetzen — sonst leckt HPI/MUSHRA eines vorherigen Songs/Chunks
         # in den finalen Report (Befund 2026-08-22: HPI=0.85 gemessen, Report HPI=0.00).
         self._mqa_mushra = 0.0
@@ -7894,7 +7894,7 @@ class UnifiedRestorerV3:
         # §2.53b: Log immediately so test mock-patched pipelines capture these messages
         # before intermediate analysis steps that may be incomplete/mocked.
         if _precomputed_phase_plan:
-            logger.info("Phase Skipping deaktiviert: precomputed_phase_plan aktiv (deterministischer PID-Executor)")
+            logger.info("Überspringen deaktiviert: deterministischer PID-Executor aktiv")
             logger.info(
                 "§PID PhaseInteractionDenker-Plan aktiv: %d Phasen (UV3 _select/_optimize übersprungen)",
                 len(_precomputed_phase_plan),
@@ -11097,8 +11097,8 @@ class UnifiedRestorerV3:
                                 _prev_conf,
                                 _mc_conf,
                             )
-                except Exception:
-                    pass
+                except Exception as _mc_exc:
+                    logger.debug("Material-Konfidenz nicht verfügbar: %s", _mc_exc)
             self._restoration_context.update(
                 {
                     "song_calibration_global": self._song_calibration_profile.get("global_scalar", 1.0),
@@ -11909,7 +11909,7 @@ class UnifiedRestorerV3:
             # Keine autonome _select/_optimize-Planung mehr, damit Denker-Plan
             # und UV3-Ausführung nicht auseinanderlaufen.
             # §2.53b: Phase Skipping deaktiviert — als erstes loggen damit auch bei frühem Mock-Return sichtbar
-            logger.info("Phase Skipping deaktiviert: precomputed_phase_plan aktiv (deterministischer PID-Executor)")
+            logger.info("Überspringen deaktiviert: deterministischer PID-Executor aktiv")
             logger.info(
                 "§PID PhaseInteractionDenker-Plan aktiv: %d Phasen (UV3 _select/_optimize übersprungen)",
                 len(_precomputed_phase_plan),
@@ -12404,7 +12404,7 @@ class UnifiedRestorerV3:
             _enable_phase_skipping = False
             # §2.53b: immer loggen — auch wenn phase_skipper=None (dann war _enable_phase_skipping
             # bereits False, aber der Test braucht den Log-Eintrag als Beweis)
-            logger.info("Phase Skipping deaktiviert: precomputed_phase_plan aktiv (deterministischer PID-Executor)")
+            logger.info("Überspringen deaktiviert: deterministischer PID-Executor aktiv")
         elif not self.phase_skipper and not _precomputed_phase_plan:
             pass  # phase_skipper=None + kein precomputed_plan: kein Log nötig
 
@@ -15221,7 +15221,7 @@ class UnifiedRestorerV3:
             # Natürliche Verse/Chorus-Dichteunterschiede ergeben span=2.94/σ=0.90
             # bei vinyl — die absoluten Schwellen (1.00/0.50) alarmieren auf
             # natürlicher Musik und das Enforcement würde gesunde, dichte
-            # Segmente drosseln (§0 Primum non nocere, §V7 Ursache statt Symptom).
+            # Segmente drosseln (§0 Primum non nocere, §V7 (copilot-instructions.md) Ursache statt Symptom).
             # Ein Verstoß liegt nur vor, wenn das RESTAURIERTE Signal gegenüber
             # der QUELLE regressiert — oder keine Quelle messbar ist (dann bleibt
             # das bisherige absolute Verhalten konservativ erhalten).
@@ -17615,8 +17615,8 @@ class UnifiedRestorerV3:
                 from backend.core.experience_runtime import get_experience_runtime as _get_xprt
 
                 _fatigue_idx = float(getattr(_get_xprt(), "fatigue_index", 0.0) or 0.0)
-            except Exception:
-                pass
+            except Exception as _fat_exc:
+                logger.debug("Ermüdungs-Index nicht verfügbar: %s", _fat_exc)
             _inviting_res = _check_inviting(
                 restored_audio,
                 sample_rate,
@@ -21923,8 +21923,8 @@ class UnifiedRestorerV3:
                                     time.time() - start_time,
                                     {"guardian_reverted": True, "guardian_reason": str(_dnh_result.reason)},
                                 )
-                            except Exception:
-                                pass
+                            except Exception as _rev_exc:
+                                logger.debug("Guardian-Revert-Protokoll nicht möglich: %s", _rev_exc)
                     else:
                         _do_no_harm_reverted = False
                         _do_no_harm_reason = f"gcv_override:{','.join(_gcv_votes)}"
@@ -27985,7 +27985,8 @@ class UnifiedRestorerV3:
                     _fk_name = str(_fk).lower()
                     if any(_n in _fk_name for _n in ("dropout", "gap", "splice", "band_gap", "print_through")):
                         _foreign_inpaint_evidence = max(_foreign_inpaint_evidence, float(_fv))
-                except Exception:
+                except Exception as _fie_exc:
+                    logger.debug("Fremd-Inpaint-Evidenz nicht lesbar: %s", _fie_exc)
                     continue
             # ML-schwere Phasen werden bei FREMD-Kettengliedern nur mit Evidenz
             # injiziert — sonst entsteht „Pflicht injizieren, Risk-Guard entfernt
@@ -35164,7 +35165,7 @@ class UnifiedRestorerV3:
                             _ctx.bandwidth_hz,
                         )
         except Exception as _recal_exc:
-            logger.debug("§G82 recalibration context update non-blocking: %s", _recal_exc)
+            logger.debug("§G82 Rekalibrierungs-Kontext-Aktualisierung non-blocking: %s", _recal_exc)
 
         return result
 
@@ -42932,7 +42933,7 @@ class UnifiedRestorerV3:
                 _presence_score.is_hearable_improvement,
             )
         except Exception as _pe_exc:
-            logger.debug("§G90 PresenceEmbedding skipped: %s", _pe_exc)
+            logger.debug("§G90 PresenceEmbedding übersprungen: %s", _pe_exc)
 
         # ── §G90 EraAuthenticPerceptualCompletion (BW < 10 kHz) ────────────
         try:
@@ -42941,9 +42942,9 @@ class UnifiedRestorerV3:
             _ec = get_era_completion()
             if _ec.needs_completion(_presence_audio, sample_rate):
                 _presence_audio = _ec.complete(_presence_audio, sample_rate)
-                logger.info("§G90 EraCompletion applied: BW was %.0f Hz", _ec.last_bandwidth_hz or 0)
+                logger.info("§G90 EraCompletion angewendet: BW war %.0f Hz", _ec.last_bandwidth_hz or 0)
         except Exception as _ec_exc:
-            logger.debug("§G90 EraCompletion skipped: %s", _ec_exc)
+            logger.debug("§G90 EraCompletion übersprungen: %s", _ec_exc)
 
         from backend.core.unified_restorer_v3 import RestorationResult
 
@@ -43595,13 +43596,15 @@ class UnifiedRestorerV3:
                 )
                 _ppr_ratio = _ppr_len / max(_n_total, 1)
 
-                def _ppr_slice_fn(_start: int, _end: int) -> np.ndarray:
+                def _make_ppr_slice_fn(_start: int, _end: int) -> np.ndarray:  # bedingte Definition nach None-Init
                     _a = int(round(_start * _ppr_ratio))
                     _b = int(round(_end * _ppr_ratio))
                     _b = min(max(_b, _a + 1), _ppr_len)
                     if _ppr_full.ndim == 2 and _ppr_full.shape[0] <= 8:
                         return _ppr_full[:, _a:_b]
                     return _ppr_full[_a:_b]
+
+                _ppr_slice_fn = _make_ppr_slice_fn
 
                 _chunk_kwargs["pre_repair_reference"] = _ppr_slice_fn(chunks[0][0], chunks[0][1])
                 logger.info(
@@ -43631,7 +43634,7 @@ class UnifiedRestorerV3:
                             if getattr(_score, "severity", 0.0) >= 0.05
                         }
                 except Exception as _b3cached_exc:
-                    logger.debug("§B3-Verarbeitungsschritt-2: Cache-Übernahme fehlgeschlagen: %s", _b3cached_exc)
+                    logger.debug("§B3-Verarbeitungsschritt-2: Puffer-Übernahme fehlgeschlagen: %s", _b3cached_exc)
             if _full_defect_types:
                 _chunk_kwargs["_b3_full_song_defect_types"] = _full_defect_types
                 logger.info(

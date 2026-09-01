@@ -70,7 +70,8 @@ def evaluate_output_guard(
     def _is_stereo_2d(arr: np.ndarray) -> bool:
         if arr.ndim != 2:
             return False
-        return cast(bool, (arr.shape[1] == 2 and arr.shape[0] > 2) or (arr.shape[0] == 2 and arr.shape[1] > 2))
+        _res_typed_73: bool = (arr.shape[1] == 2 and arr.shape[0] > 2) or (arr.shape[0] == 2 and arr.shape[1] > 2)
+        return _res_typed_73
 
     is_stereo = _is_stereo_2d(original) and _is_stereo_2d(candidate)
     if is_stereo:

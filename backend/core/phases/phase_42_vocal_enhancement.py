@@ -390,7 +390,9 @@ class VocalEnhancement(PhaseInterface):
         # Doppeltes Enhancement = Overprocessing → Primum non nocere.
         _route_taken = str(kwargs.get("vocal_route_taken", "") or "")
         if _route_taken == "miipher_dit":
-            logger.info("Phase 42: MIIPHER-DiT bereits in Phase 03 gelaufen — überspringe (kein Doppel-Enhancement)")
+            logger.info(
+                "Verarbeitungsschritt 42: MIIPHER-DiT bereits in Verarbeitungsschritt 03 gelaufen — überspringe (kein Doppel-Enhancement)"
+            )
             return PhaseResult(
                 audio=audio,
                 metadata={

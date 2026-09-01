@@ -128,8 +128,8 @@ class VocalAnalyzer:
             profile.vibrato_rate_hz = getattr(style, "vibrato_rate_hz", 5.5)
             profile.vibrato_extent_semitones = getattr(style, "vibrato_depth_cents", 50.0) / 100.0
             profile.breathiness_index = getattr(style, "breathiness_index", 0.0)
-        except Exception:
-            pass
+        except Exception as _styl_exc:
+            log.debug("VocalStyleProfiler nicht verfügbar: %s", _styl_exc)
 
         # 3. Formant Tracking (LPC-based)
         try:
@@ -375,7 +375,6 @@ class HarmonicProtector:
             frame = audio[start : start + self.n_fft] * window
             spec = np.fft.rfft(frame)
             mag = np.abs(spec)
-            phase = np.angle(spec)
 
             # Detect harmonic peaks (simplified: top 20% of magnitudes)
             threshold = np.percentile(mag, 80)

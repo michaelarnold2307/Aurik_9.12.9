@@ -83,7 +83,7 @@ class StemRemixBalancer:
             mix = voc * _w + ins * (2.0 - _w)
 
             if not np.isfinite(mix).all():
-                logger.warning("StemRemixBalancer: NaN/Inf im Mix — Original-Referenz zurück")
+                logger.warning("StemRemixBalancer: NaN/Inf im Mix — Ursprungs-Referenz zurück")
                 return cast(np.ndarray, ref.copy())
 
             # 1) Loudness-Ausgleich auf QUELL-LUFS (BS.1770-vereinfacht, eine
@@ -109,7 +109,7 @@ class StemRemixBalancer:
             # 2) Fail-Safe: RMS-Kollaps → Referenz (kein stilles Ergebnis).
             _rms_mix = float(np.sqrt(np.mean(np.square(mix.astype(np.float64))) + 1e-12))
             if _rms_mix < 1e-4:
-                logger.warning("StemRemixBalancer: RMS-Kollaps (%.2e) — Original-Referenz zurück", _rms_mix)
+                logger.warning("StemRemixBalancer: RMS-Kollaps (%.2e) — Ursprungs-Referenz zurück", _rms_mix)
                 return cast(np.ndarray, ref.copy())
 
             # 3) Soft-Knee-Peak-Cap statt Hard-Clamp (§III): sanftes Knie über 95 % FS.
@@ -140,8 +140,8 @@ class StemRemixBalancer:
                 )
             return cast(np.ndarray, mix)
         except Exception as _exc:
-            # §V6: kein Silent-Failure, aber auch kein Phasen-Crash.
-            logger.warning("StemRemixBalancer fehlgeschlagen (%s) — Original-Referenz zurück", _exc)
+            # §V6 (copilot-instructions.md): kein Silent-Failure, aber auch kein Phasen-Crash.
+            logger.warning("StemRemixBalancer fehlgeschlagen (%s) — Ursprungs-Referenz zurück", _exc)
             try:
                 return cast(np.ndarray, (np.asarray(original_reference, dtype=np.float32).copy()))
             except Exception:

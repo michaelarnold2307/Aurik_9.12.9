@@ -116,8 +116,8 @@ class PerceptualClosedLoop:
             try:
                 golden_mos = self.estimate_mos(golden_sample, sr)
                 golden_distance = abs(mos_post - golden_mos)
-            except Exception:
-                pass
+            except Exception as _gold_exc:
+                log.debug("Golden-MOS-Schätzung nicht verfügbar: %s", _gold_exc)
 
         passed = mos_delta >= -MOS_DEGRADATION_TOLERANCE and mos_post >= MOS_MIN_ABSOLUTE
 
@@ -226,7 +226,7 @@ def run_closed_loop(
     if golden_sample is not None:
         try:
             report.golden_distance_final = abs(report.final_mos - loop.estimate_mos(golden_sample, sr))
-        except Exception:
-            pass
+        except Exception as _gold_exc:
+            log.debug("Golden-Abstand nicht verfügbar: %s", _gold_exc)
 
     return current, report

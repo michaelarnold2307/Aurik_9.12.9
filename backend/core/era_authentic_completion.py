@@ -307,16 +307,16 @@ def _validate_completion(original: np.ndarray, completed: np.ndarray, sr: int) -
         rms_comp = float(np.sqrt(np.mean(completed.astype(np.float64) ** 2)) + 1e-12)
 
         if rms_comp > rms_orig * 2.0:
-            logger.debug("Completion validation: RMS increase too high (%.1fx)", rms_comp / rms_orig)
+            logger.debug("Abschluss-Prüfung: RMS-Anstieg zu hoch (%.1fx)", rms_comp / rms_orig)
             return False
 
         if rms_comp < rms_orig * 0.5:
-            logger.debug("Completion validation: RMS dropped too much (%.1fx)", rms_comp / rms_orig)
+            logger.debug("Abschluss-Prüfung: RMS-Abfall zu stark (%.1fx)", rms_comp / rms_orig)
             return False
 
         # NaN/Inf check
         if not np.all(np.isfinite(completed)):
-            logger.debug("Completion validation: NaN/Inf detected")
+            logger.debug("Abschluss-Prüfung: NaN/Inf erkannt")
             return False
 
         return True

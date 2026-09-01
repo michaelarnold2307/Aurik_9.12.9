@@ -27,7 +27,7 @@ Referenz-Definition (aurik_snr_v1):
        Breitbandrauschen verteilt sich → P10)
     4. SNR_dB = 10·log10(P90 / P10)
   - Guards: Stille/konstantes Signal → 120 dB
-  - Deterministisch (§G5), layout-invariant, monoton im injizierten
+  - Deterministisch (§G5 (GEBOTE.md)), layout-invariant, monoton im injizierten
     Rauschpegel (Test-gesichert).
 """
 

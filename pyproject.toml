@@ -355,6 +355,17 @@ module = [
 ]
 ignore_errors = true
 
+# Modelle (models/) und Benchmark-Tooling (scripts/*_benchmark.py) sind keine
+# Release-Layer — mypy-Override analog zur Vendor-Policy.
+[[tool.mypy.overrides]]
+module = [
+    "models",
+    "models.*",
+    "scripts.pitch_tracker_benchmark",
+    "scripts.dsp_benchmark",
+]
+ignore_errors = true
+
 # Vendored Drittanbieter-Code (plugins/_vendor_*) — unverändert kopiert (MIT),
 # wird gemäß AGENTS.md-Policy nicht angepasst (Linter-SKIP_DIRS analog).
 [[tool.mypy.overrides]]

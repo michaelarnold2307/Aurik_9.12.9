@@ -1,7 +1,7 @@
 """Regressionstests: aurik_restore UV3-Angleich + stille-Downgrade-Fixes (Rev. 2026-08-16).
 
 Deckt ab:
-  1. aurik_restore: ML→DSP-Fallbacks warnen (§V6) und Dry-Passthrough nie still
+  1. aurik_restore: ML→DSP-Fallbacks warnen (§V6 (copilot-instructions.md)) und Dry-Passthrough nie still
   2. Hybrid-Pitch-Kaskaden: CREPE als Produktions-Tier entfernt (Spec 04, Z. 1129)
 """
 
@@ -21,7 +21,8 @@ _ROOT = Path(__file__).resolve().parents[2]
 
 def _sine(dur_s: float = 0.5, freq: float = 440.0) -> np.ndarray:
     t = np.arange(int(dur_s * SR)) / SR
-    return (0.2 * np.sin(2 * np.pi * freq * t)).astype(np.float32)
+    _tone: np.ndarray = (0.2 * np.sin(2 * np.pi * freq * t)).astype(np.float32)
+    return _tone
 
 
 def _raising(*_a, **_k):
@@ -53,7 +54,7 @@ class TestAurikRestoreUv3Alignment:
         assert sr == SR
         assert out.shape == audio.shape
         assert np.allclose(out, audio, atol=1e-6), "Dry-Passthrough muss das Eingangssignal unverändert lassen"
-        assert "Dry-Passthrough (§V6)" in caplog.text, f"§V6-Warnung fehlt: {caplog.text}"
+        assert "Dry-Passthrough (§V6 (copilot-instructions.md))" in caplog.text, f"§V6-Warnung fehlt: {caplog.text}"
 
     def test_reparatur_warns_and_passes_dry_on_none(self, monkeypatch, caplog):
         class _FakeDiffwave:
@@ -72,7 +73,7 @@ class TestAurikRestoreUv3Alignment:
             out, sr = ar.reparatur(audio, SR)
         assert sr == SR
         assert np.allclose(out, audio, atol=1e-6)
-        assert "DiffWave lieferte kein Ergebnis — Dry-Passthrough (§V6)" in caplog.text
+        assert "DiffWave lieferte kein Ergebnis — Dry-Passthrough (§V6 (copilot-instructions.md))" in caplog.text
 
     def test_rekonstruktion_warns_and_passes_dry_on_none(self, monkeypatch, caplog):
         class _FakeMdx:
@@ -91,7 +92,7 @@ class TestAurikRestoreUv3Alignment:
             out, sr = ar.rekonstruktion(audio, SR)
         assert sr == SR
         assert np.allclose(out, audio, atol=1e-6)
-        assert "keinen Vocal-Stem — Dry-Passthrough (§V6)" in caplog.text
+        assert "keinen Vocal-Stem — Dry-Passthrough (§V6 (copilot-instructions.md))" in caplog.text
 
     def test_quality_gates_fail_closed_without_utmos(self, monkeypatch, caplog):
         monkeypatch.setitem(sys.modules, "plugins.utmos_plugin", _ImportErrorModule())
@@ -100,7 +101,7 @@ class TestAurikRestoreUv3Alignment:
         audio = _sine()
         with caplog.at_level(logging.WARNING, logger="backend.aurik_restore"):
             passed = ar.quality_gates(audio, SR)
-        assert passed is False, "Ohne UTMOS muss das Quality-Gate fail-closed sein (§V6)"
+        assert passed is False, "Ohne UTMOS muss das Quality-Gate fail-closed sein (§V6 (copilot-instructions.md))"
         assert "UTMOS nicht verfügbar" in caplog.text
 
     def test_no_module_level_plugin_imports(self):
@@ -132,5 +133,7 @@ class TestHybridPitchCascadesNoCrepeTier:
         assert "CREPE plugin geladen" not in src, (
             f"{rel_path}: CREPE darf kein Produktions-Tier mehr sein (Spec 04, Z. 1129)"
         )
-        assert "pYIN-DSP-Ersatzpfad (§V6)" in src, f"{rel_path}: §V6-Warnung für DSP-Endfall fehlt"
+        assert "pYIN-DSP-Ersatzpfad (§V6 (copilot-instructions.md))" in src, (
+            f"{rel_path}: §V6-Warnung für DSP-Endfall fehlt"
+        )
         assert "Spec 04, Z. 1129" in src, f"{rel_path}: Spec-Referenz fehlt"
