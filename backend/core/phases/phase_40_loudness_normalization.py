@@ -72,6 +72,7 @@ from backend.core.audio_utils import (
     apply_musical_gain_envelope,
     limit_quiet_edge_boost,
     restore_layout,
+    safe_resample_poly as _safe_resample_poly40,
     to_channels_last,
 )
 from backend.core.defect_scanner import MaterialType
@@ -904,13 +905,13 @@ class LoudnessNormalizationPhase(PhaseInterface):
         True Peak Measurement (ITU-R BS.1770-4).
         4× Oversampling for inter-sample peak detection.
         """
-        # Oversample 4×
+        # Oversample 4× mit Längen-Differenz-Guard (§H05)
         if audio.ndim == 2:
-            left_up = signal.resample_poly(audio[:, 0], 4, 1)
-            right_up = signal.resample_poly(audio[:, 1], 4, 1)
+            left_up = _safe_resample_poly40(audio[:, 0], 4, 1)
+            right_up = _safe_resample_poly40(audio[:, 1], 4, 1)
             peak = max(np.abs(left_up).max(), np.abs(right_up).max())
         else:
-            audio_up = signal.resample_poly(audio, 4, 1)
+            audio_up = _safe_resample_poly40(audio, 4, 1)
             peak = np.abs(audio_up).max()
 
         peak_db = 20 * np.log10(peak + 1e-10)

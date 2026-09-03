@@ -1117,6 +1117,68 @@ def apply_edge_taper(
     return cast(np.ndarray, (np.asarray(result, dtype=np.float32)))
 
 
+# ── §v10.305 Safe Resampling mit Längen-Differenz-Guard ────────────────
+
+
+def safe_resample_poly(
+    audio: np.ndarray,
+    up: int,
+    down: int,
+    *,
+    axis: int = -1,
+) -> np.ndarray:
+    """Resampelt mit polyphase-Filter und Längen-Differenz-Guard (§H05).
+
+    Verhindert Zeitkompression bei Längen-Mismatch (>0.1% Differenz → trim/pad statt resample).
+
+    Args:
+        audio: Input-Audio (1D oder 2D)
+        up: Upsampling-Faktor
+        down: Downsampling-Faktor
+        axis: Achse für Resampling (default=-1 = Zeitachse)
+
+    Returns:
+        Resampeltes Audio mit korrekter Länge
+    """
+    # Erwartete Länge berechnen
+    n_samples = audio.shape[axis]
+    expected_len = int(n_samples * up / down)
+
+    try:
+        from scipy.signal import resample_poly as _resample_poly
+
+        result = _resample_poly(audio, up, down, axis=axis)
+    except (ValueError, TypeError):
+        logger.warning("safe_resample_poly: Resampling fehlgeschlagen → Kopie zurück")
+        return audio.copy()
+
+    # Längen-Differenz-Guard (§H05)
+    actual_len = result.shape[axis]
+    diff_ratio = abs(actual_len - expected_len) / max(expected_len, 1)
+
+    if diff_ratio > 0.001:  # >0.1% Differenz
+        logger.warning(
+            "safe_resample_poly: Längen-Mismatch (%d vs %d, %.2f%%) → trim/pad statt resample",
+            actual_len,
+            expected_len,
+            diff_ratio * 100,
+        )
+        # Trim oder pad auf erwartete Länge
+        if result.shape[axis] > expected_len:
+            # Trimmen
+            slices = [slice(None)] * result.ndim
+            slices[axis] = slice(0, expected_len)
+            return np.asarray(result[tuple(slices)])
+        else:
+            # Pad mit Nullen
+            pad_width = [(0, 0)] * result.ndim
+            pad_width[axis] = (0, expected_len - actual_len)
+            padded = np.pad(result, pad_width, mode="constant", constant_values=0.0)
+            return np.asarray(padded)
+
+    return np.asarray(result)
+
+
 # ── §v10.304 Safe Array Construction ────────────────────────────────────
 
 

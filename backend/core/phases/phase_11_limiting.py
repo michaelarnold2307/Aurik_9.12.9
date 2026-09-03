@@ -57,7 +57,7 @@ import time
 import numpy as np
 from scipy import signal
 
-from backend.core.audio_utils import to_channels_last
+from backend.core.audio_utils import to_channels_last, safe_resample_poly as _safe_resample_poly11
 from backend.core.defect_scanner import MaterialType
 from backend.core.phase_strength_contract import resolve_phase_strength_contract
 
@@ -338,16 +338,16 @@ class LimitingPhase(PhaseInterface):
         Returns:
             True Peak in dBFS
         """
-        # Oversampling mit sinc-Interpolation
+        # Oversampling mit sinc-Interpolation + Längen-Differenz-Guard (§H05)
         if oversample_factor > 1:
             if audio.ndim == 2:
                 # Stereo: Maximum über beide Kanäle
-                left_upsampled = signal.resample_poly(audio[:, 0], oversample_factor, 1)
-                right_upsampled = signal.resample_poly(audio[:, 1], oversample_factor, 1)
+                left_upsampled = _safe_resample_poly11(audio[:, 0], oversample_factor, 1)
+                right_upsampled = _safe_resample_poly11(audio[:, 1], oversample_factor, 1)
                 upsampled = np.maximum(np.abs(left_upsampled), np.abs(right_upsampled))
             else:
                 # Mono
-                upsampled = signal.resample_poly(audio, oversample_factor, 1)
+                upsampled = _safe_resample_poly11(audio, oversample_factor, 1)
                 upsampled = np.abs(upsampled)
         else:
             # Kein Oversampling

@@ -67,7 +67,11 @@ from math import gcd
 import numpy as np
 from scipy import signal
 
-from backend.core.audio_utils import apply_musical_gain_envelope, limit_quiet_edge_boost
+from backend.core.audio_utils import (
+    apply_musical_gain_envelope,
+    limit_quiet_edge_boost,
+    safe_resample_poly as _safe_resample_poly41,
+)
 from backend.core.defect_scanner import MaterialType
 
 try:
@@ -386,7 +390,7 @@ class OutputFormatOptimization(PhaseInterface):
         # axis=-1 = time axis for channels-first (2,N) and samples-first (N,) alike.
         # axis=0 was resampling the 2-element channel dimension, producing polyphase
         # garbage that silenced the second half of the audio. §ph41-axis fix.
-        return signal.resample_poly(audio, up, down, axis=-1)  # type: ignore[no-any-return]
+        return _safe_resample_poly41(audio, up, down, axis=-1)  # type: ignore[no-any-return]
 
     def _normalize_loudness(
         self, audio: np.ndarray, sample_rate: int, lufs_target: float
@@ -474,10 +478,10 @@ class OutputFormatOptimization(PhaseInterface):
         """
         audio_arr = np.nan_to_num(np.asarray(audio, dtype=np.float32), nan=0.0, posinf=0.0, neginf=0.0)
         if audio_arr.ndim == 1:
-            audio_up = signal.resample_poly(audio_arr, 4, 1)
+            audio_up = _safe_resample_poly41(audio_arr, 4, 1)
             return float(np.percentile(np.abs(audio_up), 99.9))
 
-        audio_up = signal.resample_poly(audio_arr, 4, 1, axis=0)
+        audio_up = _safe_resample_poly41(audio_arr, 4, 1, axis=0)
         return float(np.percentile(np.abs(audio_up), 99.9))
 
     def _apply_pow_r_type3_dither(self, audio: np.ndarray, bit_depth: int = 16) -> np.ndarray:
