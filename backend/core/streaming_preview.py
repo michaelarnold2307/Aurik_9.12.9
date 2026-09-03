@@ -118,11 +118,12 @@ class StreamingPreview:
             result = apply_comfort_guard(r3.audio, self.sr)
             return cast(np.ndarray, result.astype(np.float32))
         except Exception:
-            # Fallback: leichter Lowpass
-            from scipy.signal import butter, filtfilt
+            # Fallback: leichter Lowpass mit Längen-Guard (§v10.103)
+            from scipy.signal import butter
+            from backend.core.audio_utils import safe_filtfilt
 
             b, a_coeff = butter(4, 16000 / (self.sr / 2), btype="low")
-            return cast(np.ndarray, (filtfilt(b, a_coeff, chunk.astype(np.float64)).astype(np.float32)))
+            return cast(np.ndarray, (safe_filtfilt(b, a_coeff, chunk.astype(np.float64)).astype(np.float32)))
 
 
 def create_streaming_preview(sample_rate: int = 48000) -> StreamingPreview:

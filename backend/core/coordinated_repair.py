@@ -205,6 +205,7 @@ def _spectral_damage_db(pre: np.ndarray, post: np.ndarray, sr: int) -> float:
             _deltas.append(abs(10.0 * np.log10(_e_post / _e_pre)))
         return float(np.median(_deltas))
     except Exception:
+        log.warning("§V6 ML→DSP-Fallback: _spectral_median_db fehlgeschlagen → neutraler Return (0.0)")
         return 0.0
 
 

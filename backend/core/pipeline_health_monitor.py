@@ -74,7 +74,7 @@ class PipelineHealthMonitor:
                     _CIRCUIT_BREAKER_FAILURES,
                 )
                 return False
-            if time.time() - self._health.pipeline_start_time > _MAX_PIPELINE_DURATION_S:
+            if time.monotonic() - self._health.pipeline_start_time > _MAX_PIPELINE_DURATION_S:
                 self._health.circuit_breaker_triggered = True
                 logger.error("CIRCUIT BREAKER: pipeline time exceeded %.0fh limit", _MAX_PIPELINE_DURATION_S / 3600)
                 return False
@@ -90,7 +90,7 @@ class PipelineHealthMonitor:
                 "phases_skipped": self._health.phases_skipped,
                 "pss_rejected": self._health.phases_pss_rejected,
                 "circuit_breaker": self._health.circuit_breaker_triggered,
-                "pipeline_duration_s": round(time.time() - self._health.pipeline_start_time, 1),
+                "pipeline_duration_s": round(time.monotonic() - self._health.pipeline_start_time, 1),
                 "errors": self._health.error_log[-10:],
             }
 

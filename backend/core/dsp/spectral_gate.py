@@ -81,7 +81,8 @@ def apply_spectral_gating(
     )
 
     # STFT (scipy.signal — keine librosa-Internals)
-    _, freqs, Z = stft(y, window=window, nperseg=n_fft, noverlap=n_fft - hop_length)
+    _noverlap = min(n_fft - hop_length, max(0, n_fft - 1))  # §v10.103 noverlap-Clamp
+    _, freqs, Z = stft(y, window=window, nperseg=n_fft, noverlap=_noverlap)
 
     if Z.size == 0:
         raise RuntimeError("STFT-Ergebnis ist leer")
@@ -105,7 +106,7 @@ def apply_spectral_gating(
     Z_gated = mag * gain * np.exp(1j * np.angle(Z))
 
     # ISTFT zurückkonvertieren
-    y_out = istft((freqs, Z_gated), window=window, noverlap=n_fft - hop_length)[1]
+    y_out = istft((freqs, Z_gated), window=window, noverlap=_noverlap)[1]
 
     # NaN/Inf-Schutz (§0a) — Defense-in-Depth
     y_out = np.nan_to_num(y_out, nan=0.0, posinf=1.0, neginf=-1.0)

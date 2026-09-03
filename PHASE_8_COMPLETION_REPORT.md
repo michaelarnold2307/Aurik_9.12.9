@@ -111,7 +111,7 @@ AURIK_LOG_LEVEL=DEBUG python -m aurik10 import --file song.wav --mode restoratio
 ## 📝 Files Changed
 
 | File | Change | Lines | Status |
-|------|--------|-------|--------|
+| ------ | -------- | ------- | -------- |
 | `backend/core/sota_warning_prevention.py` | NEW — §v10.801 module | 180+ | ✅ NEW |
 | `backend/core/unified_restorer_v3.py` | Initialize §v10.801 | +4 | ✅ MODIFIED |
 | `backend/core/pre_analysis.py` | Documentation update | +1 | ✅ MODIFIED |

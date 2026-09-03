@@ -82,6 +82,7 @@ from scipy import signal
 from backend.core.audio_utils import (
     audio_sample_count,
     restore_layout,
+    safe_filtfilt,
     safe_to_mono,
     stereo_channel_view,
     stereo_like,
@@ -895,7 +896,7 @@ class WowFlutterFix(PhaseInterface):
 
                         def _stabilize_envelope(sig: np.ndarray) -> np.ndarray:
                             env = np.abs(sig.astype(np.float64))
-                            env_smooth = filtfilt(b_mod, a_mod, env)
+                            env_smooth = safe_filtfilt(b_mod, a_mod, env)  # §v10.103 Längen-Guard
                             env_out = _mod_strength * env_smooth + (1.0 - _mod_strength) * env
                             gain = np.divide(env_out, env, out=np.ones_like(env), where=env > 1e-10)
                             # §v10.14.1 Transient-Gate: Onsets > 3σ → gain=1.0 (preserve)

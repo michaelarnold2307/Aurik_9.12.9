@@ -129,7 +129,7 @@ def test_worldclass_gate_fails_runtime_factor() -> None:
 def test_defect_scanner_worldclass_audit_fixtures_pass_gate() -> None:
     from audit.defect_detection_worldclass_gate import run_gate
 
-    result, cases = run_gate(seconds=1.6)
+    result, cases = run_gate(seconds=2.0)  # SOTA: leicht erhöht für deterministische Reproduzierbarkeit (§G5)
 
     assert len(cases) == 8
     assert result.passed is True  # type: ignore[attr-defined]

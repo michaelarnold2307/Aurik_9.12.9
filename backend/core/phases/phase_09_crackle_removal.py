@@ -1464,11 +1464,11 @@ class CrackleRemovalPhase(PhaseInterface):
         Returns:
             List of detected transient onsets (sample indices)
         """
-        from scipy.signal import butter, sosfilt
+        from scipy.signal import butter as _butter09, sosfiltfilt as _sosfiltfilt09
 
         # High-pass filter (Second-Order Sections — numerically more stable than b,a)
-        sos_hp = butter(4, highpass_freq, btype="high", fs=self.sample_rate, output="sos")
-        filtered = sosfilt(sos_hp, audio)
+        sos_hp = _butter09(4, highpass_freq, btype="high", fs=self.sample_rate, output="sos")
+        filtered = _sosfiltfilt09(sos_hp, audio)
 
         # AR(30) prediction (autocorrelation method, Burg-like)
         # Spec §VERBOTEN: LPC < 16; correct: 30–40 @ 48 kHz (was: 4, then 16)
@@ -2046,8 +2046,9 @@ class CrackleRemovalPhase(PhaseInterface):
         sos = signal.butter(4, 2000, btype="high", fs=self.sample_rate, output="sos")
 
         try:
-            hf_before = signal.sosfilt(sos, before)
-            hf_after = signal.sosfilt(sos, after)
+            from backend.core.audio_utils import safe_sosfiltfilt as _safe_sosfiltfilt09
+            hf_before = _safe_sosfiltfilt09(sos, before)
+            hf_after = _safe_sosfiltfilt09(sos, after)
         except Exception as e:
             logger.warning("Verarbeitungsschritt_09_crackle_removal.py::_measure_crackle_reduction Ersatzpfad: %s", e)
             return 0.0

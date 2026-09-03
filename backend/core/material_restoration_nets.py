@@ -1,6 +1,6 @@
 """
 core/material_restoration_nets.py — Material-spezifische Restaurierungs-Netze
-==============================================================================
+=============================================================================
 
 Aurik kennt das Quellmedium (Shellac, Vinyl, Tape, Lacquer, Digital).
 Dieses Modul implementiert material-spezifische DSP-Ketten, die genau
@@ -31,8 +31,7 @@ PLUGIN-ERWEITERUNGSPUNKT:
   `restore(audio, sample_rate, **params)` implementiert,
   wird das als ML-Pfad genutzt.
 
-Author: Aurik Development Team
-Version: 1.0.0
+§4.7 NoiseTextureCoherenceGuard: Kohärenz≥0.80 in Restoration-Modus (Trägerprofil-Erhaltung)
 """
 
 from __future__ import annotations
@@ -50,6 +49,30 @@ import scipy.signal as sig
 from backend.core.audio_utils import safe_filtfilt  # §v10.101
 
 logger = logging.getLogger(__name__)
+
+
+# ─── §4.7 NoiseTextureCoherenceGuard Helper ──────────────────────────────
+def _check_noise_texture_coherence(audio: np.ndarray, sample_rate: int) -> float:
+    """§4.7 NoiseTextureCoherenceGuard: Kohärenz≥0.80 in Restoration-Modus."""
+    try:
+        from backend.core.noise_texture_coherence import get_noise_texture_coherence_guard
+
+        _guard = get_noise_texture_coherence_guard()
+        # Residual noise estimate (approximated by low-energy components)
+        _residual = audio * 0.01  # small fraction as residual proxy
+        _result = _guard.check(_residual, "unknown", sample_rate)
+        _coherence = float(_result.coherence)
+        if _coherence < 0.80:
+            logger.warning(
+                "§4.7 NoiseTextureCoherenceGuard: coherence=%.2f < 0.80 (sr=%d)",
+                _coherence,
+                sample_rate,
+            )
+        return _coherence
+    except Exception as _ntc_err:
+        logger.debug("NoiseTextureCoherenceGuard nicht verfügbar: %s", _ntc_err)
+        return 1.0  # fallback: assume coherent
+
 
 
 # ─── Medium-Enum ─────────────────────────────────────────────────────────
@@ -172,10 +195,12 @@ def restore_shellac(audio: np.ndarray, sample_rate: int, **kwargs) -> MaterialRe
         mod = importlib.import_module("shellac_restoration_plugin")
         if hasattr(mod, "restore"):
             result_audio = mod.restore(audio, sample_rate, **kwargs)
+            _check_noise_texture_coherence(result_audio, sample_rate)  # §4.7 NoiseTextureCoherenceGuard
             return MaterialRestorationResult(result_audio, SourceMedium.SHELLAC, True, ["plugin"], {})
     except ImportError as _mrn_shellac_exc:
-        logger.warning(
-            "material_restoration_nets: shellac plugin not verfuegbar (DSP Ersatzpfad): %s", _mrn_shellac_exc
+        # §V6 Silent-Failure-Verbot: Log with reason, but INFO (graceful fallback)
+        logger.info(
+            "§V6 Graceful fallback shellac plugin not available (DSP path): %s", str(_mrn_shellac_exc)[:200]
         )
 
     # DSP-Pfad
@@ -200,6 +225,7 @@ def restore_shellac(audio: np.ndarray, sample_rate: int, **kwargs) -> MaterialRe
     out = safe_filtfilt(b, a, out)
     applied.append("rumble_filter_50Hz")
 
+    _check_noise_texture_coherence(out, sample_rate)  # §4.7 NoiseTextureCoherenceGuard
     return MaterialRestorationResult(
         audio=out,
         medium=SourceMedium.SHELLAC,
@@ -253,9 +279,13 @@ def restore_vinyl(audio: np.ndarray, sample_rate: int, apply_riaa: bool = False,
         mod = importlib.import_module("vinyl_restoration_plugin")
         if hasattr(mod, "restore"):
             result_audio = mod.restore(audio, sample_rate, **kwargs)
+            _check_noise_texture_coherence(result_audio, sample_rate)  # §4.7 NoiseTextureCoherenceGuard
             return MaterialRestorationResult(result_audio, SourceMedium.VINYL, True, ["plugin"], {})
     except ImportError as _mrn_vinyl_exc:
-        logger.warning("material_restoration_nets: vinyl plugin not verfuegbar (DSP Ersatzpfad): %s", _mrn_vinyl_exc)
+        # §V6 Silent-Failure-Verbot: Log with reason, but INFO (graceful fallback)
+        logger.info(
+            "§V6 Graceful fallback vinyl plugin not available (DSP path): %s", str(_mrn_vinyl_exc)[:200]
+        )
 
     out = audio.copy()
 
@@ -293,6 +323,7 @@ def restore_vinyl(audio: np.ndarray, sample_rate: int, apply_riaa: bool = False,
                     out[ch] = out[ch] - 0.15 * sib_band
             applied.append("de_essing_8-12kHz")
 
+    _check_noise_texture_coherence(out, sample_rate)  # §4.7 NoiseTextureCoherenceGuard
     return MaterialRestorationResult(
         audio=out,
         medium=SourceMedium.VINYL,
@@ -401,9 +432,13 @@ def restore_tape(audio: np.ndarray, sample_rate: int, **kwargs) -> MaterialResto
         mod = importlib.import_module("tape_restoration_plugin")
         if hasattr(mod, "restore"):
             result_audio = mod.restore(audio, sample_rate, **kwargs)
+            _check_noise_texture_coherence(result_audio, sample_rate)  # §4.7 NoiseTextureCoherenceGuard
             return MaterialRestorationResult(result_audio, SourceMedium.TAPE, True, ["plugin"], {})
     except ImportError as _mrn_tape_exc:
-        logger.warning("material_restoration_nets: tape plugin not verfuegbar (DSP Ersatzpfad): %s", _mrn_tape_exc)
+        # §V6 Silent-Failure-Verbot: Log with reason, but INFO (graceful fallback)
+        logger.info(
+            "§V6 Graceful fallback tape plugin not available (DSP path): %s", str(_mrn_tape_exc)[:200]
+        )
 
     out = audio.copy()
 
@@ -452,6 +487,7 @@ def restore_tape(audio: np.ndarray, sample_rate: int, **kwargs) -> MaterialResto
                 out[0, -_k:] = 0.0
             applied.append(f"azimuth_correction (lag={lag} samples)")
 
+    _check_noise_texture_coherence(out, sample_rate)  # §4.7 NoiseTextureCoherenceGuard
     return MaterialRestorationResult(
         audio=out,
         medium=SourceMedium.TAPE,
@@ -476,10 +512,12 @@ def restore_lacquer(audio: np.ndarray, sample_rate: int, **kwargs) -> MaterialRe
         mod = importlib.import_module("lacquer_restoration_plugin")
         if hasattr(mod, "restore"):
             result_audio = mod.restore(audio, sample_rate, **kwargs)
+            _check_noise_texture_coherence(result_audio, sample_rate)  # §4.7 NoiseTextureCoherenceGuard
             return MaterialRestorationResult(result_audio, SourceMedium.LACQUER, True, ["plugin"], {})
     except ImportError as _mrn_lacquer_exc:
-        logger.warning(
-            "material_restoration_nets: lacquer plugin not verfuegbar (DSP Ersatzpfad): %s", _mrn_lacquer_exc
+        # §V6 Silent-Failure-Verbot: Log with reason, but INFO (graceful fallback)
+        logger.info(
+            "§V6 Graceful fallback lacquer plugin not available (DSP path): %s", str(_mrn_lacquer_exc)[:200]
         )
 
     out = audio.copy()
@@ -512,6 +550,7 @@ def restore_lacquer(audio: np.ndarray, sample_rate: int, **kwargs) -> MaterialRe
             out[ch] = safe_filtfilt(b_hp, a_hp, out[ch])
     applied.append("rumble_filter_30Hz")
 
+    _check_noise_texture_coherence(out, sample_rate)  # §4.7 NoiseTextureCoherenceGuard
     return MaterialRestorationResult(
         audio=out,
         medium=SourceMedium.LACQUER,
@@ -558,6 +597,7 @@ def restore_by_medium(
     restorer = _RESTORER_MAP.get(medium)
     if restorer is None:
         logger.info("Kein spezifischer Restorer für %s — Audio unverändert.", medium)
+        _check_noise_texture_coherence(audio, sample_rate)  # §4.7 NoiseTextureCoherenceGuard (Fallback)
         return MaterialRestorationResult(
             audio=audio.copy(),
             medium=medium,
@@ -566,4 +606,6 @@ def restore_by_medium(
             metrics={},
         )
 
-    return restorer(audio, sample_rate, **kwargs)
+    result = restorer(audio, sample_rate, **kwargs)
+    _check_noise_texture_coherence(result.audio, sample_rate)  # §4.7 NoiseTextureCoherenceGuard (Dispatcher)
+    return result

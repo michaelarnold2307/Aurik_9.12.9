@@ -5372,7 +5372,6 @@ class UnifiedRestorerV3:
 
     @staticmethod
     def _fast_goal_snapshot(
-        self,
         audio: np.ndarray, sr: int, material_type: str = "unknown", reference: np.ndarray | None = None
     ) -> dict[str, float]:
         """§2.64 DSP-Proxy for per-phase goal measurement (≤200ms, no ML).
@@ -5711,10 +5710,12 @@ class UnifiedRestorerV3:
                         _sep_exc,
                     )
                     # Fallback to MS-ratio heuristic if HTDemucs unavailable
-                    _sep_fidelity_score = self._compute_ms_ratio_separation_proxy(audio, material_type)
+                    _sep_fidelity_score = UnifiedRestorerV3._compute_ms_ratio_separation_proxy(
+                        audio, material_type
+                    )
             else:
                 # Proxy mode: use DSP-based MS-ratio heuristic (fast, no ML)
-                _sep_fidelity_score = self._compute_ms_ratio_separation_proxy(audio, material_type)
+                _sep_fidelity_score = UnifiedRestorerV3._compute_ms_ratio_separation_proxy(audio, material_type)
 
             result["separation_fidelity"] = float(_np.clip(_sep_fidelity_score, 0.0, 1.0))
 
@@ -37938,7 +37939,7 @@ class UnifiedRestorerV3:
                         "phase_start_parallel", phase_id, estimated_time_s=round(float(estimated_time), 3)
                     )
                     phase_start = (
-                        self.performance_guard.start_phase(phase_id) if self.performance_guard else time.time()
+                        self.performance_guard.start_phase(phase_id) if self.performance_guard else time.monotonic()
                     )
                     # §PROGRESS: Set heartbeat scope for parallel phases so sub-bar fills
                     # proportionally during long ML phases (same as sequential phases).
@@ -38280,7 +38281,7 @@ class UnifiedRestorerV3:
                     _PIPELINE_BUDGET_PER_SEC,
                     _PIPELINE_BUDGET_OVERHEAD_S,
                 )
-            _pipeline_start_time = time.time()
+            _pipeline_start_time = time.monotonic()
             # §Wall-Time-Budget non-exempt tracker: nur nicht-exempt-Phasen zählen zum Budget.
             # Exempt-Phasen (§6.2a: click, crackle, wow/flutter, phase_corr, dc_offset) sind
             # Pflicht und können auf CPU lange laufen (pYIN, ML-Pitch) — sie dürfen das Budget
@@ -38579,7 +38580,7 @@ class UnifiedRestorerV3:
                         phase_id,
                     )
 
-                phase_start = self.performance_guard.start_phase(phase_id) if self.performance_guard else time.time()
+                phase_start = self.performance_guard.start_phase(phase_id) if self.performance_guard else time.monotonic()
                 # §Wall-Time-Budget: _wall_phase_start nutzt time.monotonic() — kompatibel
                 # mit time.perf_counter() UND time.time()-Fallback. start_phase() gibt
                 # perf_counter() zurück (Systemuptime), time.time() ist Unix-Epoch —

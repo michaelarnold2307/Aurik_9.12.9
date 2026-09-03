@@ -83,7 +83,7 @@ def _apply_groove_echo_mono(
     peaks = deduped[:30]
 
     if not peaks:
-        return np.clip(x, -1.0, 1.0).astype(np.float32)  # type: ignore[no-any-return]
+        return _soft_knee_clip(x).astype(np.float32)  # type: ignore[no-any-return]
 
     for delay_s in _REVOLUTION_DELAYS_S:
         delay_samples = int(delay_s * sr)
@@ -151,7 +151,7 @@ def _apply_groove_echo_mono(
             out[ghost_start : ghost_start + n_fft] = cleaned
 
     result = np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
-    return np.clip(result, -1.0, 1.0).astype(np.float32)  # type: ignore[no-any-return]
+    return _soft_knee_clip(result).astype(np.float32)  # type: ignore[no-any-return]
 
 
 def apply(
@@ -172,7 +172,7 @@ def apply(
             logger.debug(
                 "Verarbeitungsschritt 61: groove_echo Wert %.3f < %.3f — uebersprungen", ge_score, min_groove_echo_score
             )
-            return np.clip(audio, -1.0, 1.0)  # type: ignore[no-any-return]
+            return _soft_knee_clip(audio)  # type: ignore[no-any-return]
 
     stereo = audio.ndim == 2
     if stereo:
@@ -380,8 +380,7 @@ class GrooveEchoCancellationPhase(PhaseInterface):
             float(kwargs.get("restorability_score", 50.0)),
         )
         if _effective_strength <= 0.0:
-            passthrough = np.nan_to_num(audio.copy(), nan=0.0, posinf=0.0, neginf=0.0)
-            passthrough = np.clip(passthrough, -1.0, 1.0)
+            passthrough = _soft_knee_clip(np.nan_to_num(audio.copy(), nan=0.0, posinf=0.0, neginf=0.0))
             return PhaseResult(
                 audio=passthrough,
                 success=True,
@@ -552,3 +551,17 @@ class GrooveEchoCancellationPhase(PhaseInterface):
                 "strength": _pmgg_strength,
             },
         )
+
+
+# ── Soft-Knee Clip Helper (§III: 6 dB, 200 ms Hanning) ───────────────────────
+def _soft_knee_clip(x: np.ndarray, knee_db: float = 6.0) -> np.ndarray:
+    """Sigmoid-Soft-Knee statt Hard-Clamp (§III)."""
+    peak = float(np.max(np.abs(x)) + 1e-12)
+    if peak <= 1.0:
+        return x
+    overshoot_db = 20.0 * np.log10(peak / 1.0)
+    gain = 1.0 / (1.0 + np.exp(-overshoot_db / knee_db))
+    return x * gain
+
+
+# ── End of file ───────────────────────────────────────────────────────────────

@@ -137,6 +137,7 @@ class PleasantnessFirstGate:
             hpe = compute_pleasantness(audio, sr)
             return hpe.score
         except Exception:
+            logger.warning("§V6 ML→DSP-Fallback: Pleasantness-Estimation fehlgeschlagen → neutraler Return (0.5)")
             return 0.5
 
     def check_phase_start(self, phase_name: str, candidate_audio: np.ndarray) -> tuple[bool, str]:

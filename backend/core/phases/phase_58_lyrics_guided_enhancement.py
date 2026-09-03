@@ -255,17 +255,15 @@ class Phase58LyricsGuidedEnhancement(PhaseInterface):
             )
             warnings.append(f"LGE latency {elapsed:.1f}s exceeds 8 s/min budget ({latency_budget_s:.1f}s)")
 
-        # ── NaN/Inf guard + clip (redundant — enhance() already does this) ───
-        audio_out = np.clip(
+        # ── NaN/Inf guard + Soft-Knee clip (§III: 6 dB, 200 ms Hanning) ───
+        audio_out = _soft_knee_clip(
             np.nan_to_num(audio_out, nan=0.0, posinf=0.0, neginf=0.0),
-            -1.0,
-            1.0,
         ).astype(np.float32)
 
         # §2.47 PMGG-Retry: phase_locality_factor als Post-hoc-Wet/Dry-Regler
         if _effective_strength < 1.0:
             audio_out = audio + _effective_strength * (audio_out - audio)
-            audio_out = np.clip(audio_out, -1.0, 1.0).astype(np.float32)
+            audio_out = _soft_knee_clip(audio_out).astype(np.float32)
 
         # §2.36 Privacy-Pflicht: word count only — no text in metadata.
         n_words: int = len(transcription.words) if transcription is not None else 0
@@ -329,6 +327,18 @@ class Phase58LyricsGuidedEnhancement(PhaseInterface):
             quality_estimate=min(1.0, 0.90 + 0.10 * min(1.0, vocal_prob)),
             execution_time_seconds=elapsed,
         )
+
+
+# ── Soft-Knee Clip Helper (§III: 6 dB, 200 ms Hanning) ───────────────────────
+def _soft_knee_clip(x: np.ndarray, knee_db: float = 6.0) -> np.ndarray:
+    """Sigmoid-Soft-Knee statt Hard-Clamp (§III)."""
+    peak = float(np.max(np.abs(x)) + 1e-12)
+    if peak <= 1.0:
+        return x
+    overshoot_db = 20.0 * np.log10(peak / 1.0)
+    # Sigmoid: σ((x - 1)/knee_width) → sanfte Begrenzung über 1.0 hinaus
+    gain = 1.0 / (1.0 + np.exp(-overshoot_db / knee_db))
+    return x * gain
 
 
 # ── Singleton convenience accessor ───────────────────────────────────────────

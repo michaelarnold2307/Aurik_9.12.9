@@ -3476,10 +3476,12 @@ class DefectScanner:
         best_score = scores[best_material]
 
         if best_score > 0.5:
-            logger.info("erkannt mono material: %s (Wert=%.2f)", best_material.value, best_score)
+            # §2.46a: Auto-detected material tracked for provenance
+            logger.info("§2.46a Auto-detected mono %s with confidence %.2f", best_material.value, best_score)
             return best_material
         else:
-            logger.warning("Mono material unclear (best Wert=%.2f), using UNKNOWN", best_score)
+            # INFO (not WARNING): auto-detection failed gracefully, fallback chain activated per §3.0
+            logger.debug("Mono material detection inconclusive (best=%.2f), falling back to transfer-chain analysis", best_score)
             return MaterialType.UNKNOWN
 
     def _detect_stereo_material(self, audio: np.ndarray, era_decade: int | None = None) -> MaterialType:
@@ -3707,7 +3709,10 @@ class DefectScanner:
 
         best_material = max(scores.items(), key=lambda x: x[1])
         logger.debug("Material scores: %s", scores)
-        logger.info("erkannt material: %s (Wert: %.2f)", best_material[0].value, best_material[1])
+        # §v10.350 SOTA: Only log material detection in debug mode or during development
+        # This prevents console spam on every import while still enabling troubleshooting
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.info("§2.46f Auto-detected %s with confidence %.2f", best_material[0].value, best_material[1])
 
         return best_material[0]
 
@@ -4383,7 +4388,7 @@ class DefectScanner:
         # die kalibrierten Schwellen wieder her (relative Features bleiben
         # skaleninvariant).
         audio = np.asarray(audio, dtype=np.float32)
-        _peak = float(np.max(np.abs(audio))) if audio.size else 0.0
+        _peak = float(np.percentile(np.abs(audio), 99.9)) if audio.size else 0.0
         if _peak > 1.5:
             audio = audio / _peak
 

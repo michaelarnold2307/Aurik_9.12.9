@@ -237,6 +237,7 @@ def _get_vram_cuda(device_id: int = 0) -> float:
         props = torch.cuda.get_device_properties(device_id)
         return props.total_memory / (1024 * 1024)
     except Exception:
+        logger.warning("§V6 ML→DSP-Fallback: _get_vram_cuda fehlgeschlagen → neutraler Return (0.0)")
         return 0.0
 
 
@@ -256,6 +257,7 @@ def _get_vram_rocm(device_id: int = 0) -> float:
         props = torch.cuda.get_device_properties(device_id)
         return props.total_memory / (1024 * 1024)
     except Exception:
+        logger.warning("§V6 ML→DSP-Fallback: _get_vram_rocm fehlgeschlagen → neutraler Return (0.0)")
         return 0.0
 
 

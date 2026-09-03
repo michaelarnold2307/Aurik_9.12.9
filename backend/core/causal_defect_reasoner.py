@@ -1486,10 +1486,10 @@ CAUSE_TO_PHASES: dict[str, list[str]] = {
         "phase_23_spectral_repair",
     ],
     # ── Digital / Codec ──────────────────────────────────────────────────────
-    "digital_artifacts": ["phase_23_spectral_repair", "phase_50_spectral_repair", "phase_06_frequency_restoration"],
+    "digital_artifacts": ["phase_23_spectral_repair", "phase_50_spectral_repair", "phase_06_frequency_restoration"],  # §4.7c POCS vor PGHI; §2.57a HF-Guard für analoge Harmoniken
     "compression_artifacts": [
-        "phase_23_spectral_repair",  # Apollo pre-proc + IMCRA inpainting (primary codec path)
-        "phase_50_spectral_repair",  # STFT spike interpolation DSP (no Apollo — fallback/complement)
+        "phase_23_spectral_repair",  # Apollo pre-proc + IMCRA inpainting (primary codec path); §4.7c POCS n_iter=2–5
+        "phase_50_spectral_repair",  # STFT spike interpolation DSP (no Apollo — fallback/complement); §2.57a HF-Guard _hf_protected_bin_start aktiv
         "phase_26_dynamic_range_expansion",
         "phase_06_frequency_restoration",
         "phase_54_transparent_dynamics",
@@ -1599,7 +1599,7 @@ CAUSE_TO_PHASES: dict[str, list[str]] = {
     ],
     "inner_groove_distortion": [
         "phase_60_inner_groove_distortion_repair",  # Primary: adaptive THD reduction
-        "phase_23_spectral_repair",  # Spectral inpainting for severe cases
+        "phase_23_spectral_repair",  # Spectral inpainting for severe cases; §4.7c POCS n_iter=2–5 vor PGHI
         "phase_04_eq_correction",  # HF tilt compensation
     ],
     "groove_echo": [
@@ -1614,7 +1614,7 @@ CAUSE_TO_PHASES: dict[str, list[str]] = {
     ],
     "intermodulation_distortion": [
         "phase_63_intermodulation_reduction",  # Primary: Volterra-based IMD removal
-        "phase_23_spectral_repair",  # Spectral inpainting for IMD products
+        "phase_23_spectral_repair",  # Spectral inpainting for IMD products; §4.7c POCS-Konsistenz-Projektion
         "phase_04_eq_correction",  # Spectral tilt correction
     ],
     "tape_splice_artifact": [

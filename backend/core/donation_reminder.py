@@ -165,12 +165,12 @@ def should_show_reminder() -> bool:
 
         if _STAMP_FILE.exists():
             last = float(_STAMP_FILE.read_text().strip())
-            if time.time() - last < _RATE_LIMIT_SECONDS:
+            if time.monotonic() - last < _RATE_LIMIT_SECONDS:
                 return False
 
         if _GRACE_FILE.exists():
             grace_state = json.loads(_GRACE_FILE.read_text())
-            if time.time() < float(grace_state.get("grace_until", 0.0)):
+            if time.monotonic() < float(grace_state.get("grace_until", 0.0)):
                 return False
 
         return True
@@ -182,6 +182,6 @@ def mark_reminder_shown() -> None:
     """Write-only Stamp (§v10.306 CQRS): merkt sich den Zeitpunkt der Anzeige."""
     try:
         _STAMP_FILE.parent.mkdir(parents=True, exist_ok=True)
-        _STAMP_FILE.write_text(str(time.time()))
+        _STAMP_FILE.write_text(str(time.monotonic()))
     except Exception:
         logger.debug("donation_reminder: stamp write nicht blockierend Fehlschlag", exc_info=True)

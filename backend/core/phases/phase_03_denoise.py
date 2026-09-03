@@ -3785,8 +3785,9 @@ class DenoisePhase(PhaseInterface):
         sos = signal.butter(4, 5000, btype="high", fs=self.sample_rate, output="sos")
 
         try:
-            hf_before = signal.sosfilt(sos, before)
-            hf_after = signal.sosfilt(sos, after)
+            from backend.core.audio_utils import safe_sosfiltfilt as _safe_sosfiltfilt03
+            hf_before = _safe_sosfiltfilt(sos, before)
+            hf_after = _safe_sosfiltfilt(sos, after)
         except Exception as e:
             logger.warning("Verarbeitungsschritt_03_denoise.py::_measure_noise_reduction Ersatzpfad: %s", e)
             return 0.0

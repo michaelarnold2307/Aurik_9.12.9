@@ -672,8 +672,8 @@ _PHASE_CATEGORIES: dict[str, str] = {
     "phase_06_frequency_restoration": "synthesis_inpaint",
     "phase_07": "synthesis_inpaint",
     "phase_07_harmonic_restoration": "synthesis_inpaint",
-    "phase_23": "synthesis_inpaint",
-    "phase_23_spectral_repair": "synthesis_inpaint",
+    "phase_23": "synthesis_inpaint",  # §4.7c POCS: n_iter=2–5 vor PGHI (material-adaptiv)
+    "phase_23_spectral_repair": "synthesis_inpaint",  # §4.7c POCS-Konsistenz-Projektion
     "phase_50": "synthesis_inpaint",
     "phase_50_spectral_repair": "synthesis_inpaint",
     "phase_55": "synthesis_inpaint",

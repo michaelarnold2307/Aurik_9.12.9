@@ -52,8 +52,8 @@ def compute_spectrum_comparison(
     try:
         from scipy.signal import stft
 
-        f_orig, t_orig, Z_orig = stft(mono_orig, fs=sample_rate, nperseg=n_fft, noverlap=n_fft - hop_length)
-        _, _, Z_rest = stft(mono_rest, fs=sample_rate, nperseg=n_fft, noverlap=n_fft - hop_length)
+        f_orig, t_orig, Z_orig = stft(mono_orig, fs=sample_rate, nperseg=n_fft, noverlap=min(n_fft - hop_length, max(0, n_fft - 1)))  # §v10.103 noverlap-Clamp
+        _, _, Z_rest = stft(mono_rest, fs=sample_rate, nperseg=n_fft, noverlap=min(n_fft - hop_length, max(0, n_fft - 1)))  # §v10.103 noverlap-Clamp
     except ImportError:
         # Fallback: numpy FFT
         n_frames = (min_len - n_fft) // hop_length + 1

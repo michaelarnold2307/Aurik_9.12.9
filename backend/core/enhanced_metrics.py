@@ -229,7 +229,7 @@ class EnhancedMetrics:
             return max(1.0, min(mos, 5.0))  # type: ignore[no-any-return]
 
         except Exception as e:
-            warnings.warn(f"ViSQOL computation failed: {e}", UserWarning)
+            logger.warning("ViSQOL computation failed: %s", e)
             return None
 
     # ============================================================
@@ -344,31 +344,31 @@ class EnhancedMetrics:
                 breath_ret, _, _ = self.authenticity.compute_breath_retention(_orig_auth, _rest_auth, sr)
                 breath_retention = breath_ret
             except Exception as e:
-                warnings.warn(f"Breath retention computation failed: {e}", UserWarning)
+                logger.warning("Breath retention computation failed: %s", e)
 
             try:
                 trans_pres, _, _ = self.authenticity.compute_transient_preservation(_orig_auth, _rest_auth, sr)
                 transient_preservation = trans_pres
             except Exception as e:
-                warnings.warn(f"Transient preservation computation failed: {e}", UserWarning)
+                logger.warning("Transient preservation computation failed: %s", e)
 
             try:
                 plos_ret, _, _ = self.authenticity.compute_plosive_retention(_orig_auth, _rest_auth, sr)
                 plosive_retention = plos_ret
             except Exception as e:
-                warnings.warn(f"Plosive retention computation failed: {e}", UserWarning)
+                logger.warning("Plosive retention computation failed: %s", e)
 
             try:
                 sib_ret, _, _ = self.authenticity.compute_sibilance_retention(_orig_auth, _rest_auth, sr)
                 sibilance_retention = sib_ret
             except Exception as e:
-                warnings.warn(f"Sibilance retention computation failed: {e}", UserWarning)
+                logger.warning("Sibilance retention computation failed: %s", e)
 
             try:
                 room_ret, _, _ = self.authenticity.compute_room_tone_retention(_orig_auth, _rest_auth, sr)
                 room_tone_retention = room_ret
             except Exception as e:
-                warnings.warn(f"Room tone retention computation failed: {e}", UserWarning)
+                logger.warning("Room tone retention computation failed: %s", e)
 
         return QualityMetricsResult(
             snr_db=snr_restored,

@@ -80,6 +80,7 @@ def measure_phase_quality_delta(
 
         return float(np.clip(delta, -1.0, 1.0))
     except Exception:
+        logger.warning("§V6 ML→DSP-Fallback: measure_phase_quality_delta fehlgeschlagen → neutraler Return (0.0)")
         return 0.0
 
 

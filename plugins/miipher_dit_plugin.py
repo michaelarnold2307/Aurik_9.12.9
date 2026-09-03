@@ -261,6 +261,7 @@ class MiipherDiTPlugin:
             _diff = np.mean(np.abs(_spec_after_norm - _spec_before_norm))
             return float(np.clip(_diff, 0.0, 1.0))
         except Exception:
+            logger.warning("§V6 ML→DSP-Fallback: _spectral_novelty fehlgeschlagen → neutraler Return (0.0)")
             return 0.0
 
     # ── Haupt-API ───────────────────────────────────────────────────────

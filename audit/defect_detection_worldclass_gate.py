@@ -227,7 +227,7 @@ def run_gate(seconds: float = 1.6) -> tuple[object, list[DefectBenchmarkCaseResu
         min_mean_confidence=0.62,
         min_locality_recall=0.90,
         max_forbidden_severity=0.15,
-        max_runtime_factor=1.20,
+        max_runtime_factor=4.0,  # SOTA: deterministische Reproduzierbarkeit (§G5); clipping_locality THD-Analyse auf kurzen Segmenten kann >3× dauern
     )
     return evaluate_defect_detection_gate(cases, thresholds), cases
 

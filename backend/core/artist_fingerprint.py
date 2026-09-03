@@ -189,7 +189,7 @@ class ArtistFingerprintStore:
             with open(path) as f:
                 data = json.load(f)
             fp = SingerVoiceFingerprint.from_dict(data)
-            if time.time() - fp.last_updated > MAX_FINGERPRINT_AGE_DAYS * 86400:
+            if time.monotonic() - fp.last_updated > MAX_FINGERPRINT_AGE_DAYS * 86400:
                 os.remove(path)
                 return None
             self._voice_cache[artist_id] = fp
@@ -200,7 +200,7 @@ class ArtistFingerprintStore:
 
     def store_track(self, fingerprint: TrackFingerprint) -> None:
         """Persistiert ein Track-Modell."""
-        fingerprint.last_updated = time.time()
+        fingerprint.last_updated = time.monotonic()
         self._track_cache[fingerprint.track_id] = fingerprint
         path = self._track_path(fingerprint.track_id)
         try:
@@ -220,7 +220,7 @@ class ArtistFingerprintStore:
             with open(path) as f:
                 data = json.load(f)
             fp = TrackFingerprint.from_dict(data)
-            if time.time() - fp.last_updated > MAX_FINGERPRINT_AGE_DAYS * 86400:
+            if time.monotonic() - fp.last_updated > MAX_FINGERPRINT_AGE_DAYS * 86400:
                 os.remove(path)
                 return None
             self._track_cache[track_id] = fp

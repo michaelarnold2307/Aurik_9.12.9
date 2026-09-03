@@ -494,6 +494,7 @@ class StemLevelRestorer:
             _snr_db = 20.0 * np.log10(_rms_sig / _rms_noise + _eps)
             return float(np.clip(_snr_db, 0.0, 30.0))
         except Exception:  # pylint: disable=broad-except
+            logger.warning("§V6 ML→DSP-Fallback: _estimate_snr_db fehlgeschlagen → neutraler Return (0.0)")
             return 0.0
 
 

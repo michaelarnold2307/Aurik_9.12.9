@@ -373,4 +373,5 @@ def _quick_probe_delta(pre: np.ndarray, post: np.ndarray) -> float:
         corr = max(0.0, min(1.0, corr)) if not np.isnan(corr) else 1.0
         return float(0.5 * rms_ok + 0.5 * corr - 0.95)
     except Exception:
+        logger.warning("§V6 ML→DSP-Fallback: _compute_quality_delta fehlgeschlagen → neutraler Return (0.0)")
         return 0.0

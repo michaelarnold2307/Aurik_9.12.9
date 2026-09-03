@@ -58,7 +58,7 @@ PHASE_ICONS: dict[str, str] = {
     "phase_03_denoise": "🧹🌊",  # Breitband-Entrauschung (ML+DSP)
     "phase_05_rumble_filter": "🧹📉",  # Tieffrequenz-Rumpelfilter
     "phase_09_crackle_removal": "🧹⚡",  # Vinyl-Knistern-Entfernung
-    "phase_23_spectral_repair": "🧹🔧",  # Spektrale Inpainting-Reparatur
+    "phase_23_spectral_repair": "🧹🔧",  # Spektrale Inpainting-Reparatur; §4.7c POCS n_iter=2–5 vor PGHI
     "phase_27_click_pop_removal": "🧹🎯",  # Präzise Knackser-Entfernung
     "phase_28_surface_noise_profiling": "🔍🧹",  # Oberflächenrauschen-Profil & NR
     "phase_29_tape_hiss_reduction": "🧹📼",  # Bandrauschen-Unterdrückung

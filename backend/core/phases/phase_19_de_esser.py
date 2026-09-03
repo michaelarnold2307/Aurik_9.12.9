@@ -2789,8 +2789,9 @@ class DeEsserPhase(PhaseInterface):
         sib_high = min(12000, nyquist * 0.95) / nyquist
 
         try:
+            from backend.core.audio_utils import safe_sosfiltfilt as _safe_sosfiltfilt19
             sos = signal.butter(4, [sib_low, sib_high], btype="band", output="sos")
-            sib_filtered = signal.sosfilt(sos, audio)
+            sib_filtered = _safe_sosfiltfilt19(sos, audio)
             energy = np.sqrt(np.mean(sib_filtered**2))
         except Exception as e:
             logger.warning("Sibilance energy calculation fehlgeschlagen: %s", e)
@@ -2824,8 +2825,9 @@ class DeEsserPhase(PhaseInterface):
                 continue  # Skip invalid bands
 
             try:
+                from backend.core.audio_utils import safe_sosfiltfilt as _safe_sosfiltfilt19b
                 sos = signal.butter(4, [low, high], btype="band", output="sos")
-                band_audio = signal.sosfilt(sos, audio)
+                band_audio = _safe_sosfiltfilt19b(sos, audio)
                 # Use peak energy instead of RMS to match de-esser behavior
                 energy: float = float(np.max(np.abs(band_audio)))  # Peak amplitude
                 total_energy += energy

@@ -4,9 +4,12 @@ Model information and metadata for ONNX models.
 Defines model registry structure and model status tracking.
 """
 
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -45,9 +48,7 @@ class ModelInfo:
             )
 
         if self.sample_rate not in [16000, 22050, 32000, 44100, 48000, 96000]:
-            import warnings
-
-            warnings.warn(f"Unusual sample rate: {self.sample_rate} Hz. Typical rates: 16k, 44.1k, 48k")
+            logger.warning("Unusual sample rate: %d Hz. Typical rates: 16k, 44.1k, 48k", self.sample_rate)
 
 
 class ONNXModelStatus(Enum):

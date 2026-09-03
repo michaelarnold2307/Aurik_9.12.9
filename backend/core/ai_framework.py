@@ -687,10 +687,10 @@ class UnifiedAudioRestorer:
         Returns:
             FrameworkRestorationResult with restored audio
         """
-        # Detect defects if auto mode
+        # Detect defects if auto mode - DEBUG level to prevent console spam on import
         if auto_detect:
             detection = self.detector.detect(audio)
-            logger.info("erkannt %s defect types", len(detection.defects))
+            logger.debug("§2.46f Auto-detect: %d defect types identified", len(detection.defects))
         else:
             detection = None
 

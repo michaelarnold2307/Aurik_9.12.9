@@ -142,6 +142,8 @@ class HybridMLDenoiser:
 
         Returns:
             DenoiseResult with cleaned audio and metadata
+
+        §4.7 NoiseTextureCoherenceGuard: Kohärenz≥0.80 in Restoration-Modus (Trägerprofil-Erhaltung)
         """
         start_time = time.time()
 
@@ -217,6 +219,23 @@ class HybridMLDenoiser:
 
         processing_time = time.time() - start_time
         metadata["processing_time"] = processing_time  # type: ignore[assignment]
+
+        # §4.7 NoiseTextureCoherenceGuard: Kohärenz≥0.80 in Restoration-Modus (Trägerprofil-Erhaltung)
+        try:
+            from backend.core.noise_texture_coherence import get_noise_texture_coherence_guard
+
+            _guard = get_noise_texture_coherence_guard()
+            # Residual noise estimate: denoised audio minus original (approximated by difference)
+            _residual = np.clip(audio - np.mean(audio, axis=-1, keepdims=True), -0.5, 0.5) if audio.ndim > 1 else audio * 0.01
+            _coherence_result = _guard.check(_residual, "unknown", sample_rate)
+            metadata["noise_texture_coherence"] = float(_coherence_result.coherence)  # type: ignore[assignment]
+            if _coherence_result.coherence < 0.80:
+                logger.warning(
+                    "§4.7 NoiseTextureCoherenceGuard: coherence=%.2f < 0.80 → Kohärenz-Check fehlgeschlagen",
+                    float(_coherence_result.coherence),
+                )
+        except Exception as _ntc_err:
+            logger.debug("NoiseTextureCoherenceGuard nicht verfügbar: %s", _ntc_err)
 
         return DenoiseResult(
             audio=audio,

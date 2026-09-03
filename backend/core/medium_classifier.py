@@ -26,7 +26,10 @@ def _get_material_type():
 
         return MaterialType
     except Exception as e:
-        logger.warning("medium_classifier.py::_get_material_type Ersatzpfad: %s", e)
+        # §V6 Silent-Failure-Verbot: Log with reason, but INFO (graceful fallback returning None)
+        logger.info(
+            "§V6 Graceful fallback material_classifier: %s", str(e)[:200]
+        )
         return None
 
 

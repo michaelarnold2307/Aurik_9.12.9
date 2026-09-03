@@ -104,7 +104,7 @@ PHASE_TYPE_REGISTRY: dict[str, PhaseOperationType] = {
     "phase_07": PhaseOperationType.ADDITIVE,  # Harmonic restoration (H2-H4)
     "phase_21": PhaseOperationType.ADDITIVE,  # Harmonic exciter
     "phase_22": PhaseOperationType.ADDITIVE,  # Tape saturation (tanh soft-sat)
-    "phase_23": PhaseOperationType.CORRECTIVE,  # Spectral inpainting (AudioSR gap-fill / MRSA DSP repair)
+    "phase_23": PhaseOperationType.CORRECTIVE,  # Spectral inpainting (AudioSR gap-fill / MRSA DSP repair); §4.7c POCS n_iter=2–5 vor PGHI
     "phase_37": PhaseOperationType.ADDITIVE,  # Bass enhancement
     "phase_38": PhaseOperationType.ADDITIVE,  # Presence boost (Bell EQ)
     "phase_39": PhaseOperationType.ADDITIVE,  # Air band enhancement

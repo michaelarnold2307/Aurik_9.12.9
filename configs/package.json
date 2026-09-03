@@ -7,7 +7,7 @@
     "@mui/material": "^7.3.7",
     "framer-motion": "^12.29.2",
     "recharts": "^3.8.0",
-    "yaml": "^1.10.3"
+    "yaml": "^1.15.0"
   },
   "overrides": {
     "es-toolkit": ">=1.40.0"

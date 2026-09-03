@@ -272,7 +272,8 @@ class FinalEQ(PhaseInterface):
         is_stereo = audio.ndim == 2
         # Bug-Fix: EQ_CONFIG ist mit MaterialType-Membern indiziert (kein str-Enum-Mixin) —
         # .value hier hätte den Lookup immer auf CD_DIGITAL zurückfallen lassen.
-        config = {k: dict(v) for k, v in self.EQ_CONFIG.get(material, self.EQ_CONFIG[MaterialType.CD_DIGITAL]).items()}
+        _material_key = material if isinstance(material, MaterialType) else MaterialType(material)  # §v10.996 Enum-Normalisierung
+        config = {k: dict(v) for k, v in self.EQ_CONFIG.get(_material_key, self.EQ_CONFIG[MaterialType.CD_DIGITAL]).items()}
 
         # ── §v10 Spectrum-Aware Adaptation: Material-Referenz ≠ Song-IST ─────
         # Die EQ_CONFIG liefert die physikalisch ERWARTETE Korrektur für den

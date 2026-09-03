@@ -482,7 +482,7 @@ PHASE_GOAL_EXCLUSIONS: dict[str, set[str]] = {
         "authentizitaet",
         "timbre_authentizitaet",
         "tonal_center",
-    },  # Diffusion inpainting: synthesised content → identical root-causes as phase_23/phase_24 (FlashSR); MFCC-smoothness vs. damaged reference meaningless; brillanz crest-proxy scores against absent HF pre-synthesis; authentizitaet flatness-proxy reference-mismatch; timbre_authentizitaet MFCC-Pearson/centroid meaningless for synthesised spectral content; tonal_center excluded (§9.7.11 extension, 2026-04-10): CQTdiff+ fills bandwidth-loss gaps with synthesized HF content — pre-inpainting audio (band-limited vinyl ≤8-12 kHz) has near-zero chroma energy in high-register bins; after inpainting, newly filled HF bins shift K-S key-template correlation → false catastrophic P2 regression (Δ=0.8333 confirmed, 06:34 run). Musical key is unchanged; only chroma-bin distribution shifts due to spectral extension
+    },  # Diffusion inpainting: synthesised content → identical root-causes as phase_23/phase_24 (FlashSR); §4.7c POCS n_iter=2–5 vor PGHI; MFCC-smoothness vs. damaged reference meaningless; brillanz crest-proxy scores against absent HF pre-synthesis; authentizitaet flatness-proxy reference-mismatch; timbre_authentizitaet MFCC-Pearson/centroid meaningless for synthesised spectral content; tonal_center excluded (§9.7.11 extension, 2026-04-10): CQTdiff+ fills bandwidth-loss gaps with synthesized HF content — pre-inpainting audio (band-limited vinyl ≤8-12 kHz) has near-zero chroma energy in high-register bins; after inpainting, newly filled HF bins shift K-S key-template correlation → false catastrophic P2 regression (Δ=0.8333 confirmed, 06:34 run). Musical key is unchanged; only chroma-bin distribution shifts due to spectral extension
     # Sub-sonic removal: reference LF correlation handles bass preservation check
     "phase_05": {
         "natuerlichkeit",
@@ -791,7 +791,7 @@ PHASE_GOAL_EXCLUSIONS: dict[str, set[str]] = {
     # Spectral Band Gap Repair (HEAD_WEAR defect): harmonics interpolated via
     # Fletcher partial model + NMF-β refinement.
     # Mechanistically identical to phase_23 (FlashSR spectral inpainting) for all
-    # synthesis-reference-mismatch root causes.
+    # synthesis-reference-mismatch root causes; §4.7c POCS n_iter=2–5 vor PGHI
     # natuerlichkeit: synthesised partial harmonics differ from pre-repair damaged
     # reference → MFCC smoothness proxy unreliable.
     # brillanz: synthesised HF band energy distribution may differ from the HF gap
@@ -1385,7 +1385,7 @@ _RESTORATIVE_PHASES: frozenset[str] = frozenset(
         "phase_18",  # Noise gate (Silero VAD)
         "phase_19",  # De-esser — sibilance carrier distortion (vinyl HF, cassette) inflates brillanz; post-reduction drop is defect-removal, not regression
         "phase_20",  # Reverb reduction (SGMSE+)
-        "phase_23",  # Spectral inpainting / gap-fill (FlashSR)
+        "phase_23",  # Spectral inpainting / gap-fill (FlashSR); §4.7c POCS n_iter=2–5 vor PGHI
         "phase_24",  # Dropout repair (FlashSR)
         "phase_25",  # Azimuth correction — tape head misalignment repair; HF balance changes vs. mis-aligned reference
         "phase_27",  # Click/pop removal

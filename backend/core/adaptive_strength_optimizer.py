@@ -151,6 +151,7 @@ def _quick_quality_delta(
         return float(quality - 0.95)
 
     except Exception:
+        logger.warning("§V6 ML→DSP-Fallback: _compute_quality_delta fehlgeschlagen → neutraler Return (0.0)")
         return 0.0
 
 
