@@ -438,7 +438,7 @@ def _compute_zwicker_internal(
             continue
 
         try:
-            filtered = _sp_signal.sosfilt(sos, arr)
+            filtered = _sp_signal.sosfiltfilt(sos, arr)
         except Exception:
             logger.debug("Stiller optionaler Ausnahmefall ignoriert", exc_info=True)
             continue
@@ -617,7 +617,7 @@ def compute_bark_energy_profile(audio: np.ndarray, sr: int) -> np.ndarray:
         for b, sos in enumerate(filters):
             if sos is None:
                 continue
-            filtered = _sp_signal.sosfilt(sos, arr)
+            filtered = _sp_signal.sosfiltfilt(sos, arr)
             profile[b] = float(np.sqrt(np.mean(filtered**2)))
         return np.nan_to_num(profile, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
     except Exception as _e:

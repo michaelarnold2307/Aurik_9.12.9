@@ -609,11 +609,11 @@ class MidSideProcessing(PhaseInterface):
 
         for freq in self.CROSSOVER_FREQS:
             sos_low = signal.butter(2, freq, "low", fs=sr, output="sos")
-            low = signal.sosfilt(sos_low, current, axis=filter_axis)
+            low = signal.sosfiltfilt(sos_low, current, axis=filter_axis)
             bands.append(low)
 
             sos_high = signal.butter(2, freq, "high", fs=sr, output="sos")
-            current = signal.sosfilt(sos_high, current, axis=filter_axis)
+            current = signal.sosfiltfilt(sos_high, current, axis=filter_axis)
 
         # Last band (highest)
         bands.append(current)

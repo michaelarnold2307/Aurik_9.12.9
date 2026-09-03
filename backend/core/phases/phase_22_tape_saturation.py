@@ -605,7 +605,9 @@ class TapeSaturation(PhaseInterface):
             hf_rolloff = self.TAPE_SPEED_HF_ROLLOFF[tape_speed]
             if hf_rolloff < nyquist * 0.95:
                 sos_tape_hf = signal.butter(2, hf_rolloff / nyquist, btype="lowpass", output="sos")
-                saturated = signal.sosfilt(sos_tape_hf, saturated)
+                from backend.core.audio_utils import safe_sosfiltfilt as _safe_sosfiltfilt22
+
+                saturated = _safe_sosfiltfilt22(sos_tape_hf, saturated)
 
         # Soft limiter (prevent clipping) — §2.49 Peak-Guard: percentile(99.9) so single
         # crackle/click impulses do not block normalization of the musical signal.

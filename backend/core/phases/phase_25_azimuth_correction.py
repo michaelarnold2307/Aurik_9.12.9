@@ -875,8 +875,10 @@ class AzimuthCorrectionPhaseV2(PhaseInterface):
 
         try:
             sos_hf = signal.butter(4, [hf_low, hf_high], btype="band", output="sos")
-            left_hf = signal.sosfilt(sos_hf, left)
-            right_hf = signal.sosfilt(sos_hf, right)
+            from backend.core.audio_utils import safe_sosfiltfilt as _safe_sosfiltfilt25
+
+            left_hf = _safe_sosfiltfilt25(sos_hf, left)
+            right_hf = _safe_sosfiltfilt25(sos_hf, right)
         except Exception as e:
             logger.warning("Verarbeitungsschritt_25_azimuth_correction.py::_measure_hf_loss Ersatzpfad: %s", e)
             return 0.0

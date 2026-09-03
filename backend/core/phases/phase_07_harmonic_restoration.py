@@ -511,10 +511,12 @@ class HarmonicRestorationPhase(PhaseInterface):
                 _mono_pre = np.mean(audio, axis=1) if audio.ndim == 2 else audio
                 _rms_total = float(np.sqrt(np.mean(_mono_pre**2)) + 1e-12)
                 # Bandpass 300-4000 Hz: wo Stimme lebt
-                from scipy.signal import butter, sosfilt
+                from scipy.signal import butter as _butter07
 
-                _sos = butter(4, [300 / 24000, 4000 / 24000], btype="band", output="sos")
-                _vocal_band = sosfilt(_sos, _mono_pre)
+                _sos = _butter07(4, [300 / 24000, 4000 / 24000], btype="band", output="sos")
+                from backend.core.audio_utils import safe_sosfiltfilt as _safe_sosfiltfilt07
+
+                _vocal_band = _safe_sosfiltfilt07(_sos, _mono_pre)
                 _rms_vocal = float(np.sqrt(np.mean(_vocal_band**2)) + 1e-12)
                 _vocal_ratio = _rms_vocal / max(_rms_total, 1e-12)
                 if _rms_total < 1e-6:

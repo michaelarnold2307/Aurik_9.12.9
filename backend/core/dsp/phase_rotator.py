@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import cast
 
 import numpy as np
-from scipy.signal import butter, sosfilt
+from scipy.signal import butter as _butter_phase, sosfiltfilt as _sosfiltfilt_phase
 
 
 def _design_allpass_2nd_order(freq_hz: float, sr: int, rotation_deg: float) -> np.ndarray:
@@ -101,9 +101,9 @@ def apply_phase_rotator(
     center_freq = np.sqrt(low_freq * high_freq)  # geometric mean
     sos = _design_allpass_2nd_order(center_freq, sr, max_rotation_deg)
 
-    # Apply to each channel (identical filter → no new L/R delay)
-    wet_l = sosfilt(sos, ch_l.astype(np.float64))
-    wet_r = sosfilt(sos, ch_r.astype(np.float64))
+    # Apply to each channel (identical filter → no new L/R delay) — zero-phase (§III)
+    wet_l = _sosfiltfilt_phase(sos, ch_l.astype(np.float64))
+    wet_r = _sosfiltfilt_phase(sos, ch_r.astype(np.float64))
 
     # Blend with dry
     strength_clamped = float(np.clip(abs(strength), 0.0, 1.0))

@@ -491,5 +491,7 @@ class Exciter(PhaseInterface):
             audio = audio[:, 0]
 
         sos = signal.butter(4, 6000, btype="high", fs=sample_rate, output="sos")
-        hf_signal = signal.sosfilt(sos, audio)
+        from backend.core.audio_utils import safe_sosfiltfilt as _safe_sosfiltfilt21
+
+        hf_signal = _safe_sosfiltfilt21(sos, audio)
         return float(np.sqrt(np.mean(hf_signal**2)))

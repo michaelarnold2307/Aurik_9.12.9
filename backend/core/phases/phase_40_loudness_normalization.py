@@ -745,9 +745,9 @@ class LoudnessNormalizationPhase(PhaseInterface):
         _n_shelf = audio.shape[0] if audio.ndim > 1 else len(audio)
         audio_shelf = signal.filtfilt(b, a, audio, axis=0) if _n_shelf >= 9 else signal.lfilter(b, a, audio, axis=0)
 
-        # Stage 2: High-pass filter (38 Hz, 2nd order Butterworth)
+        # Stage 2: High-pass filter (38 Hz, 2nd order Butterworth) — zero-phase für präzise Loudness-Messung (§III)
         sos_hp = signal.butter(2, 38, "highpass", fs=sample_rate, output="sos")
-        audio_weighted = signal.sosfilt(sos_hp, audio_shelf, axis=0)
+        audio_weighted = signal.sosfiltfilt(sos_hp, audio_shelf, axis=0)
 
         return audio_weighted  # type: ignore[no-any-return]
 

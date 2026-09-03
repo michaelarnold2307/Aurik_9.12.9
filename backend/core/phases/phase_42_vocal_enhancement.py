@@ -1932,9 +1932,9 @@ class VocalEnhancement(PhaseInterface):
                 sos = np.vstack(sos_sections)
                 if audio.ndim == 2:
                     for ch in range(audio.shape[0]):
-                        result[ch] = signal.sosfilt(sos, result[ch].astype(np.float64)).astype(np.float32)
+                        result[ch] = signal.sosfiltfilt(sos, result[ch].astype(np.float64)).astype(np.float32)
                 else:
-                    result = signal.sosfilt(sos, result.astype(np.float64)).astype(np.float32)
+                    result = signal.sosfiltfilt(sos, result.astype(np.float64)).astype(np.float32)
 
             if n_corrected > 0:
                 logger.debug(

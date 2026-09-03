@@ -421,7 +421,9 @@ class DCOffsetRemoval(PhaseInterface):
 
         # Low-pass filter
         sos = signal.butter(4, cutoff_hz, btype="low", fs=sample_rate, output="sos")
-        subsonic_signal = signal.sosfilt(sos, audio)
+        from backend.core.audio_utils import safe_sosfiltfilt as _safe_sosfiltfilt30
+
+        subsonic_signal = _safe_sosfiltfilt30(sos, audio)
 
         # RMS energy
         rms = np.sqrt(np.mean(subsonic_signal**2))

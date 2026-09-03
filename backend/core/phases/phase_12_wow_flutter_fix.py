@@ -2556,7 +2556,7 @@ class WowFlutterFix(PhaseInterface):
         Rückgabe kompatibel mit _fit_sinusoidal_wow_curve / _calculate_stretch_factors:
           virtual_pitch[t] = 440 * relative_IF_deviation[t]
         """
-        from scipy.signal import butter, sosfilt, sosfiltfilt
+        from scipy.signal import butter as _butter12, sosfiltfilt as _sosfiltfilt12
         from scipy.signal import hilbert as _hilbert
 
         # --- Konstanten ---
@@ -2583,13 +2583,13 @@ class WowFlutterFix(PhaseInterface):
 
             # Bandpass 80–4000 Hz
             _nyq = sample_rate / 2.0
-            bp_sos = butter(
+            bp_sos = _butter12(
                 3,
                 [max(BP_LOW / _nyq, 0.001), min(BP_HIGH / _nyq, 0.999)],
                 btype="band",
                 output="sos",
             )
-            bp_audio = sosfilt(bp_sos, seg)
+            bp_audio = _sosfiltfilt12(bp_sos, seg)
 
             # Hilbert-Transform → Instantan-Phase → Instantan-Frequenz (Hz)
             analytic = np.asarray(_hilbert(bp_audio), dtype=np.complex128)

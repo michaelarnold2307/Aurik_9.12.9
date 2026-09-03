@@ -515,8 +515,10 @@ class NoiseGate(PhaseInterface):
         _orig_mono = safe_to_mono(audio) if is_stereo else audio
         _gated_mono = safe_to_mono(gated_audio) if is_stereo else gated_audio
         sos_lf = signal.butter(4, 800, btype="low", fs=sample_rate, output="sos")
-        _lf_orig = np.sqrt(np.mean(signal.sosfilt(sos_lf, _orig_mono) ** 2) + 1e-20)
-        _lf_gated = np.sqrt(np.mean(signal.sosfilt(sos_lf, _gated_mono) ** 2) + 1e-20)
+        from backend.core.audio_utils import safe_sosfiltfilt as _safe_sosfiltfilt18
+
+        _lf_orig = np.sqrt(np.mean(_safe_sosfiltfilt18(sos_lf, _orig_mono) ** 2) + 1e-20)
+        _lf_gated = np.sqrt(np.mean(_safe_sosfiltfilt18(sos_lf, _gated_mono) ** 2) + 1e-20)
         _lf_loss_ratio = _lf_gated / _lf_orig
         if _lf_loss_ratio < 0.60:
             # >40% low-freq energy lost — blend with original to limit damage

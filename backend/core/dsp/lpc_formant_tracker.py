@@ -288,14 +288,14 @@ def lpc_formant_enhance(
     if frame_len_16k < 32 or n_16k < frame_len_16k:
         return audio_in
 
-    # Analyse auf tiefpassgefiltertem Signal (Shellac-BW ≤ 8 kHz)
+    # Analyse auf tiefpassgefiltertem Signal (Shellac-BW ≤ 8 kHz) — zero-phase für präzise Formant-Erkennung (§III)
     try:
-        from scipy.signal import butter, sosfilt  # pylint: disable=import-outside-toplevel
+        from scipy.signal import butter as _butter_lpc
 
         nyq = min(_SHELLAC_BW_HZ, _analysis_sr / 2.0 - 100.0)
         if nyq > 100.0:
-            sos_lp = butter(4, nyq, btype="low", fs=_analysis_sr, output="sos")
-            mono_lp = sosfilt(sos_lp, mono_16k)
+            sos_lp = _butter_lpc(4, nyq, btype="low", fs=_analysis_sr, output="sos")
+            mono_lp = sosfiltfilt(sos_lp, mono_16k)
         else:
             mono_lp = mono_16k.copy()
     except Exception:

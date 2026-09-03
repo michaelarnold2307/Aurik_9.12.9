@@ -232,12 +232,13 @@ def measure_lufs_per_bark(
             lufs[b] = -70.0
             continue
 
-        # K-Weighting: High-shelf @ 1.5kHz, High-pass @ 38Hz
-        from scipy.signal import butter, sosfilt
+        # K-Weighting: High-shelf @ 1.5kHz, High-pass @ 38Hz — zero-phase für präzise Bark-Loudness (§III)
+        from scipy.signal import butter as _butter_bark
+        from scipy.signal import sosfiltfilt as _sosfiltfilt_bark
 
         try:
-            sos_hp = butter(2, 38.0, "highpass", fs=sr, output="sos")
-            sig_filtered = sosfilt(sos_hp, sig).astype(np.float64)
+            sos_hp = _butter_bark(2, 38.0, "highpass", fs=sr, output="sos")
+            sig_filtered = np.asarray(_sosfiltfilt_bark(sos_hp, sig), dtype=np.float64)
         except Exception:
             sig_filtered = sig.astype(np.float64)
 

@@ -250,7 +250,7 @@ class GuitarEnhancementPhase(PhaseInterface):
         sos_hp = sig.butter(2, 200.0, btype="high", fs=sample_rate, output="sos")
 
         def _transient_boost_channel(ch_audio: np.ndarray) -> np.ndarray:
-            hp = sig.sosfilt(sos_hp, ch_audio)
+            hp = sig.sosfiltfilt(sos_hp, ch_audio)
             # Rectified envelope
             env = np.abs(hp)
             smooth_win = max(1, int(0.003 * sample_rate))  # 3ms smoothing
