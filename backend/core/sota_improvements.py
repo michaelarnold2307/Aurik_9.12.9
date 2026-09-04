@@ -645,5 +645,6 @@ def _compute_simple_mfcc_similarity(audio1: np.ndarray, audio2: np.ndarray, sr: 
         dot = float(np.dot(mfcc1_mean, mfcc2_mean))
         norm = float(np.linalg.norm(mfcc1_mean) * np.linalg.norm(mfcc2_mean) + 1e-12)
         return dot / norm
-    except ImportError:
-        return 1.0  # Librosa nicht verfügbar → Identity als erhalten annehmen
+    except ImportError as e:
+        logger.debug("§V6 MFCC-Ähnlichkeit: librosa nicht verfügbar — 1.0 (Identity) zurückgegeben: %s", e)
+        return 1.0

@@ -436,3 +436,4 @@ def create_logger(
     return ProcessingLogger(
         session_id=session_id, output_dir=output_dir, save_audio_snapshots=save_audio, compress_audio=compress
     )
+logger = logging.getLogger(__name__)

@@ -154,6 +154,10 @@ class PresenceBoost(PhaseInterface):
         try:
             _mat_38 = MaterialType(material_type)
         except Exception:
+            logger.warning(
+                "§V6 Phase-38 material parse failed → CD_DIGITAL fallback: %s",
+                str(Exception),
+            )
             _mat_38 = MaterialType.CD_DIGITAL
         material = _mat_38
         sample_rate = kwargs.get("sample_rate", 48000)
@@ -577,4 +581,4 @@ class PresenceBoost(PhaseInterface):
         else:
             filtered = signal.lfilter(b, a, audio)
 
-        return np.asarray(filtered, dtype=np.float32)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(filtered, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]

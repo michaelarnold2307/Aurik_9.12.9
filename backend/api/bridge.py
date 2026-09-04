@@ -66,11 +66,9 @@ Referenz: Spec 08 §11 Softwareschichten-Architektur.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
 import threading
-from collections import OrderedDict
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -79,6 +77,48 @@ if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Cache re-exports (extracted → bridge_cache.py)
+# ---------------------------------------------------------------------------
+
+from .bridge_cache import (
+    _AnalysisLruCache,
+    cache_defect_result,
+    cache_era_genre_result,
+    cache_medium_result,
+    cache_restorability_result,
+    clear_defect_cache,
+    clear_era_genre_cache,
+    clear_medium_cache,
+    content_cache_key,
+    get_cached_defect_result,
+    get_cached_era_genre_result,
+    get_cached_medium_result,
+    get_cached_restorability_result,
+)
+from .bridge_core import (
+    get_audio_file_validator,
+    get_aurik_denker_class,
+    get_aurik_denker_instance,
+    get_carrier_forensics_fn,
+    get_defect_scanner,
+    get_defect_type,
+    get_era_classifier_fn,
+    get_genre_classifier_fn,
+    get_medium_classifier_fn,
+    get_medium_detector,
+    get_medium_type_enum,
+    get_ml_device_manager,
+    get_processing_mode_enum,
+    get_quality_mode,
+    get_restorability_estimator_class,
+    get_restorer_classes,
+    get_unified_restorer_v3_instance,
+    is_preview_mode,
+    normalize_user_mode,
+)
 
 
 def _coerce_dict_str_any(raw: Any) -> dict[str, Any]:
@@ -227,19 +267,8 @@ __all__ = [
 ]
 
 # ---------------------------------------------------------------------------
-# _AnalysisLruCache — Unified Thread-safe LRU Cache mit Content-Addressing
-#
-# Ersetzt die vier früheren FIFO-Dict-Caches durch eine gemeinsame Klasse:
-# - LRU-Eviction statt FIFO: heiße Einträge bleiben, kalte fliegen raus
-# - Content-Addressing: selbes Audio unter zwei Pfaden trifft denselben Slot
-# - Ein Lock statt vier separater Locks
-# - Optionaler Path→ContentKey-Alias für schnelle path-basierte Lookups
+# Status locks & stubs (MediumDetector, Startup, Pre-Analysis, Exporter, ML-Budget)
 # ---------------------------------------------------------------------------
-
-_ANALYSIS_CACHE_MAX = 64
-_CONTENT_CHUNK = 4096  # Bytes vom Anfang + Ende für SHA-256 Content-Key
-_CONTENT_KEY_CACHE_MAX = 512
-
 
 _medium_detector_stub_lock = threading.Lock()
 _medium_detector_stub_state: dict[str, Any] = {
@@ -310,138 +339,6 @@ def get_medium_detector_stub_status() -> dict[str, Any]:
         return dict(_medium_detector_stub_state)
 
 
-# Fast path for repeated cache lookups: (path, size, mtime_ns) -> content-key
-_content_key_cache: OrderedDict[tuple[str, int, int], str] = OrderedDict()
-_content_key_lock = threading.Lock()
-
-
-class _AnalysisLruCache:
-    """Thread-safe LRU cache keyed by content-hash (or arbitrary string).
-
-    Stores analysis results under a content-addressed key so that the same
-    audio file is not re-analysed when its path changes (e.g. rename before
-    OOM-checkpoint resume).  Path→key aliases are maintained for fast
-    backward-compatible path lookups.
-
-    Args:
-        maxsize: Maximum number of entries before LRU eviction.
-    """
-
-    def __init__(self, maxsize: int = _ANALYSIS_CACHE_MAX) -> None:
-        self._maxsize = maxsize
-        self._data: OrderedDict[str, Any] = OrderedDict()
-        self._path_to_key: dict[str, str] = {}  # path → content_key
-        self._lock = threading.Lock()
-
-    # ------------------------------------------------------------------
-    def put(self, key: str, value: Any, path_alias: str | None = None) -> None:
-        """Insert *value* under *key*, evicting LRU entry when full."""
-        with self._lock:
-            if key in self._data:
-                self._data.move_to_end(key)
-            self._data[key] = value
-            if path_alias:
-                self._path_to_key[path_alias] = key
-            while len(self._data) > self._maxsize:
-                evicted_key, _ = self._data.popitem(last=False)
-                # Clean up alias mapping for evicted key
-                self._path_to_key = {p: k for p, k in self._path_to_key.items() if k != evicted_key}
-
-    def get(self, key: str) -> Any | None:
-        """Gibt cached value for *key* and promote to MRU, or ``None`` zurück."""
-        with self._lock:
-            if key not in self._data:
-                return None
-            self._data.move_to_end(key)
-            return self._data[key]
-
-    def get_by_path(self, path: str) -> Any | None:
-        """Gibt cached value using a path alias, or ``None`` zurück."""
-        with self._lock:
-            key = self._path_to_key.get(path)
-            if key is None or key not in self._data:
-                return None
-            self._data.move_to_end(key)
-            return self._data[key]
-
-    def remove(self, key_or_path: str) -> None:
-        """Entfernt entry by content-key or path alias."""
-        with self._lock:
-            # Try as path alias first
-            key = self._path_to_key.pop(key_or_path, key_or_path)
-            self._data.pop(key, None)
-            # Also remove any alias pointing to same key
-            self._path_to_key = {p: k for p, k in self._path_to_key.items() if k != key}
-
-    def clear(self) -> None:
-        """Entfernt all entries."""
-        with self._lock:
-            self._data.clear()
-            self._path_to_key.clear()
-
-    def __len__(self) -> int:
-        with self._lock:
-            return len(self._data)
-
-
-def content_cache_key(file_path: str) -> str:
-    """Berechnet a content-addressed cache key for *file_path*.
-
-    Uses SHA-256 over the first and last ``_CONTENT_CHUNK`` bytes of the
-    file (fast, file-size independent).  Falls back to the path itself when
-    the file is not readable (e.g. missing/locked).
-
-    Args:
-        file_path: Absolute path to an audio file.
-
-    Returns:
-        A 64-character hex string suitable as a cache key, or the path
-        itself on I/O error.
-    """
-    normalized_path = os.path.normpath(os.path.realpath(file_path))
-    try:
-        stat_result = os.stat(normalized_path)
-    except OSError:
-        return file_path
-
-    size = int(stat_result.st_size)
-    mtime_ns = int(getattr(stat_result, "st_mtime_ns", int(stat_result.st_mtime * 1_000_000_000)))
-    meta_key = (normalized_path, size, mtime_ns)
-
-    with _content_key_lock:
-        cached = _content_key_cache.get(meta_key)
-        if cached is not None:
-            _content_key_cache.move_to_end(meta_key)
-            return cached
-
-    try:
-        with open(normalized_path, "rb") as fh:
-            head = fh.read(_CONTENT_CHUNK)
-            if size > _CONTENT_CHUNK * 2:
-                fh.seek(-_CONTENT_CHUNK, 2)
-                tail = fh.read(_CONTENT_CHUNK)
-            else:
-                tail = b""
-        digest = hashlib.sha256(head + tail + str(size).encode()).hexdigest()
-    except OSError:
-        return file_path
-
-    with _content_key_lock:
-        _content_key_cache[meta_key] = digest
-        _content_key_cache.move_to_end(meta_key)
-        while len(_content_key_cache) > _CONTENT_KEY_CACHE_MAX:
-            _content_key_cache.popitem(last=False)
-
-    return digest
-
-
-# Singleton caches — one per analysis type for independent eviction
-_defect_lru: _AnalysisLruCache = _AnalysisLruCache()
-_era_genre_lru: _AnalysisLruCache = _AnalysisLruCache()
-_medium_lru: _AnalysisLruCache = _AnalysisLruCache()
-_restorability_lru: _AnalysisLruCache = _AnalysisLruCache()
-
-
 def _build_bridge_calibration_dict() -> dict:
     """§Bridge: Baut Kalibrierungs-Dict für Frontend aus CalibrationContext.
 
@@ -507,367 +404,16 @@ def _build_bridge_calibration_dict() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Defect-Scan-Cache  (Thread-sicher, LRU, content-addressed)
+# Cache functions — extracted to bridge_cache.py (re-exported above)
+# All cache_* / get_cached_* / clear_* functions live in bridge_cache.py
 # ---------------------------------------------------------------------------
 
 
-def cache_defect_result(file_path: str, result: object) -> None:
-    """Cache a DefectScanner result under a content-addressed key.
-
-    Thread-safe.  Uses LRU eviction (max 64 entries).  Identical audio
-    stored under a different path will hit the same cache slot.
-    """
-    key = content_cache_key(file_path)
-    _defect_lru.put(key, result, path_alias=file_path)
-    logger.debug("bridge: DefectScan zwischengespeichert for '%s' (key=%.8s…)", file_path, key)
-
-
-def get_cached_defect_result(file_path: str) -> object | None:
-    """Gibt a cached DefectScanner result or ``None`` zurück."""
-    key = content_cache_key(file_path)
-    result = _defect_lru.get(key)
-    if result is None:
-        result = _defect_lru.get_by_path(file_path)
-    return result
-
-
-def clear_defect_cache(file_path: str | None = None) -> None:
-    """Entfernt one entry (by path) or all entries from the defect cache."""
-    if file_path is not None:
-        key = content_cache_key(file_path)
-        _defect_lru.remove(key)
-    else:
-        _defect_lru.clear()
-
 
 # ---------------------------------------------------------------------------
-# Era/Genre-Cache  (Thread-sicher, LRU, content-addressed)
+# Core functions — extracted to bridge_core.py (re-exported above)
+# All get_* enum/core/analysis functions live in bridge_core.py
 # ---------------------------------------------------------------------------
-
-
-def cache_era_genre_result(
-    file_path: str,
-    era_result: object | None = None,
-    genre_result: object | None = None,
-) -> None:
-    """Cache Era/Genre classification results for *file_path*.
-
-    Thread-safe, LRU-evicting, content-addressed.
-    """
-    key = content_cache_key(file_path)
-    _era_genre_lru.put(
-        key,
-        {"era_result": era_result, "genre_result": genre_result},
-        path_alias=file_path,
-    )
-    logger.debug("bridge: Era/Genre zwischengespeichert for '%s' (key=%.8s…)", file_path, key)
-
-
-def get_cached_era_genre_result(file_path: str) -> dict[str, object] | None:
-    """Gibt cached Era/Genre results or ``None`` zurück.
-
-    Returns:
-        dict with keys ``era_result`` and ``genre_result``, or ``None``.
-    """
-    key = content_cache_key(file_path)
-    result = _era_genre_lru.get(key)
-    if result is None:
-        result = _era_genre_lru.get_by_path(file_path)
-    return result
-
-
-def clear_era_genre_cache(file_path: str | None = None) -> None:
-    """Entfernt one entry (by path) or all entries from the Era/Genre cache."""
-    if file_path is not None:
-        key = content_cache_key(file_path)
-        _era_genre_lru.remove(key)
-    else:
-        _era_genre_lru.clear()
-
-
-# ---------------------------------------------------------------------------
-# Medium-Cache  (Thread-sicher, LRU, content-addressed)
-# ---------------------------------------------------------------------------
-
-
-def cache_medium_result(file_path: str, result: object) -> None:
-    """Cache a MediumClassifier result for *file_path*."""
-    key = content_cache_key(file_path)
-    _medium_lru.put(key, result, path_alias=file_path)
-    logger.debug("bridge: Medium zwischengespeichert for '%s' (key=%.8s…)", file_path, key)
-
-
-def get_cached_medium_result(file_path: str) -> object | None:
-    """Gibt a cached MediumClassifier result or ``None`` zurück."""
-    key = content_cache_key(file_path)
-    result = _medium_lru.get(key)
-    if result is None:
-        result = _medium_lru.get_by_path(file_path)
-    return result
-
-
-def clear_medium_cache(file_path: str | None = None) -> None:
-    """Invalidate medium cache entry for *file_path*, or entire cache when ``None``."""
-    if file_path is None:
-        _medium_lru.clear()
-        logger.debug("bridge: Medium-Zwischenspeicher vollst\u00e4ndig geleert.")
-    else:
-        key = content_cache_key(file_path)
-        _medium_lru.remove(key)
-        _medium_lru.remove(file_path)  # remove() handles path-alias too
-        logger.debug("bridge: Medium-Zwischenspeicher f\u00fcr '%s' geleert.", file_path)
-
-
-# ---------------------------------------------------------------------------
-# Restorability-Cache  (Thread-sicher, LRU, content-addressed)
-# ---------------------------------------------------------------------------
-
-
-def cache_restorability_result(file_path: str, result: object) -> None:
-    """Cache a RestorabilityEstimator result for *file_path*."""
-    key = content_cache_key(file_path)
-    _restorability_lru.put(key, result, path_alias=file_path)
-    logger.debug("bridge: Restorability zwischengespeichert for '%s' (key=%.8s…)", file_path, key)
-
-
-def get_cached_restorability_result(file_path: str) -> object | None:
-    """Gibt a cached RestorabilityEstimator result or ``None`` zurück."""
-    key = content_cache_key(file_path)
-    result = _restorability_lru.get(key)
-    if result is None:
-        result = _restorability_lru.get_by_path(file_path)
-    return result
-
-
-# ---------------------------------------------------------------------------
-# Lazy-Import-Wrappers  (Core-Module werden erst bei Bedarf geladen)
-# ---------------------------------------------------------------------------
-
-
-def get_quality_mode() -> type:
-    """Gibt die ``QualityMode``-Enum zurück (lazy import)."""
-    from backend.core.performance_guard import QualityMode  # type: ignore[import]
-
-    return QualityMode  # type: ignore[no-any-return]
-
-
-def get_medium_type_enum() -> type:
-    """Gibt die ``MediumType``-Enum zurück (lazy import)."""
-    from backend.core.enums import MediumType  # type: ignore[import]
-
-    return MediumType  # type: ignore[no-any-return]
-
-
-def get_processing_mode_enum() -> type:
-    """Gibt die ``ProcessingMode``-Enum zurück (lazy import)."""
-    from backend.core.enums import ProcessingMode  # type: ignore[import]
-
-    return ProcessingMode  # type: ignore[no-any-return]
-
-
-def normalize_user_mode(mode: str | None) -> str:
-    """Normalisiert Nutzer-Mode-Aliase auf die kanonischen Release-Modi.
-
-    Canonical Contract:
-      - ``"Restoration"``
-      - ``"Studio 2026"``
-
-    Unbekannte Eingaben fallen fail-safe auf ``"Restoration"`` zurück.
-    """
-    raw = str(mode or "Restoration").strip().lower().replace("_", "").replace(" ", "")
-    aliases = {
-        "restoration": "Restoration",
-        "fast": "Restoration",
-        "balanced": "Restoration",
-        "quality": "Restoration",
-        "maximum": "Studio 2026",  # Canonical Contract: maximum ist Legacy-Alias für Studio 2026
-        "studio2026": "Studio 2026",
-        "studio": "Studio 2026",
-        "preview": "Preview",  # §3.5: 30s preview before full restoration
-    }
-    return aliases.get(raw, "Restoration")
-
-
-def is_preview_mode(mode: str | None) -> bool:
-    """§3.5: Prüft, ob der Modus ein Preview ist (30s Vorschau)."""
-    return normalize_user_mode(mode) == "Preview"
-
-
-def get_restorer_classes() -> tuple[type, type]:
-    """Gibt ``(RestorationConfig, UnifiedRestorerV3)`` zurück (lazy import)."""
-    from backend.core.unified_restorer_v3 import RestorationConfig, UnifiedRestorerV3  # type: ignore[import]
-
-    return RestorationConfig, UnifiedRestorerV3
-
-
-def get_unified_restorer_v3_instance():
-    """Gibt den UV3-Prozess-Singleton zurück (lazy import über Bridge)."""
-    from backend.core.unified_restorer_v3 import get_restorer  # type: ignore[import]
-
-    return get_restorer()
-
-
-def get_ml_device_manager():
-    """Gibt den MLDeviceManager-Singleton zurück (lazy import, §v10.305)."""
-    from backend.core.ml_device_manager import get_ml_device_manager as _fn  # type: ignore[import]
-
-    return _fn()
-
-
-def get_aurik_denker_class() -> type:
-    """Gibt ``AurikDenker``-Klasse zurück (lazy import, §2.2 Spec 08).
-
-    Primary entry point for the full 8-stage restoration with carrier analysis,
-    DefektDenker, MusikalischerGlobalplan, VERSA MOS scoring and ExzellenzDenker.
-    Use this instead of UnifiedRestorerV3 for production pipelines.
-    """
-    from denker.aurik_denker import AurikDenker  # type: ignore[import]
-
-    return AurikDenker  # type: ignore[no-any-return]
-
-
-def get_aurik_denker_instance():
-    """Gibt den thread-sicheren AurikDenker-Prozess-Singleton zurück (lazy, §2.2 Spec 08).
-
-    Primary production accessor for BatchProcessingThread.
-    Ensures Single-Orchestrator Ownership per process (No-Competing-Instances-Protokoll).
-    Use ``get_aurik_denker_class()`` only for testing / mocking scenarios.
-    """
-    from denker.aurik_denker import get_aurik_denker  # type: ignore[import]
-
-    return get_aurik_denker()
-
-
-def get_defect_scanner() -> type:
-    """Gibt die ``DefectScanner``-Klasse zurück (lazy import)."""
-    from backend.core.defect_scanner import DefectScanner  # type: ignore[import]
-
-    return DefectScanner  # type: ignore[no-any-return]
-
-
-def get_audio_file_validator():
-    """Gibt den ``AudioFileValidator``-Singleton zurück (lazy import, §10.5).
-
-    Pflicht-Gate vor jedem ``_bg_load``-Thread-Start.  Wirf
-    ``AudioLoadError`` (mit ``.message_user`` auf Deutsch) bei ungültiger Datei.
-    """
-    from backend.core.audio_file_validator import get_audio_file_validator as _get  # type: ignore[import]
-
-    return _get()
-
-
-def get_defect_type() -> type:
-    """Gibt die ``DefectType``-Enum-Klasse zurück (lazy import).
-
-    Wird von ``_defect_analysis_to_display`` und ``_result_scores_to_display``
-    im Frontend benötigt, um DefectScanner-Scores zu indizieren.
-    """
-    from backend.core.defect_scanner import DefectType  # type: ignore[import]
-
-    return DefectType  # type: ignore[no-any-return]
-
-
-def get_medium_classifier_fn():
-    """Gibt einen MediumDetector-basierten Legacy-Kompat-Callable zurück.
-
-    Signatur-kompatibel zu ``classify_medium(mono_audio, sr)`` für Altaufrufer,
-    intern jedoch detector-only (kein direkter MediumClassifier-Aufruf).
-    """
-    from forensics.medium_detector import get_medium_detector as _get_md  # type: ignore[import]
-
-    class _CompatMediumResult:
-        def __init__(self, primary_material: str, confidence: float, transfer_chain: list[str], chain_label: str):
-            self.material_type = primary_material
-            self.material = primary_material
-            self.primary_material = primary_material
-            self.confidence = float(confidence)
-            self.transfer_chain = list(transfer_chain)
-            self.chain_label = chain_label
-
-    def _classify_medium_compat(mono_audio: np.ndarray, sr: int) -> _CompatMediumResult:
-        _res = _get_md().detect(mono_audio, sr, file_ext="")
-        _chain = list(getattr(_res, "transfer_chain", None) or [str(_res.primary_material)])
-        _chain_label = str(getattr(_res, "chain_label", " -> ".join(_chain)))
-        return _CompatMediumResult(
-            primary_material=str(_res.primary_material),
-            confidence=float(getattr(_res, "confidence", 0.0)),
-            transfer_chain=_chain,
-            chain_label=_chain_label,
-        )
-
-    return _classify_medium_compat
-
-
-def get_era_classifier_fn():
-    """Gibt ``classify_era``-Funktion zurück (lazy import, §2.4).
-
-    Signatur: ``classify_era(audio: np.ndarray, sr: int) -> EraResult``
-    """
-    from backend.core.era_classifier import classify_era  # type: ignore[import]
-
-    return classify_era
-
-
-def get_genre_classifier_fn():
-    """Gibt ``classify_genre``-Funktion zurück (lazy import).
-
-    Signatur: ``classify_genre(audio: np.ndarray, sr: int) -> GenreResult``
-    """
-    from backend.core.genre_classifier import classify_genre  # type: ignore[import]
-
-    return classify_genre
-
-
-def get_restorability_estimator_class() -> type:
-    """Gibt ``RestorabilityEstimator``-Klasse zurück (lazy import, §2.3).
-
-    Verwendung: ``get_restorability_estimator_class()().estimate(audio, sr)``
-    """
-    from backend.core.restorability_estimator import RestorabilityEstimator  # type: ignore[import]
-
-    return RestorabilityEstimator  # type: ignore[no-any-return]
-
-
-def get_medium_detector():
-    """Gibt the ``MediumDetector`` singleton (lazy import, §6.1 / §11.1) zurück.
-
-    Canonical forensic carrier-chain detector.  Preferred over
-    ``get_medium_classifier_fn()`` in all production paths because
-    ``MediumDetector.detect()`` supplies the required ``file_ext`` context
-    for codec-format digital-file prior adjustment (§6.7b).
-
-    Invariante: ``primary_material`` is always a key from SUPPORTED_MATERIALS
-    (cassette → tape, reel_wire → wire_recording, etc. normalised internally).
-
-    Usage::
-
-        md = get_medium_detector()
-        result = md.detect(audio, sr, file_ext=Path(file_path).suffix)
-        material = result.primary_material  # e.g. "tape", "vinyl"
-    """
-    try:
-        from forensics.medium_detector import get_medium_detector as _get  # type: ignore[import]
-
-        return _get()
-    except ImportError as exc:
-        return _record_medium_detector_stub_activation(exc)
-
-
-def get_carrier_forensics_fn():
-    """Gibt ``analyze_carrier_forensics``-Funktion zurück (lazy import).
-
-    Signatur: ``analyze_carrier_forensics(mono: np.ndarray, sr: int) -> dict``
-    Rückgabe-Keys: ``"carrier_forensic"`` (str), ``"score"`` (float).
-
-    Intern wird ``MediumDetector.detect`` genutzt (detector-only).
-    """
-    from forensics.medium_detector import get_medium_detector as _get_md  # type: ignore[import]
-
-    def _analyze_carrier_forensics(mono: np.ndarray, sr: int) -> dict:
-        result = _get_md().detect(mono, sr, file_ext="")
-        return {"carrier_forensic": str(result.primary_material), "score": float(result.confidence)}
-
-    return _analyze_carrier_forensics
 
 
 def get_audio_exporter_class() -> type | None:
@@ -1574,7 +1120,6 @@ def get_export_transparency(
     Liefert: Resample-Kette, True-Peak, LUFS, Dateigröße vorher/nachher, Dither.
     Kann von CLI und GUI nach dem Export aufgerufen werden.
     """
-    import os
     from pathlib import Path
 
     _report: dict[str, Any] = {
@@ -3405,6 +2950,7 @@ def get_donation_reminder() -> dict[str, str]:
 
         return {"paypal_email": PAYPAL_EMAIL, "donation_url": DONATION_URL}
     except ImportError:
+        logger.debug("§V6 donation_reminder nicht verfügbar — leeres Dict zurückgegeben")
         return {}
 
 
@@ -3415,6 +2961,7 @@ def should_show_donation_reminder() -> bool:
 
         return should_show_reminder()
     except ImportError:
+        logger.debug("§V6 donation_reminder.should_show_reminder nicht verfügbar — False zurückgegeben")
         return False
 
 
@@ -3435,6 +2982,7 @@ def open_donation_reminder_link() -> bool:
 
         return open_donation_link()
     except ImportError:
+        logger.debug("§V6 donation_reminder.open_donation_link nicht verfügbar — False zurückgegeben")
         return False
 
 
@@ -3445,6 +2993,7 @@ def get_donation_reminder_info() -> dict:
 
         return get_donation_info()
     except ImportError:
+        logger.debug("§V6 donation_reminder.get_donation_info nicht verfügbar — leeres Dict zurückgegeben")
         return {}
 
 
@@ -3467,6 +3016,7 @@ def inject_cd_noise_profile(
 
         return _inject(audio, sample_rate, mode=mode, bit_depth=bit_depth, seed=seed)  # type: ignore[misc]
     except ImportError:
+        logger.debug("§V6 cd_noise_profile nicht verfügbar — Audio unverändert zurückgegeben")
         return audio
 
 
@@ -3503,7 +3053,8 @@ def get_model_zoo_summary() -> list[dict[str, str]]:
             }
             for e in MODEL_ZOO
         ]
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 get_model_zoo_summary fehlgeschlagen — leere Liste zurückgegeben: %s", exc)
         return []
 
 
@@ -3563,7 +3114,8 @@ def get_defect_consensus_summary(manifest: object) -> dict:
             "causal_downgrades": int(getattr(m, "causal_downgrades", 0) or 0),
             "module_count": int(getattr(m, "module_count", 0) or 0),
         }
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 get_defect_consensus_summary fehlgeschlagen — leeres Dict zurückgegeben: %s", exc)
         return {}
 
 
@@ -3598,7 +3150,8 @@ def get_repair_plan_summary(plan: object) -> dict:
             "total_coverage_samples": int(getattr(plan, "total_coverage_samples", 0) or 0),
             "estimated_duration_s": float(getattr(plan, "estimated_duration_s", 0.0) or 0.0),
         }
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 get_repair_plan_summary fehlgeschlagen — leeres Dict zurückgegeben: %s", exc)
         return {}
 
 
@@ -3713,7 +3266,8 @@ def get_repair_plan_consent(defect_result: object) -> dict:
         if not found and not will_do:
             return {}  # Kein Analyse-Material → Frontend blendet die Zeile aus
         return {"found": found, "will_do": will_do}
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 get_repair_plan_consent fehlgeschlagen — leeres Dict zurückgegeben: %s", exc)
         return {}
 
 
@@ -3728,7 +3282,8 @@ def get_new_crash_reports() -> list[dict]:
         from backend.core.crash_reporter import get_new_reports as _new
 
         return list(_new() or [])
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 crash_reporter.get_new_reports fehlgeschlagen — leere Liste zurückgegeben: %s", exc)
         return []
 
 
@@ -3787,7 +3342,8 @@ def get_guard_report(result: object) -> dict:
                 "spectral_tilt_fired": _int(meta, "spectral_tilt_guard_fired"),
             },
         }
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 get_guard_report fehlgeschlagen — leeres Dict zurückgegeben: %s", exc)
         return {}
 
 
@@ -3842,5 +3398,6 @@ def get_restoration_bericht(result: object, defect_result: object = None) -> dic
             },
             "was_reverted": bool((meta.get("do_no_harm") or {}).get("reverted", False)),
         }
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 get_restoration_bericht fehlgeschlagen — leeres Dict zurückgegeben: %s", exc)
         return {}

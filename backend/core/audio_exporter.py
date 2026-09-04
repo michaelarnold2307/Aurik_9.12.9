@@ -779,7 +779,8 @@ def _approx_true_peak(audio: np.ndarray, sr: int, upsample: int = 4) -> float:
         if peak <= 0:
             return float("-inf")
         return float(20.0 * np.log10(peak))
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 True-Peak-Interpolation fehlgeschlagen — Peak-Max Fallback: %s", exc)
         peak = float(np.max(np.abs(audio)))
         if peak <= 0:
             return float("-inf")
@@ -798,7 +799,8 @@ def _write_export_metrics_impl(
     metrics["file"] = str(file_path)
     try:
         metrics["file_size_bytes"] = file_path.stat().st_size
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 Datei-Stat fehlgeschlagen — None für file_size_bytes: %s", exc)
         metrics["file_size_bytes"] = None
 
     # Loudness measurements (using pyloudnorm if available)

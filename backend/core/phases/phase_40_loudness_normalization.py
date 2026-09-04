@@ -72,8 +72,10 @@ from backend.core.audio_utils import (
     apply_musical_gain_envelope,
     limit_quiet_edge_boost,
     restore_layout,
-    safe_resample_poly as _safe_resample_poly40,
     to_channels_last,
+)
+from backend.core.audio_utils import (
+    safe_resample_poly as _safe_resample_poly40,
 )
 from backend.core.defect_scanner import MaterialType
 from backend.core.ml_model_readiness import check_ml_model_ready
@@ -294,6 +296,7 @@ class LoudnessNormalizationPhase(PhaseInterface):
                     metadata={"algorithm": "skipped_near_target", "integrated_lufs": _p0_lufs},
                 )
         except ImportError:
+            logger.debug("§V6 pyloudnorm nicht installiert — Near-Target-Loudness-Skip übersprungen")
             pass
         except ValueError as _p0_short_exc:
             # Kurzsignale < Blockgröße (0.4 s) können pyln nicht messen →

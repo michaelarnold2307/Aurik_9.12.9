@@ -159,16 +159,16 @@ def _apply_shelving_eq(
 
     audio_f64 = np.asarray(audio, dtype=np.float64)
     if audio_f64.ndim == 1:
-        return sps.sosfiltfilt(sos, audio_f64).astype(audio.dtype)  # type: ignore[no-any-return]
+        return np.nan_to_num(sps.sosfiltfilt(sos, audio_f64).astype(audio.dtype), nan=0.0)  # type: ignore[no-any-return]
     if audio_f64.ndim == 2:
         if audio_f64.shape[0] <= 2 and audio_f64.shape[1] > audio_f64.shape[0]:
             # [C, T] — nach to_channels_last
-            return np.stack([sps.sosfiltfilt(sos, audio_f64[c]) for c in range(audio_f64.shape[0])]).astype(audio.dtype)  # type: ignore[no-any-return]
-        return np.stack(  # type: ignore[no-any-return]
+            return np.nan_to_num(np.stack([sps.sosfiltfilt(sos, audio_f64[c]) for c in range(audio_f64.shape[0])]).astype(audio.dtype), nan=0.0)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.stack(  # type: ignore[no-any-return]
             [sps.sosfiltfilt(sos, audio_f64[:, c]) for c in range(audio_f64.shape[1])],
             axis=1,
-        ).astype(audio.dtype)
-    return audio
+        ).astype(audio.dtype), nan=0.0)
+    return np.nan_to_num(audio, nan=0.0)
 
 
 # ---------------------------------------------------------------------------

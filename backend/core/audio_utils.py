@@ -179,7 +179,8 @@ def safe_stft(
         _noverlap = min(noverlap, max(0, _nperseg - 1))
     try:
         return _scipy_stft(x, fs=fs, window=window, nperseg=_nperseg, noverlap=_noverlap, **kwargs)  # type: ignore[no-any-return]
-    except ValueError:
+    except ValueError as exc:
+        logger.debug("§V6 scipy STFT fehlgeschlagen — Minimal-Fallback aktiviert (ValueError): %s", exc)
         # Last resort: minimum viable STFT
         _nperseg = max(2, n)
         _noverlap = _nperseg // 4
@@ -211,7 +212,8 @@ def safe_istft(
         _noverlap = min(noverlap, max(0, nperseg - 1))
     try:
         return _scipy_istft(Zxx, fs=fs, window=window, nperseg=nperseg, noverlap=_noverlap, **kwargs)  # type: ignore[no-any-return]
-    except ValueError:
+    except ValueError as exc:
+        logger.debug("§V6 scipy ISTFT fehlgeschlagen — Minimal-Fallback aktiviert (ValueError): %s", exc)
         _noverlap = nperseg // 4
         return _scipy_istft(Zxx, fs=fs, window="hann", nperseg=nperseg, noverlap=_noverlap)  # type: ignore[no-any-return]
 
@@ -377,7 +379,8 @@ def _edge_channel_views(audio: np.ndarray) -> list[np.ndarray]:
             np.asarray(left, dtype=np.float32),
             np.asarray(right, dtype=np.float32),
         ]
-    except ValueError:
+    except ValueError as exc:
+        logger.debug("§V6 stereo_channel_view fehlgeschlagen — Mono-Fallback aktiviert (ValueError): %s", exc)
         return [safe_to_mono(arr)]
 
 
@@ -1168,15 +1171,15 @@ def safe_resample_poly(
             # Trimmen
             slices = [slice(None)] * result.ndim
             slices[axis] = slice(0, expected_len)
-            return np.asarray(result[tuple(slices)])
+            return cast(np.ndarray, (np.asarray(result[tuple(slices)])))
         else:
             # Pad mit Nullen
             pad_width = [(0, 0)] * result.ndim
             pad_width[axis] = (0, expected_len - actual_len)
             padded = np.pad(result, pad_width, mode="constant", constant_values=0.0)
-            return np.asarray(padded)
+            return cast(np.ndarray, (np.asarray(padded)))
 
-    return np.asarray(result)
+    return cast(np.ndarray, (np.asarray(result)))
 
 
 # ── §v10.304 Safe Array Construction ────────────────────────────────────

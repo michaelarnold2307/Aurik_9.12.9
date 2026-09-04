@@ -1685,7 +1685,8 @@ class UnifiedRestorerV3:
         """
         try:
             from backend.core.calibration_context import CalibrationContext
-        except ImportError:
+        except ImportError as e:
+            logger.debug("§V6 CalibrationContext-Import fehlgeschlagen — None zurückgegeben: %s", e)
             return None
         _rctx = getattr(self, "_restoration_context", {}) or {}
         return CalibrationContext(
@@ -22993,7 +22994,8 @@ class UnifiedRestorerV3:
         """§v10.15 Phase progress for Watchdog dialog enrichment."""
         try:
             from backend.core.pipeline_budget_controller import PipelineBudgetController
-        except ImportError:
+        except ImportError as e:
+            logger.debug("§V6 PipelineBudgetController-Import fehlgeschlagen — leeres Progress-Dict zurückgegeben: %s", e)
             return {"current": 0, "total": 0, "name": "", "elapsed_non_exempt_s": 0.0}
         if not hasattr(self, "_pbc") or self._pbc is None:
             return {"current": 0, "total": 0, "name": "", "elapsed_non_exempt_s": 0.0}
@@ -33745,7 +33747,8 @@ class UnifiedRestorerV3:
                         if isinstance(_val, str) and _val.strip():
                             try:
                                 return int(float(_val.strip()))
-                            except ValueError:
+                            except ValueError as e:
+                                logger.debug("§V6 _safe_optional_int: String-to-int Konversion fehlgeschlagen für '%s' — None zurückgegeben: %s", _val, e)
                                 return None
                         return None
 
@@ -33838,7 +33841,8 @@ class UnifiedRestorerV3:
                         if isinstance(_val, str) and _val.strip():
                             try:
                                 return int(float(_val.strip()))
-                            except ValueError:
+                            except ValueError as e:
+                                logger.debug("§V6 _safe_optional_int_vnh: String-to-int Konversion fehlgeschlagen für '%s' — None zurückgegeben: %s", _val, e)
                                 return None
                         return None
 
@@ -35416,7 +35420,8 @@ class UnifiedRestorerV3:
                 phase_human_name,  # pylint: disable=import-outside-toplevel,redefined-outer-name
                 phase_human_name_with_icon,
             )
-        except ImportError:
+        except ImportError as e:
+            logger.debug("§V6 phase_names-Import fehlgeschlagen — lokale Fallback-Funktion verwendet: %s", e)
 
             def phase_human_name(phase_id: str) -> str:
                 return phase_id
@@ -43129,7 +43134,8 @@ class UnifiedRestorerV3:
                     all_resolved = False
                     break
             return all_resolved
-        except Exception:
+        except Exception as e:
+            logger.debug("§V6 _should_skip_resolved_phase fehlgeschlagen — False zurückgegeben (Phase wird ausgeführt): %s", e)
             return False
 
     def _should_skip_masked_phase(self, phase_id: str) -> bool:
@@ -43195,7 +43201,8 @@ class UnifiedRestorerV3:
                 )
                 return True
             return False
-        except Exception:
+        except Exception as e:
+            logger.debug("§V6 _should_skip_masked_phase fehlgeschlagen — False zurückgegeben (Phase wird ausgeführt): %s", e)
             return False
 
     def _should_skip_absent_defect_phase(self, phase_id: str) -> bool:
@@ -43275,7 +43282,8 @@ class UnifiedRestorerV3:
                     _AUDIBILITY_FLOOR,
                 )
             return all_absent
-        except Exception:
+        except Exception as e:
+            logger.debug("§V6 _should_skip_absent_defect_phase fehlgeschlagen — False zurückgegeben (Phase wird ausgeführt): %s", e)
             return False
 
     @staticmethod
@@ -43319,7 +43327,8 @@ class UnifiedRestorerV3:
             _conf = _rctx.get("material_confidence")
             if not isinstance(_conf, (int, float)):
                 _conf = getattr(self, "_song_calibration_profile", {}).get("pipeline_confidence")
-        except Exception:
+        except Exception as e:
+            logger.debug("§V6 Material-Confidence-Lesen fehlgeschlagen — False zurückgegeben (Phase wird ausgeführt): %s", e)
             return False
         if not isinstance(_conf, (int, float)):
             return False
@@ -43363,7 +43372,8 @@ class UnifiedRestorerV3:
             _conf = _rctx.get("material_confidence")
             if not isinstance(_conf, (int, float)):
                 _conf = getattr(self, "_song_calibration_profile", {}).get("pipeline_confidence")
-        except Exception:
+        except Exception as e:
+            logger.debug("§V6 _strip_low_confidence_phases: Confidence-Lesen fehlgeschlagen — ungefilterte Phasenliste zurückgegeben: %s", e)
             return phases
         if not isinstance(_conf, (int, float)):
             return phases
@@ -43431,7 +43441,8 @@ class UnifiedRestorerV3:
                     ", ".join(_removed),
                 )
             return _stripped
-        except Exception:
+        except Exception as e:
+            logger.debug("§V6 Verarbeitungsschritt-Effectiveness fehlgeschlagen — ungefilterte Phasenliste zurückgegeben: %s", e)
             return phases
 
     @staticmethod
@@ -43798,7 +43809,8 @@ class UnifiedRestorerV3:
                 else:
                     try:
                         return _b3_copy.deepcopy(obj)
-                    except (TypeError, ValueError, AttributeError):
+                    except (TypeError, ValueError, AttributeError) as e:
+                        logger.debug("§V6 _safe_deepcopy: deepcopy fehlgeschlagen — str() zurückgegeben für %s: %s", type(obj).__name__, e)
                         return str(obj)
 
             _frozen_calib = _safe_deepcopy(getattr(self, "_song_calibration_profile", None) or {})
@@ -44248,5 +44260,6 @@ def _compute_blind_reference(
             if int(slice_candidate.shape[-1]) > int(sample_rate * 0.05):
                 return slice_candidate
         return None
-    except Exception:
+    except Exception as e:
+        logger.debug("§V6 BlindInternalReference fehlgeschlagen — None zurückgegeben (kein A/B-Segment): %s", e)
         return None

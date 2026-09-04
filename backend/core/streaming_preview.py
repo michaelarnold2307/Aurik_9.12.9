@@ -117,9 +117,11 @@ class StreamingPreview:
             r3 = p3.process(chunk, sample_rate=self.sr, material_type="unknown")
             result = apply_comfort_guard(r3.audio, self.sr)
             return cast(np.ndarray, result.astype(np.float32))
-        except Exception:
+        except Exception as e:
+            logger.debug("§V6 _mini_pipeline fehlgeschlagen — Lowpass-Fallback aktiviert: %s", e)
             # Fallback: leichter Lowpass mit Längen-Guard (§v10.103)
             from scipy.signal import butter
+
             from backend.core.audio_utils import safe_filtfilt
 
             b, a_coeff = butter(4, 16000 / (self.sr / 2), btype="low")

@@ -729,7 +729,7 @@ class MasteringPolishPhase(PhaseInterface):
 
         if strength < 0.01:
             # Kein Enhancement
-            return audio, {"saturation_strength": 0.0}
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0), {"saturation_strength": 0.0}
 
         # Soft Saturation (Tanh-Kurve)
         # Tanh fügt Odd+Even Harmonics hinzu
@@ -794,7 +794,7 @@ class MasteringPolishPhase(PhaseInterface):
 
         if abs(width - 1.0) < 0.01:
             # Keine Änderung
-            return audio, {"stereo_width": 1.0}
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0), {"stereo_width": 1.0}
 
         # Mid/Side Encoding
         left = audio[:, 0]

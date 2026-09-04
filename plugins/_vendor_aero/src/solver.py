@@ -4,27 +4,32 @@ This code is based on Facebook's HDemucs code: https://github.com/facebookresear
 
 import json
 import logging
-from pathlib import Path
 import os
 import time
-import wandb
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
 import torchaudio.transforms
-
-from src.ddp import distrib
+import wandb
 from src.data.datasets import PrHrSet, match_signal
-from src.enhance import enhance, save_wavs, save_specs
+from src.ddp import distrib
+from src.enhance import enhance, save_specs, save_wavs
 from src.evaluate import evaluate, evaluate_on_saved_data
-from src.model_serializer import SERIALIZE_KEY_BEST_STATES, SERIALIZE_KEY_MODELS, SERIALIZE_KEY_OPTIMIZERS,  \
-    SERIALIZE_KEY_STATE, SERIALIZE_KEY_HISTORY, serialize
+from src.model_serializer import (
+    SERIALIZE_KEY_BEST_STATES,
+    SERIALIZE_KEY_HISTORY,
+    SERIALIZE_KEY_MODELS,
+    SERIALIZE_KEY_OPTIMIZERS,
+    SERIALIZE_KEY_STATE,
+    serialize,
+)
 from src.models.discriminators import discriminator_loss, feature_loss, generator_loss
-from src.models.stft_loss import MultiResolutionSTFTLoss
-from src.utils import bold, copy_state, pull_metric, swap_state, LogProgress
-from src.wandb_logger import create_wandb_table
 from src.models.spec import spectro
+from src.models.stft_loss import MultiResolutionSTFTLoss
+from src.utils import LogProgress, bold, copy_state, pull_metric, swap_state
+from src.wandb_logger import create_wandb_table
+from torch.utils.data import DataLoader
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +43,7 @@ METRICS_KEY_LSD = 'Average lsd'
 METRICS_KEY_VISQOL = 'Average visqol'
 
 
-class Solver(object):
+class Solver:
     def __init__(self, data, models, optimizers, args):
         self.tr_loader = data['tr_loader']
         self.cv_loader = data['cv_loader']
@@ -179,7 +184,7 @@ class Solver(object):
                 with torch.no_grad():
                     # if valid test equals all of test data, then
                     if self.args.valid_equals_test:
-                        enhance_valid_data = (epoch + 1) % self.eval_every == 0 or epoch == self.epochs - 1 and self.tt_loader
+                        enhance_valid_data = (epoch + 1) % self.eval_every == 0 or (epoch == self.epochs - 1 and self.tt_loader)
                         valid_losses, enhanced_filenames = self._get_valid_losses_on_test_data(epoch,
                                                                                        enhance=enhance_valid_data)
                         evaluated_on_test_data = True
@@ -246,7 +251,7 @@ class Solver(object):
 
                     if epoch == self.epochs - 1 and self.args.log_results:
                         # log results at last epoch
-                        if not 'enhanced_dataloader' in locals():
+                        if 'enhanced_dataloader' not in locals():
                             enhanced_dataset = PrHrSet(self.args.samples_dir, enhanced_filenames)
                             enhanced_dataloader = DataLoader(enhanced_dataset, batch_size=1, shuffle=False)
 

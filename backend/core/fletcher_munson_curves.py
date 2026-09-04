@@ -501,7 +501,8 @@ def compute_adaptive_phon(
             mono = audio if audio.ndim == 1 else audio.mean(axis=0)
             meter = pyln.Meter(sr)
             measured_lufs = float(meter.integrated_loudness(mono.astype(float)))
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 pyloudnorm.integrated_loudness fehlgeschlagen — Default-Phon zurückgegeben (%d): %s", default_phon, exc)
             return default_phon
 
     if measured_lufs is None:

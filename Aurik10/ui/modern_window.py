@@ -25545,7 +25545,7 @@ class ModernMainWindow(QMainWindow):
             _dlg.exec()
         else:
             # Kein Worker aktiv ODER headless/unsichtbar → direkt wie „Schließen" behandeln
-            setattr(_dlg, "_close_requested", True)
+            _dlg._close_requested = True
         if not bool(getattr(_dlg, "_close_requested", False)):
             # Sofortige positive Rückmeldung: Dialog wurde bewusst verworfen,
             # Restaurierung läuft unverändert weiter.

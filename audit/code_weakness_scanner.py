@@ -30,11 +30,11 @@ import ast
 import json
 import re
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable
 
 _SEVERITY_RANK: dict[str, int] = {"critical": 3, "high": 2, "medium": 1, "low": 0}
 
@@ -198,7 +198,6 @@ def _has_logging_call(node: ast.AST) -> bool:
     for child in ast.walk(node):
         if isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute):
             root = child.func.value
-            name = ""
             while isinstance(root, ast.Attribute):
                 root = root.value
             if isinstance(root, ast.Name) and root.id in {"logger", "logging", "log"}:

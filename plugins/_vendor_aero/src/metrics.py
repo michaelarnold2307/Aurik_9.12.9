@@ -1,7 +1,7 @@
 import errno
+import logging
 import os
 import subprocess
-import logging
 import time
 
 import numpy as np
@@ -111,7 +111,7 @@ def get_visqol(ref_sig, out_sig, filename, sr, speech_mode, visqol_path):
                       f"--degraded_file {estimation_abs_path} ")
 
         if speech_mode:
-            visqol_cmd += f"--use_speech_mode"
+            visqol_cmd += "--use_speech_mode"
 
         visqol = subprocess.run(visqol_cmd, shell=True,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT)

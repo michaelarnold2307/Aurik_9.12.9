@@ -17,9 +17,12 @@ Referenz: §2.1 Aurik-9-Spec, MediumClassifier (§6.1 MaterialType)
 
 from __future__ import annotations
 
+import logging
 import warnings as _warnings
 
 import numpy as _np
+
+logger = logging.getLogger(__name__)
 
 from backend.core.medium_classifier import (
     ClassificationResult,
@@ -39,27 +42,33 @@ _warnings.warn(
 CarrierMLClassifier = MediumClassifier
 
 
-def classify_carrier_ml(features: dict[str, object]) -> dict:
-    """Classify audio carrier type from pre-extracted feature dict.
+def classify_carrier_ml(audio: _np.ndarray | None = None, sr: int = 48000, features: dict[str, object] | None = None) -> dict:
+    """Classify audio carrier type from actual audio signal.
 
-    Aurik-6.0 compatibility shim — delegates to :func:`classify_medium`
-    via a dummy silent audio signal and returns a legacy-format dict.
+    SOTA-Update (Rev. 2026-09-04): Nutzt echtes Audio statt Dummy-Signal.
+    Delegates to :func:`classify_medium` via real audio and returns a legacy-format dict.
 
     Parameters
     ----------
+    audio:
+        Actual audio samples (mono or stereo). If None, falls back to features-only path.
+    sr:
+        Sample rate of the audio signal.
     features:
-        Feature dict produced by ``analyze_carrier_forensics``.  Currently
-        used only to satisfy the Aurik-6.0 call-site in ``backend.file_import``.
+        Optional feature dict produced by ``analyze_carrier_forensics`` for explainability.
 
     Returns
     -------
     dict with keys ``"carrier_ml"``, ``"confidence"``, ``"probas"``, ``"explain"``.
     """
     try:
-        _sr = 48000
-        _audio = _np.zeros(int(_sr * 0.1), dtype=_np.float32)
-        result = classify_medium(_audio, _sr)
-        feature_count = len(features)
+        if audio is not None and audio.size > 0:
+            result = classify_medium(audio, sr)
+        else:
+            # Fallback: features-only path (legacy compatibility)
+            _audio = _np.zeros(int(sr * 0.1), dtype=_np.float32)
+            result = classify_medium(_audio, sr)
+
         _material = getattr(result, "material", None)
         _material_value = getattr(_material, "value", None)
         if _material_value is not None:
@@ -68,14 +77,25 @@ def classify_carrier_ml(features: dict[str, object]) -> dict:
             carrier = str(_material)
         else:
             carrier = str(result)
+
         confidence = float(result.confidence) if hasattr(result, "confidence") else 0.5
+
+        # Build explainability from features if available
+        feature_count = len(features) if features is not None else 0
+        explain_parts = [f"Classified as {carrier}"]
+        if feature_count > 0:
+            explain_parts.append(f"features={feature_count}")
+        if audio is not None and audio.size > 0:
+            explain_parts.append(f"samples={audio.size}")
+
         return {
             "carrier_ml": carrier,
             "confidence": confidence,
             "probas": {},
-            "explain": f"Classified as {carrier} (shim, features={feature_count})",
+            "explain": " (".join(explain_parts) + ")" if len(explain_parts) > 1 else explain_parts[0],
         }
     except Exception as exc:
+        logger.debug("§V6 Carrier-ML-Klassifizierung fehlgeschlagen — Fallback auf Unbekannt: %s", exc)
         return {
             "carrier_ml": "Unbekannt",
             "confidence": 0.0,

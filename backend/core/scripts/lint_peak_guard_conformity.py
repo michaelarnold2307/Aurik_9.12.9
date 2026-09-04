@@ -10,10 +10,13 @@ Rationale: A single transient/click must not prevent the entire audio from being
 normalized (§0 Primum non nocere). Use np.percentile(np.abs(...), 99.9) instead.
 """
 
+import logging
 import os
 import re
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_CONTEXTS = {
     # Telemetry/Logging contexts (metadata/debug)
@@ -141,6 +144,7 @@ def lint_file(file_path: str) -> list[tuple[int, str, str]]:
         try:
             lines = f.readlines()
         except Exception as e:
+            logger.debug("§V6 Datei konnte nicht gelesen werden %s: %s — leere Violations zurückgegeben", file_path, e)
             print(f"Warning: Could not read {file_path}: {e}")
             return violations
 

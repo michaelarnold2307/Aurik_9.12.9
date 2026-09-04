@@ -5,6 +5,9 @@
 # frischem Bytecode läuft — kein manuelles find/rm mehr nötig.
 import pathlib as _bclear_path
 import shutil as _bclear_shutil
+import logging
+
+logger = logging.getLogger(__name__)
 
 _BACKEND_ROOT = _bclear_path.Path(__file__).parent
 for _bclear_d in _BACKEND_ROOT.rglob("__pycache__"):
@@ -120,7 +123,8 @@ def _safe_istft(
         _noverlap = min(int(noverlap), max(0, _eff_nperseg - 1))
     try:
         return _scipy_istft(Zxx, fs=fs, window=window, nperseg=nperseg, noverlap=_noverlap, **kwargs)
-    except ValueError:
+    except ValueError as exc:
+        logger.debug("§V6 scipy ISTFT Fallback aktiviert (ValueError): %s", exc)
         _noverlap = max(0, _eff_nperseg // 4)
         return _scipy_istft(Zxx, fs=fs, window="hann", nperseg=nperseg, noverlap=_noverlap)
 

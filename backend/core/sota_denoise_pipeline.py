@@ -456,7 +456,8 @@ class GenreAdaptiveRouter:
                             return genre
 
             return "unknown"
-        except Exception:
+        except Exception as e:
+            log.debug("§V6 Genre-Erkennung fehlgeschlagen — 'unknown' zurückgegeben: %s", e)
             return "unknown"
 
     def get_preset(self, genre: str) -> tuple[float, float, float, float]:

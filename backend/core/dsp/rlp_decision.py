@@ -11,8 +11,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .zwicker_metrics import compute_roughness_asper
 from .loudness_meter import compute_loudness
+from .zwicker_metrics import compute_roughness_asper
 
 logger = logging.getLogger(__name__)
 

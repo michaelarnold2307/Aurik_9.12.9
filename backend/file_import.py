@@ -497,6 +497,7 @@ def load_audio_file(
                 else:
                     raise RuntimeError(_proc.stderr[:500] or f"returncode={_proc.returncode}")
             except Exception as _e2:
+                logger.warning("§V6 Audio-Laden (pydub-Subprozess) fehlgeschlagen für %s — Error-Result zurückgegeben: %s", filepath, _e2)
                 result["error"] = f"Audio read error: pedalboard + pydub subprocess failed. Last: {_e2}"
                 return result
             finally:
@@ -530,6 +531,7 @@ def load_audio_file(
                 audio = _raw.astype(np.float32)
                 logger.debug("laden_audio_file: pedalboard/FFmpeg OK (%s)", filepath)
             except Exception as _e3:
+                logger.warning("§V6 Audio-Laden (pedalboard/FFmpeg) fehlgeschlagen für %s — Error-Result zurückgegeben: %s", filepath, _e3)
                 result["error"] = f"Audio read error: soundfile + pedalboard failed. Last: {_e3}"
                 return result
 
@@ -660,8 +662,8 @@ def load_audio_file(
                 result["carrier_forensic"] = forensic["carrier_forensic"]
                 result["carrier_forensic_score"] = forensic["score"]
                 result["carrier_forensic_features"] = forensic["features"]
-                # ML-based carrier classification
-                ml = classify_carrier_ml(forensic["features"])
+                # ML-based carrier classification (SOTA: echtes Audio statt Dummy)
+                ml = classify_carrier_ml(audio_work, sr, features=forensic.get("features"))
                 result["carrier_ml"] = ml.get("carrier_ml", "Unbekannt")
                 result["carrier_ml_confidence"] = ml.get("confidence", 0.0)
                 result["carrier_ml_probas"] = ml.get("probas", {})

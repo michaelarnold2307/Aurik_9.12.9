@@ -235,6 +235,24 @@ class NoiseTextureCoherenceGuard:
         - End-of-Pipeline: metadata["noise_texture_coherence"] setzen
     """
 
+    def check(
+        self,
+        residual_audio: np.ndarray,
+        material_type: str,
+        sr: int,
+    ) -> NoiseTextureResult:
+        """Direkte Kohärenz-Prüfung auf Restrauschen (Alias für Legacy-Aufrufe).
+
+        Args:
+            residual_audio: Geschätztes Restrauschen (Residual)
+            material_type: Erkanntes Material
+            sr: Sample-Rate
+
+        Returns:
+            NoiseTextureResult mit coherence und weiteren Metriken
+        """
+        return compute_noise_texture_coherence(residual_audio, sr, material_type)
+
     def check_per_phase(
         self,
         audio_before: np.ndarray,

@@ -532,7 +532,7 @@ class RumbleFilterPhase(PhaseInterface):
                        Falls None, wird 'audio' selbst als Referenz genutzt.
         """
         if gain <= 1.0005:
-            return audio
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
         _arr = np.asarray(audio, dtype=np.float32)
         _was_2d = _arr.ndim == 2
         # §V04: Gate-Berechnung auf Pre-Phase-Input (reference), nicht auf HPF-gefiltertes Signal.
@@ -681,7 +681,11 @@ class RumbleFilterPhase(PhaseInterface):
         _music_proxy = _mono32
         try:
             _quiet_sos = signal.butter(2, 80.0 / (self.sample_rate / 2.0), btype="high", output="sos")
-            _music_proxy = signal.sosfiltfilt(_quiet_sos, _mono32).astype(np.float32)
+            from backend.core.audio_utils import (
+                safe_sosfiltfilt as _safe_sosfiltfilt05,  # pylint: disable=import-outside-toplevel
+            )
+
+            _music_proxy = _safe_sosfiltfilt05(_quiet_sos, _mono32).astype(np.float32)
         except Exception as e:
             logger.warning(
                 "Verarbeitungsschritt_05_rumble_filter.py::_erkennen_transients_professional Ersatzpfad: %s", e
@@ -802,9 +806,9 @@ class RumbleFilterPhase(PhaseInterface):
             if audio.ndim == 2:
                 filtered = np.zeros_like(audio)
                 for ch in range(2):
-                    filtered[:, ch] = signal.sosfiltfilt(sos, audio[:, ch], padlen=_padlen)
+                    filtered[:, ch] = _safe_sosfiltfilt05(sos, audio[:, ch], padlen=_padlen)
             else:
-                filtered = signal.sosfiltfilt(sos, audio, padlen=_padlen)
+                filtered = _safe_sosfiltfilt05(sos, audio, padlen=_padlen)
             return filtered  # type: ignore[no-any-return]
 
         # Build a soft bypass envelope instead of hard sample switches.
@@ -821,12 +825,12 @@ class RumbleFilterPhase(PhaseInterface):
         if audio.ndim == 2:
             filtered = np.zeros_like(audio)
             for ch in range(2):
-                filtered_channel = signal.sosfiltfilt(sos, audio[:, ch], padlen=_padlen)
+                filtered_channel = _safe_sosfiltfilt05(sos, audio[:, ch], padlen=_padlen)
 
                 # Blend: transient regions prefer original, non-transient prefer filtered.
                 filtered[:, ch] = _soft_mask * audio[:, ch] + (1.0 - _soft_mask) * filtered_channel
         else:
-            filtered_audio = signal.sosfiltfilt(sos, audio, padlen=_padlen)
+            filtered_audio = _safe_sosfiltfilt05(sos, audio, padlen=_padlen)
             filtered = _soft_mask * audio + (1.0 - _soft_mask) * filtered_audio
 
         return filtered  # type: ignore[no-any-return]

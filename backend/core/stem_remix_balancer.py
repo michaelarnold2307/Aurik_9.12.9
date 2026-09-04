@@ -144,7 +144,8 @@ class StemRemixBalancer:
             logger.warning("StemRemixBalancer fehlgeschlagen (%s) — Ursprungs-Referenz zurück", _exc)
             try:
                 return cast(np.ndarray, (np.asarray(original_reference, dtype=np.float32).copy()))
-            except Exception:
+            except Exception as e2:
+                logger.debug("§V6 StemRemixBalancer copy-Fallback fehlgeschlagen — Original-Referenz direkt zurückgegeben: %s", e2)
                 return cast(np.ndarray, np.asarray(original_reference).copy())
 
     @staticmethod

@@ -6,7 +6,10 @@ Aurik Feedback- und Optimierungsroutine
 """
 
 import json
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def analyze_audit_log(audit_path="audit/audit_trail.json"):

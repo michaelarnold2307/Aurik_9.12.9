@@ -898,7 +898,8 @@ class AutonomousRestorationEngine:
             if hasattr(variant, "parameters") and variant.parameters:
                 _kwargs["variant_params"] = dict(variant.parameters)
             return _uv3.restore(audio, sample_rate, **_kwargs)  # type: ignore[return-value]
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 UV3.restore fehlgeschlagen — Audio unverändert zurückgegeben (Baseline Fallback): %s", exc)
             # Fallback: einfache Gain-Anpassung als Baseline
             return cast(np.ndarray, (np.asarray(audio, dtype=np.float32)))
 

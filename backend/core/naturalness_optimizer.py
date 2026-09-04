@@ -1042,7 +1042,8 @@ def _detect_noise_floor(audio: np.ndarray, sr: int) -> bool:
         rms_db = 20.0 * np.log10(rms)
         noise_floor = float(np.percentile(rms_db, 10))
         return noise_floor > -50.0
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 _detect_noise_floor fehlgeschlagen — False zurückgegeben (Audio %s): %s", audio.shape, exc)
         return False
 
 
@@ -1077,7 +1078,8 @@ def _detect_spectral_imbalance(audio: np.ndarray, sr: int) -> bool:
             return False
         median = float(np.median(energies))
         return any(abs(e - median) > 6.0 for e in energies)
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 _detect_spectral_imbalance fehlgeschlagen — False zurückgegeben (Audio %s): %s", audio.shape, exc)
         return False
 
 
@@ -1098,7 +1100,8 @@ def _detect_diffuse_center(audio: np.ndarray, sr: int) -> bool:
         rms_S = float(np.sqrt(np.mean(S_mid**2)) + 1e-12)
         rms_M = float(np.sqrt(np.mean(M_mid**2)) + 1e-12)
         return rms_S / (rms_M + 1e-12) > 0.35
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 _detect_diffuse_center fehlgeschlagen — False zurückgegeben (Stereo Audio %s): %s", audio.shape, exc)
         return False
 
 

@@ -627,3 +627,4 @@ def create_safety_wrapper(
             processor_func=processor_func,
             processing_mode=processing_mode,
         )
+logger = logging.getLogger(__name__)

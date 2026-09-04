@@ -163,7 +163,8 @@ def _burg_ar_predict(context: np.ndarray, order: int, n_samples: int) -> np.ndar
         if np.linalg.matrix_rank(Rmat) < order:
             return np.zeros(n_samples)  # type: ignore[no-any-return]
         ar_coeff = np.linalg.solve(Rmat, R)
-    except np.linalg.LinAlgError:
+    except np.linalg.LinAlgError as exc:
+        logger.debug("§V6 AR-Toeplitz-Solve fehlgeschlagen — Nullen zurückgegeben (LinAlgError): %s", exc)
         return np.zeros(n_samples)  # type: ignore[no-any-return]
 
     # Vorhersage iterativ berechnen
@@ -605,7 +606,8 @@ def _try_consistency_model_inpainting(channel: np.ndarray, start: int, end: int,
             from plugins.consistency_inpaint_plugin import (  # type: ignore[import]  # pylint: disable=import-outside-toplevel
                 get_consistency_inpaint_plugin,
             )
-        except (ImportError, ModuleNotFoundError):
+        except (ImportError, ModuleNotFoundError) as exc:
+            logger.debug("§V6 consistency_inpaint_plugin nicht verfügbar — None zurückgegeben (phase_55): %s", exc)
             return None
 
         from backend.core.plugin_lifecycle_manager import (  # pylint: disable=import-outside-toplevel

@@ -314,7 +314,7 @@ class DCOffsetRemoval(PhaseInterface):
             logger.debug(
                 "Verarbeitungsschritt_30: audio too short (%d < %d), passthrough", len(audio), MIN_AUDIO_SAMPLES
             )
-            return np.asarray(audio, dtype=np.float32)  # type: ignore[no-any-return]
+            return np.nan_to_num(np.asarray(audio, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
         # Stage 1: always remove static DC bias directly.
         dc = float(np.mean(audio))
@@ -324,7 +324,7 @@ class DCOffsetRemoval(PhaseInterface):
         # Stage 2: remove residual near-DC drift with very low cutoff.
         # For tape/reel-tape we use the project-mandated zero-phase form.
         if cutoff_hz <= 0.0:
-            return np.asarray(audio, dtype=np.float32)  # type: ignore[no-any-return]
+            return np.nan_to_num(np.asarray(audio, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
         if filter_type == "iir" and cutoff_hz <= 5.0:
             b = np.array([1.0, -1.0], dtype=np.float64)
@@ -359,7 +359,7 @@ class DCOffsetRemoval(PhaseInterface):
             # Apply filter (forward-backward for zero-phase)
             processed = signal.sosfiltfilt(sos, audio)
 
-        return np.asarray(processed, dtype=np.float32)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(processed, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
     def _preserve_phase_loudness(
         self,

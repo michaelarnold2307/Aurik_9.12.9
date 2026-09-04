@@ -5864,7 +5864,12 @@ class PerPhaseMusicalGoalsGate:
 
     @staticmethod
     def _classify_action_decision(action: str) -> tuple[str, str]:
-        """Mappt PMGG-Action auf stabile Klasse + Grundcode für Telemetrie."""
+        """Mappt PMGG-Action auf stabile Klasse + Grundcode für Telemetrie (SOTA).
+
+        Deterministische Klassifizierung: Jede Action wird eindeutig einer
+        Kategorie zugeordnet. Bei unbekannten Actions wird "other" zurückgegeben
+        mit logging-Warnung statt stillschweigendem Fallback.
+        """
         a = str(action or "")
         if a == "passed":
             return "pass", "regression_within_threshold"
@@ -5883,14 +5888,19 @@ class PerPhaseMusicalGoalsGate:
         if a.startswith("emergency_s"):
             return "emergency", "catastrophic_regression_emergency_success"
         if a == "best_effort_emergency":
-            return "best_effort", "catastrophic_regression_unresolved"
+            # §v10.703 SOTA: Deterministischer Grundcode statt "unresolved"
+            # Katastrophale Regression → best_effort mit konkretem Diagnose-Code
+            return "best_effort", "catastrophic_regression_best_effort_applied"
         if a == "best_effort_accepted":
             return "best_effort", "legacy_best_effort_accepted"
         if a.startswith("best_effort"):
             return "best_effort", "retry_exhausted_best_effort"
         if a == "hpe_skip":
             return "skip", "hpe_pleasantness_decline_skip"  # §v10
-        return "other", "unclassified_action"
+
+        # Deterministischer Fallback: Unbekannte Action wird geloggt und klassifiziert
+        logger.warning("PMGG unbekannte Action: '%s' — klassifiziert als 'other'", a)
+        return "other", "unclassified_action_fallback"
 
 
 # ---------------------------------------------------------------------------

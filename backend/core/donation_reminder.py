@@ -78,7 +78,8 @@ def open_donation_link() -> bool:
         logger.debug("donation_reminder: primary URL open fehlgeschlagen, trying Ersatzpfad", exc_info=True)
     try:
         return bool(webbrowser.open(PAYPAL_FALLBACK))
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 donation_reminder: Fallback-URL open fehlgeschlagen — False zurückgegeben: %s", exc)
         return False
 
 
@@ -174,7 +175,8 @@ def should_show_reminder() -> bool:
                 return False
 
         return True
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 donation_reminder: should_show fehlgeschlagen — True zurückgegeben (lieber anzeigen als nie): %s", exc)
         return True  # Bei Fehler lieber anzeigen als nie
 
 

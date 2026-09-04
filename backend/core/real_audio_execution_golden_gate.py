@@ -9,6 +9,7 @@ phase execution, no-harm gates, artifact freedom, HPI/VQI, and safe export.
 from __future__ import annotations
 
 import json
+import logging
 import tempfile
 import time
 from dataclasses import asdict, dataclass
@@ -16,6 +17,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from backend.api.bridge import build_export_quality_gate_payload
 from backend.core.defect_phase_mapper import _RESTORATION_FORBIDDEN_PHASES
@@ -197,7 +200,8 @@ def _check_export_contract(
         if payload.get("passed") is False and not payload.get("recovery_attempted"):
             return False, str(sidecar_payload.get("export_strategy", "unknown")), False, sidecar_payload
         return bool(sidecar_ok), str(sidecar_payload.get("export_strategy", "success")), False, sidecar_payload
-    except RuntimeError:
+    except RuntimeError as e:
+        logger.warning("§V6 Execution-Gate RuntimeError — contract fallback aktiviert: %s", e)
         blocked = True
         contract_ok = payload.get("passed") is False and not payload.get("recovery_attempted")
         return bool(contract_ok), "blocked", blocked, sidecar_payload
@@ -264,6 +268,7 @@ def _measure_manifest_vqi(
         floor = float(get_vqi_material_floor(material, is_studio_2026=False))
         return (float(raw_vqi) if isinstance(raw_vqi, (int, float)) else None), floor, "manifest_vqi"
     except Exception as exc:  # pragma: no cover - optional metric stack can be unavailable in slim envs
+        logger.debug("§V6 _measure_manifest_vqi fehlgeschlagen — (None, None) zurückgegeben: %s", exc.__class__.__name__)
         return None, None, f"manifest_vqi_unavailable:{exc.__class__.__name__}"
 
 

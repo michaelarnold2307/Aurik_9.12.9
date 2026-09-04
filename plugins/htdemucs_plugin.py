@@ -86,7 +86,7 @@ class SeparationResult:
 
     def reconstruct(self) -> np.ndarray:
         """Rekonstruiert Original: vocals + drums + bass + other."""
-        return self.vocals + self.drums + self.bass + self.other
+        return np.asarray(self.vocals + self.drums + self.bass + self.other, dtype=np.float32)
 
 
 class HtdemucsPlugin:
@@ -112,7 +112,7 @@ class HtdemucsPlugin:
 
         Raises:
             RuntimeError: Wenn Separation fehlschlägt
-        
+
         Note:
             Längere Audio (> 343980 samples) wird automatisch mit Chunked Windowing
             verarbeitet (§G2 Vollständige Defektbehebung).
@@ -163,7 +163,7 @@ class HtdemucsPlugin:
     def _resample_to_48k(self, audio_2ch: np.ndarray, sr: int) -> np.ndarray:
         """Resampling von beliebigem SR zu 48kHz."""
         if sr == 48000:
-            return audio_2ch.astype(np.float32)
+            return np.asarray(audio_2ch, dtype=np.float32)
 
         try:
             julius_forward: Any = import_module("julius")
@@ -326,17 +326,17 @@ class HtdemucsPlugin:
 
     def _separate_onnx(self, audio_2ch: np.ndarray) -> list[np.ndarray]:
         """Separation mit ONNX Runtime.
-        
+
         Das ONNX-Modell erfordert exakte Audio-Länge von 343980 Samples (~7.16s @ 48kHz).
         - Kürzere Audio wird mit Nullen gepaddet
         - Längere Audio wird gekürzt (Zentrum beibehalten)
-        
+
         Returns: 4 stems (vocals, drums, bass, other) in der Original-Länge oder gekürzt
         """
         # Modell erfordert exakte Länge
         _FIXED_LENGTH = 343980
         orig_length = audio_2ch.shape[1]
-        
+
         # Pad oder kürze auf die erforderliche Länge
         if orig_length < _FIXED_LENGTH:
             # Pad mit Nullen am Ende
@@ -355,10 +355,10 @@ class HtdemucsPlugin:
                     "Ausgabe wird auf %d samples gekürzt.",
                     orig_length, _FIXED_LENGTH, _FIXED_LENGTH
                 )
-        
+
         # Input: (2, T) → (1, 2, T)
         input_data = audio_padded[np.newaxis, ...].astype(np.float32)
-        
+
         # State-Tensor für ONNX: (1, 4, 2048, 336) mit Nullen initialisiert
         state_tensor = np.zeros((1, 4, 2048, 336), dtype=np.float32)
 
@@ -369,14 +369,14 @@ class HtdemucsPlugin:
             "x": state_tensor,
         }
         outputs = self._model.run(None, input_feed)
-        
+
         # add_67 = outputs[1] = (1, 6, 2, 343980) — 6 stems (drums, bass, other, vocals, guitar, piano)
         # Wir nehmen die ersten 4 stems [drums, bass, other, vocals]
         stems_6ch = outputs[1].squeeze(0)  # (6, 2, 343980)
-        
+
         # Rückgabe: [vocals, drums, bass, other] (4 stems) — gekürzt auf trim_to_length
         stems_4ch = [stems_6ch[i, :, :trim_to_length] for i in range(4)]
-        
+
         return stems_4ch
 
     def unload(self) -> None:

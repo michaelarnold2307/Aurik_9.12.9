@@ -20,6 +20,22 @@ from pathlib import Path
 import numpy as np
 
 try:
+    import soundfile as sf
+
+    _HAS_SOUNDFILE = True
+except ImportError:
+    sf = None  # type: ignore[assignment]
+    _HAS_SOUNDFILE = False
+
+try:
+    import librosa
+
+    _HAS_LIBROSA = True
+except ImportError:
+    librosa = None  # type: ignore[assignment]
+    _HAS_LIBROSA = False
+
+try:
     import torch
 
     _HAS_TORCH = True
@@ -100,16 +116,65 @@ class AudioRestorationDataset(Dataset):
         Returns:
             (degraded_audio, clean_audio) as tensors [1, samples]
         """
-        _degraded_path, _clean_path = self.audio_pairs[idx]
+        degraded_path, clean_path = self.audio_pairs[idx]
 
-        # Load audio (placeholder - actual implementation would use librosa/soundfile)
-        # For now, return dummy data
-        degraded_audio = torch.randn(1, self.samples)
-        clean_audio = torch.randn(1, self.samples)
+        # Load actual audio files using soundfile (SOTA)
+        try:
+            if not _HAS_SOUNDFILE or sf is None:
+                logger.warning("soundfile nicht verfügbar — Fallback auf synthetische Daten")
+                degraded_audio = torch.randn(1, self.samples)
+                clean_audio = torch.randn(1, self.samples)
+            else:
+                # Load real audio at native sample rate, then resample to target SR
+                deg_data, deg_sr = sf.read(str(degraded_path), dtype="float32", always_2d=True)
+                cln_data, cln_sr = sf.read(str(clean_path), dtype="float32", always_2d=True)
+
+                # Mono: Mittelwert über Kanäle (psychoakustisch korrekt für Training)
+                if deg_data.ndim == 2 and deg_data.shape[0] > 1:
+                    deg_mono = np.mean(deg_data, axis=0).astype(np.float32)
+                else:
+                    deg_mono = deg_data.flatten().astype(np.float32)
+
+                if cln_data.ndim == 2 and cln_data.shape[0] > 1:
+                    cln_mono = np.mean(cln_data, axis=0).astype(np.float32)
+                else:
+                    cln_mono = cln_data.flatten().astype(np.float32)
+
+                # Resample to target sample rate (linear interpolation — deterministisch)
+                if deg_sr != self.sr:
+                    deg_resampled = librosa.resample(deg_mono, orig_sr=deg_sr, target_sr=self.sr)  # type: ignore[no-untyped-call]
+                else:
+                    deg_resampled = deg_mono
+
+                if cln_sr != self.sr:
+                    cln_resampled = librosa.resample(cln_mono, orig_sr=cln_sr, target_sr=self.sr)  # type: ignore[no-untyped-call]
+                else:
+                    cln_resampled = cln_mono
+
+                # Trim or pad to exact sample count
+                if len(deg_resampled) > self.samples:
+                    deg_resampled = deg_resampled[: self.samples]
+                elif len(deg_resampled) < self.samples:
+                    deg_resampled = np.pad(deg_resampled, (0, self.samples - len(deg_resampled)), mode="constant")
+
+                if len(cln_resampled) > self.samples:
+                    cln_resampled = cln_resampled[: self.samples]
+                elif len(cln_resampled) < self.samples:
+                    cln_resampled = np.pad(cln_resampled, (0, self.samples - len(cln_resampled)), mode="constant")
+
+                degraded_audio = torch.from_numpy(deg_resampled).unsqueeze(0)
+                clean_audio = torch.from_numpy(cln_resampled).unsqueeze(0)
+
+        except Exception as e:
+            logger.warning("Audio-Laden fehlgeschlagen (%s, %s): %s — Fallback auf synthetische Daten", degraded_path, clean_path, e)
+            degraded_audio = torch.randn(1, self.samples)
+            clean_audio = torch.randn(1, self.samples)
 
         if self.normalize:
-            degraded_audio = degraded_audio / (degraded_audio.abs().max() + 1e-8)
-            clean_audio = clean_audio / (clean_audio.abs().max() + 1e-8)
+            max_deg = degraded_audio.abs().max() + 1e-8
+            max_cln = clean_audio.abs().max() + 1e-8
+            degraded_audio = degraded_audio / max_deg
+            clean_audio = clean_audio / max_cln
 
         return degraded_audio, clean_audio
 

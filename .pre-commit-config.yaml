@@ -461,6 +461,14 @@ repos:
         pass_filenames: false
         files: ^(backend|plugins|denker|Aurik10|cli|tests/unit)/.*\.py$
 
+      # Coverage-Gate — SOTA: ≥ 90 % Zeilenabdeckung (branch=True, fail_under=90)
+      - id: aurik-coverage-gate
+        name: "Coverage-Gate (≥ 90 % Zeilenabdeckung, branch=True)"
+        entry: .venv_aurik/bin/python -m pytest tests/unit --cov=backend/core --cov=dsp --cov=plugins --cov=denker --cov=Aurik10 --cov-report=term-missing --cov-fail-under=90 -x -q --tb=short
+        language: system
+        pass_filenames: false
+        files: ^(backend|plugins|denker|Aurik10|cli)/.*\.py$
+
       # ID-Registry — R1/R2 fail-closed (Zitierdisziplin AGENTS.md §5)
       - id: aurik-id-registry
         name: "ID-Registry-Check (R1 unbekannt / R2 nackt-ambig fail-closed)"

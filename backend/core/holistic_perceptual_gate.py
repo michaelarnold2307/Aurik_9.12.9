@@ -759,7 +759,8 @@ class HolisticPerceptualGate:
                         np.ndarray | None, (np.asarray(self._compute_embedding(slice_ref, sr), dtype=np.float32))
                     )
             return None
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 _extract_reference_slice fehlgeschlagen — None zurückgegeben (Audio-Shape %s): %s", audio.shape, exc)
             return None
 
     def _compute_embedding(

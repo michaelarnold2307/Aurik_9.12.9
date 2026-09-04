@@ -116,7 +116,8 @@ class CumulativeDynamicsTracker:
             peak = float(np.max(np.abs(a))) + 1e-12
             rms = float(np.sqrt(np.mean(a * a))) + 1e-12
             return float(20.0 * np.log10(peak / rms))
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 _measure_crest fehlgeschlagen — None zurückgegeben (Audio %s): %s", audio.shape, exc)
             return None
 
 
@@ -382,7 +383,8 @@ class GrooveHardGuard:
             energy_prev = np.concatenate([[energy[0]], energy[:-1]])
             onsets = int(np.sum((energy > energy_prev * 2.0) & (energy > 1e-8)))
             return int(onsets)
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 _count_onsets fehlgeschlagen — 0 zurückgegeben (Audio %s, SR %d): %s", audio.shape, sr, exc)
             return 0
 
 

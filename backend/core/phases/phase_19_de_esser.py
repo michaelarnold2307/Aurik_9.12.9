@@ -2411,7 +2411,7 @@ class DeEsserPhase(PhaseInterface):
         elif len(audio_out) < n:
             audio_out = np.pad(audio_out, (0, n - len(audio_out)))
 
-        return np.asarray(audio_out)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(audio_out), nan=0.0)  # type: ignore[no-any-return]
 
     def _process_channel_spectral_dynamic_eq(
         self,

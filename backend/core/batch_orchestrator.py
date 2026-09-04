@@ -369,7 +369,8 @@ def _hash_file(path: str) -> str:
             while chunk := f.read(8192):
                 h.update(chunk)
         return h.hexdigest()[:16]
-    except OSError:
+    except OSError as exc:
+        logger.debug("§V6 SHA-256 Hash fehlgeschlagen — leere String zurückgegeben: %s", exc)
         return ""
 
 

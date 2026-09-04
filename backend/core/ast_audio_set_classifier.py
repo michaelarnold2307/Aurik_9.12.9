@@ -506,7 +506,8 @@ class AstAudioSetClassifier:
 
             num = int(len(audio) * target_sr / orig_sr)
             return scipy.signal.resample(audio, num).astype(np.float32)  # type: ignore[no-any-return]
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 scipy.signal.resample fehlgeschlagen — Linear-Interpolation Fallback: %s", exc)
             # Linear interpolation fallback
             n = len(audio)
             x_old = np.linspace(0, n - 1, n)
@@ -544,7 +545,8 @@ class AstAudioSetClassifier:
             # Normalize to [0, 1]
             mel_norm = (mel_db - mel_db.min()) / (mel_db.max() - mel_db.min() + 1e-12)
             return mel_norm.astype(np.float32)[:, : self._TARGET_FRAMES]  # type: ignore[no-any-return]
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 librosa.feature.melspectrogram fehlgeschlagen — STFT-Fallback aktiviert: %s", exc)
             # Minimal fallback: STFT-based mel approximation
             return self._compute_mel_fallback(audio_16k)
 

@@ -546,7 +546,11 @@ class ClickPopRemoval(PhaseInterface):
                 all_detections.update(outliers.tolist())
 
             except Exception:
-                # Graceful Degradation: Diese Ordnung überspringen
+                # Graceful Degradation: Diese Ordnung überspringen (§V6)
+                logger.warning(
+                    "§V6 Phase-27 click detection order failed → skipping: %s",
+                    str(Exception),
+                )
                 continue
 
         return sorted(all_detections)
@@ -694,7 +698,7 @@ class ClickPopRemoval(PhaseInterface):
         x_repair = np.arange(start, end + 1)
         repaired = cs(x_repair)
 
-        return np.asarray(repaired, dtype=np.float32)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(repaired, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
     def _ar_prediction(self, audio: np.ndarray, start: int, end: int) -> np.ndarray:
         """AR prediction for medium pops (order ≥ 16 @ 48 kHz, §VERBOTEN: LPC < 16)."""
@@ -748,4 +752,4 @@ class ClickPopRemoval(PhaseInterface):
 
         repaired = before_avg * fade + after_avg * (1 - fade)
 
-        return np.asarray(repaired, dtype=np.float32)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(repaired, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]

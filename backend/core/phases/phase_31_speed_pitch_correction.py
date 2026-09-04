@@ -1261,7 +1261,7 @@ class SpeedPitchCorrectionPhase(PhaseInterface):
         _peak = float(np.percentile(np.abs(audio_shifted), 99.9)) + 1e-10
         if _peak > 1.0:
             audio_shifted = audio_shifted / _peak
-        return np.asarray(audio_shifted.astype(audio.dtype, copy=False))  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(audio_shifted.astype(audio.dtype, copy=False)), nan=0.0)  # type: ignore[no-any-return]
 
     def _istft_fallback_ola(
         self,
@@ -1326,7 +1326,7 @@ class SpeedPitchCorrectionPhase(PhaseInterface):
             Pitch-korrigiertes Audio gleicher Länge, float64, NaN/Inf-frei.
         """
         if len(audio) == 0:
-            return audio.copy()
+            return np.nan_to_num(audio.copy(), nan=0.0, posinf=0.0, neginf=0.0)
 
         sr = int(self.sample_rate)
         dtype = audio.dtype

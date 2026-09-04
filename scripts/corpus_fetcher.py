@@ -1,10 +1,11 @@
 
-import os
-import yaml
 import hashlib
-import requests
+import os
 import subprocess
 from pathlib import Path
+
+import requests
+import yaml
 
 # Configuration
 CORPUS_ROOT = Path("./corpus").resolve()
@@ -24,9 +25,9 @@ def update_manifest(manifest_path, entry):
     if not manifest_path.exists():
         data = {"corpus_version": "1.0.0", "entries": []}
     else:
-        with open(manifest_path, 'r', encoding='utf-8') as f:
+        with open(manifest_path, encoding='utf-8') as f:
             data = yaml.safe_load(f) or {"corpus_version": "1.0.0", "entries": []}
-    
+
     if "entries" not in data:
         data["entries"] = []
 
@@ -50,15 +51,15 @@ def fetch_ia_item(identifier, material="shellac", is_vocal=True):
     file_path = dest_dir / f"{identifier}.wav"
 
     print(f"[*] Fetching {identifier} from {url}...")
-    
-    # Hier würde der echte requests.get(url) stehen. 
+
+    # Hier würde der echte requests.get(url) stehen.
     # Da wir im Sandbox-Environment keine echten externen Downloads ohne Erlaubnis machen,
     # erstelle ich eine 'Fake'-WAV Datei für die Verifikation des Workflows.
     with open(file_path, "wb") as f:
         f.write(os.urandom(1024 * 512)) # 512KB Dummy Audio
 
     checksum = get_sha256(file_path)
-    
+
     entry = {
         'file': str(file_path.relative_to(Path.cwd())),
         'material': material,
@@ -82,7 +83,7 @@ def run_audit():
     result = subprocess.run(["python3", "-c", "import yaml, glob; ..."], capture_output=
                              True, text=True) # Hier würde der echte audit script Aufruf stehen
     # Da wir das Script gerade erst bauen, nutzen wir den existierenden Pfad
-    subprocess.run(["python3", "corpus_audit.py"]) 
+    subprocess.run(["python3", "corpus_audit.py"])
 
 if __name__ == "__main__":
     # Test-Run mit einem Dummy-Identifier

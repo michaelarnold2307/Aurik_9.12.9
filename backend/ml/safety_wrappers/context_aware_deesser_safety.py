@@ -18,7 +18,10 @@ Date: 8. Februar 2026
 
 from typing import Any
 
+import logging
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from backend.ml.safety_wrappers.safety_wrapper_template import (
     PostCheckResult,
@@ -54,7 +57,8 @@ try:
         return float(_compute_correlation_impl(before, after))
 
 except ImportError:
-    # Fallback implementations
+    logger.debug("§V6 deesser_safety-Import fehlgeschlagen — Fallback-Implementierungen aktiviert")
+
     def compute_energy_ratio(before: np.ndarray, after: np.ndarray) -> float:
         """Berechnet energy ratio in dB."""
         energy_before = np.sum(before**2)
@@ -162,8 +166,8 @@ def detect_phoneme_based_sibilance(
 
         return has_sibilance, intensity, metrics
 
-    except Exception:
-        # Fallback to frequency-based detection
+    except Exception as e:
+        logger.debug("§V6 phoneme-basierte Sibilanz-Erkennung fehlgeschlagen — Frequency-Fallback aktiviert: %s", e)
         return _detect_frequency_based_sibilance(audio, sr)
 
 

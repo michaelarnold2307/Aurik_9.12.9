@@ -1,14 +1,13 @@
 import functools
 import logging
-import time
-import numpy as np
-import cv2
 import math
-import torch
-
-from torch.nn import functional as F
-
+import time
 from contextlib import contextmanager
+
+import cv2
+import numpy as np
+import torch
+from torch.nn import functional as F
 
 
 def get_network_description(network):
@@ -22,13 +21,12 @@ def get_network_description(network):
 def print_network(network_name, network, logger):
     s, n = get_network_description(network)
     if isinstance(network, torch.nn.DataParallel):
-        net_struc_str = '{} - {}'.format(network.__class__.__name__,
-                                         network.module.__class__.__name__)
+        net_struc_str = f'{network.__class__.__name__} - {network.module.__class__.__name__}'
     else:
-        net_struc_str = '{}'.format(network.__class__.__name__)
+        net_struc_str = f'{network.__class__.__name__}'
 
     logger.info(
-        '{} structure: {}, with parameters: {:,d}'.format(network_name, net_struc_str, n))
+        f'{network_name} structure: {net_struc_str}, with parameters: {n:,d}')
     logger.info(s)
 
 
@@ -134,10 +132,10 @@ def scale_minmax(X, min=0.0, max=1.0):
     isnan = np.isnan(X).any()
     isinf = np.isinf(X).any()
     if isinf:
-        X[X == np.inf] = 1e9
-        X[X == -np.inf] = 1e-9
+        X[np.inf == X] = 1e9
+        X[-np.inf == X] = 1e-9
     if isnan:
-        X[X == np.nan] = 1e-9
+        X[np.nan == X] = 1e-9
     # logger.info(f'isnan: {isnan}, isinf: {isinf}, max: {X.max()}, min: {X.min()}')
 
     X_std = (X - X.min()) / (X.max() - X.min())

@@ -7,7 +7,11 @@ Der Guard führt:
 3️⃣ Loggt die Ergebnisse in export_log.txt
 """
 
-import subprocess, yaml, pathlib
+import pathlib
+import subprocess
+
+import yaml
+
 
 def run(cmd: str, cwd=None):
     """Helper to run a command and capture output."""

@@ -226,7 +226,7 @@ def _rms_envelope(signal: np.ndarray, sr: int, window_ms: float = 5.0) -> np.nda
     sq = signal**2
     kernel = np.ones(win) / win
     rms = np.sqrt(np.convolve(sq, kernel, mode="same") + 1e-12)
-    return np.asarray(rms)  # type: ignore[no-any-return]
+    return np.nan_to_num(np.asarray(rms), nan=0.0)  # type: ignore[no-any-return]
 
 
 def _smooth_gain(gain_lin: np.ndarray, sr: int, attack_ms: float, release_ms: float) -> np.ndarray:
@@ -334,7 +334,8 @@ def _deess_channel(
     sos = sig.butter(4, [freq_low, freq_high], btype="band", fs=sr, output="sos")
     try:
         sib_band = sig.sosfiltfilt(sos, ch)
-    except ValueError:
+    except ValueError as exc:
+        logger.debug("§V6 scipy.signal.sosfiltfilt fehlgeschlagen — Audio unverändert zurückgegeben (Channel %s): %s", ch.shape, exc)
         return ch.astype(ch.dtype), 0.0
 
     # 2. Look-Ahead: Sibilantenband um lookahead_ms vorziehen

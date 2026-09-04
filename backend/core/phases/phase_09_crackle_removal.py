@@ -216,17 +216,17 @@ def _apply_b11_hf_guard(dry: np.ndarray, wet: np.ndarray, sr: int) -> tuple[np.n
         # Kein messbarer HF-Rauschfloor im Dry-Signal (digital still) —
         # jeder gewünschte HF-Anteil des Outputs sähe wie ein "Anstieg" aus.
         # Guard ist hier nicht definiert (§v10.900: schützt vor RAUSCHfloor-Anstieg).
-        return np.asarray(wet, dtype=np.float32), _delta, False
+        return np.nan_to_num(np.asarray(wet, dtype=np.float32), nan=0.0), _delta, False
     if _delta > _B11_HF_FLOOR_ROLLBACK_DB:
         logger.warning(
             "B11 HF-Rauschfloor-Anstieg %+.1f dB (> %+.1f dB) — Rollback auf Dry (§v10.900)",
             _delta,
             _B11_HF_FLOOR_ROLLBACK_DB,
         )
-        return np.asarray(dry, dtype=np.float32), _delta, True
+        return np.nan_to_num(np.asarray(dry, dtype=np.float32), nan=0.0), _delta, True
     if _delta > _B11_HF_FLOOR_WARN_DB:
         logger.warning("B11 HF-Rauschfloor-Anstieg %+.1f dB — Banquet-Ausgabe flagiert (§v10.900)", _delta)
-    return np.asarray(wet, dtype=np.float32), _delta, False
+    return np.nan_to_num(np.asarray(wet, dtype=np.float32), nan=0.0), _delta, False
 
 
 class CrackleRemovalPhase(PhaseInterface):
@@ -698,7 +698,7 @@ class CrackleRemovalPhase(PhaseInterface):
         # --- Normalization ---
         max_val = float(np.abs(audio_48k).max())
         if max_val < 1e-10:
-            return audio  # Silence — return unchanged
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # Silence — return unchanged
         audio_norm = (audio_48k / max_val).astype(np.float32)
 
         # --- ONNX inference with fixed-shape chunking (§ml-plugin-SKILL) ---
@@ -812,9 +812,9 @@ class CrackleRemovalPhase(PhaseInterface):
                     1.0,
                 ).astype(np.float32)
                 result = (audio * gain[:, np.newaxis]).astype(np.float32)
-            return np.asarray(np.clip(result, -1.0, 1.0), dtype=np.float32)  # type: ignore[no-any-return]
+            return np.nan_to_num(np.clip(result, -1.0, 1.0).astype(np.float32), nan=0.0)  # type: ignore[no-any-return]
 
-        return np.clip(restored_mono, -1.0, 1.0)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.clip(restored_mono, -1.0, 1.0), nan=0.0)  # type: ignore[no-any-return]
 
     def _remove_crackle_ml(self, audio: np.ndarray, banquet_plugin, params: dict[str, Any]) -> np.ndarray:
         """
@@ -861,7 +861,7 @@ class CrackleRemovalPhase(PhaseInterface):
                 blend_amount = 1 - texture_preserve
                 restored = audio * texture_preserve + restored * blend_amount
 
-                return np.asarray(restored[: len(audio)], dtype=np.float32)  # type: ignore[no-any-return]
+                return np.nan_to_num(np.asarray(restored[: len(audio)], dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
             finally:
                 # Cleanup
@@ -1464,7 +1464,8 @@ class CrackleRemovalPhase(PhaseInterface):
         Returns:
             List of detected transient onsets (sample indices)
         """
-        from scipy.signal import butter as _butter09, sosfiltfilt as _sosfiltfilt09
+        from scipy.signal import butter as _butter09
+        from scipy.signal import sosfiltfilt as _sosfiltfilt09
 
         # High-pass filter (Second-Order Sections — numerically more stable than b,a)
         sos_hp = _butter09(4, highpass_freq, btype="high", fs=self.sample_rate, output="sos")
@@ -1677,7 +1678,7 @@ class CrackleRemovalPhase(PhaseInterface):
             _f, _t, Zxx = signal.stft(clean_audio, self.sample_rate, nperseg=nperseg, boundary="even")
             avg_spectrum = np.mean(np.abs(Zxx), axis=1)
 
-            return np.asarray(avg_spectrum, dtype=np.float32)  # type: ignore[no-any-return]
+            return np.nan_to_num(np.asarray(avg_spectrum, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
         return None
 
@@ -1818,8 +1819,8 @@ class CrackleRemovalPhase(PhaseInterface):
                 result = np.zeros((gap_len, audio.shape[1]))
                 for ch in range(audio.shape[1]):
                     result[:, ch] = audio_fill
-                return result  # type: ignore[no-any-return]
-            return np.asarray(audio_fill, dtype=np.float32)  # type: ignore[no-any-return]
+                return np.nan_to_num(result, nan=0.0)  # type: ignore[no-any-return]
+            return np.nan_to_num(np.asarray(audio_fill, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
         except Exception as exc:
             logger.debug("Spectral interpolation fehlgeschlagen (%s), using linear.", exc)
@@ -1888,7 +1889,7 @@ class CrackleRemovalPhase(PhaseInterface):
             blended[:_cf_len] = (1.0 - t_cf) * start_val + t_cf * blended[:_cf_len]
             blended[-_cf_len:] = (1.0 - t_cf[::-1]) * end_val + t_cf[::-1] * blended[-_cf_len:]
 
-        return np.asarray(blended, dtype=ch.dtype)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(blended, dtype=ch.dtype), nan=0.0)  # type: ignore[no-any-return]
 
     def _ar_predict(self, context: np.ndarray, n_samples: int, order: int) -> np.ndarray:
         """One-step-ahead AR synthesis via Burg-LPC with Yule-Walker fallback.
@@ -2003,7 +2004,7 @@ class CrackleRemovalPhase(PhaseInterface):
             a_coeffs = solve_toeplitz(r[:order], -r[1 : order + 1])
             if not np.isfinite(a_coeffs).all():
                 return None
-            return np.asarray(a_coeffs, dtype=np.float64)  # type: ignore[no-any-return]
+            return np.nan_to_num(np.asarray(a_coeffs, dtype=np.float64), nan=0.0)  # type: ignore[no-any-return]
         except Exception as e:
             logger.warning(
                 "Verarbeitungsschritt_09_crackle_removal.py::_yule_walker_predictor_coeffs Ersatzpfad: %s", e
@@ -2029,7 +2030,7 @@ class CrackleRemovalPhase(PhaseInterface):
             else:
                 interpolated = np.zeros(gap_length)
 
-        return interpolated  # type: ignore[no-any-return]
+        return np.nan_to_num(interpolated, nan=0.0)  # type: ignore[no-any-return]
 
     def _measure_crackle_reduction(self, before: np.ndarray, after: np.ndarray) -> float:
         """

@@ -348,7 +348,8 @@ class StemLevelRestorer:
         ref = np.asarray(reference, dtype=np.float32)
         try:
             arr = np.asarray(candidate, dtype=np.float32)
-        except Exception:  # pylint: disable=broad-except
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.debug("§V6 np.asarray(candidate) fehlgeschlagen — Nullen zurückgegeben (Shape %s): %s", ref.shape, exc)
             return np.zeros_like(ref, dtype=np.float32)  # type: ignore[no-any-return]
 
         arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)

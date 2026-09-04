@@ -214,7 +214,8 @@ def _stabilize_ar(coeffs: np.ndarray) -> np.ndarray:
         return coeffs.copy()
     try:
         roots = np.roots(poly)
-    except (np.linalg.LinAlgError, ValueError):
+    except (np.linalg.LinAlgError, ValueError) as exc:
+        logger.debug("§V6 np.roots fehlgeschlagen — Original-Koeffizienten zurückgegeben (Poly %s): %s", poly.shape, exc)
         return coeffs.copy()
     mags = np.abs(roots)
     mask = mags >= 1.0

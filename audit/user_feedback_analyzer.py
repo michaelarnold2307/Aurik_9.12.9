@@ -6,7 +6,10 @@ Aurik User-Feedback-Analyse und Community-Bewertung
 """
 
 import json
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def load_feedback(feedback_path="audit/user_feedback.json"):

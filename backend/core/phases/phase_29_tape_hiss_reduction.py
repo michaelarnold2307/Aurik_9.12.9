@@ -57,7 +57,8 @@ try:
             np.asarray(np.exp(np.clip(0.5 * _scipy_exp1_p29(np.maximum(nu, 1e-10)), 0.0, 5.0)), dtype=np.float64),
         )
 
-except ImportError:  # pragma: no cover
+except ImportError as _exp1_import_err:  # pragma: no cover
+    logger.debug("§V6 scipy.special.exp1 nicht verfügbar — Identity-Gain Fallback aktiviert (phase_29): %s", _exp1_import_err)
 
     def _exp1_p29_gain(nu: np.ndarray) -> np.ndarray:  # type: ignore[misc]
         """Fallback: identity = degenerate Wiener gain (scipy.special unavailable)."""

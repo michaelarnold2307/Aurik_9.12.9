@@ -650,7 +650,8 @@ class ParallelDefectScanner:
                 caused_by=d.get("caused_by", []),
                 causes=d.get("causes", []),
             )
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 _dict_to_hypothesis fehlgeschlagen — None zurückgegeben (Dict %s): %s", module, exc)
             return None
 
     def _object_to_hypothesis(
@@ -678,7 +679,8 @@ class ParallelDefectScanner:
                 caused_by=getattr(d, "caused_by", []),
                 causes=getattr(d, "causes", []),
             )
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 _object_to_hypothesis fehlgeschlagen — None zurückgegeben (Objekt %s): %s", module, exc)
             return None
 
     @staticmethod

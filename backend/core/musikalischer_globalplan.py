@@ -639,7 +639,8 @@ def _estimate_bpm_with_phrase_extractor(mono: np.ndarray, sr: int) -> float | No
     extractor = get_phrase_extractor()
     try:
         tempo_fn = extractor.estimate_tempo
-    except AttributeError:
+    except AttributeError as exc:
+        logger.debug("§V6 Phrase-Extractor.estimate_tempo nicht verfügbar — None zurückgegeben (BPM-Schätzung): %s", exc)
         return None
 
     bpm = float(tempo_fn(mono, sr))

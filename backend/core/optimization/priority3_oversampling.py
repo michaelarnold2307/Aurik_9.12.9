@@ -104,3 +104,4 @@ class AdaptiveOversamplingProcessor:
         if len(downsampled) < n:
             downsampled = np.pad(downsampled, (0, n - len(downsampled)))
         return downsampled.astype(np.float32)  # type: ignore[no-any-return]
+logger = logging.getLogger(__name__)

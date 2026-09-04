@@ -78,6 +78,7 @@ import time
 
 import numpy as np
 from scipy import signal
+from scipy.signal import butter, sosfiltfilt
 
 from backend.core.audio_utils import (
     audio_sample_count,
@@ -2556,8 +2557,9 @@ class WowFlutterFix(PhaseInterface):
         Rückgabe kompatibel mit _fit_sinusoidal_wow_curve / _calculate_stretch_factors:
           virtual_pitch[t] = 440 * relative_IF_deviation[t]
         """
-        from scipy.signal import butter as _butter12, sosfiltfilt as _sosfiltfilt12
+        from scipy.signal import butter as _butter12
         from scipy.signal import hilbert as _hilbert
+        from scipy.signal import sosfiltfilt as _sosfiltfilt12
 
         # --- Konstanten ---
         BP_LOW = 80.0  # Hz — Untergrenze Bandpass (Stimminhalt / Instrumente)

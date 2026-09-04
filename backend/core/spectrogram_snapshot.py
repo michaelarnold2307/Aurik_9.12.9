@@ -60,7 +60,8 @@ class SpectrogramSnapshotter:
         """Rendert STFT-Magnitude als 256×256 Graustufen-Bild (PIL Image)."""
         try:
             from PIL import Image
-        except Exception:
+        except Exception as e:
+            logger.debug("§V6 PIL-Import fehlgeschlagen — Dummy-Bild zurückgegeben: %s", e)
             return _dummy_image()
 
         _mono = audio
@@ -82,7 +83,8 @@ class SpectrogramSnapshotter:
             from scipy.signal import stft
 
             _f, _t, Zxx = stft(_segment.astype(np.float64), fs=sr, nperseg=_N_FFT, noverlap=_N_FFT - _HOP)
-        except Exception:
+        except Exception as e:
+            logger.debug("§V6 scipy.signal.stft fehlgeschlagen — Dummy-Bild zurückgegeben: %s", e)
             return _dummy_image()
 
         # Magnitude → dB → 0-255 Graustufen
@@ -103,5 +105,6 @@ def _dummy_image():
         from PIL import Image
 
         return Image.new("L", (1, 1), 0)
-    except Exception:
+    except Exception as e:
+        logger.debug("§V6 _dummy_image: PIL-Import fehlgeschlagen — None zurückgegeben: %s", e)
         return None

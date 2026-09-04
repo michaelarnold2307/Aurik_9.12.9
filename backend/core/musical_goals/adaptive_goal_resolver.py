@@ -112,3 +112,4 @@ def resolve_adaptive_goal_thresholds(adaptive_goals_payload: Any) -> dict[str, f
                 break
 
     return resolved
+logger = logging.getLogger(__name__)

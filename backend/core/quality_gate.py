@@ -318,5 +318,6 @@ class QualityGate:
         """Einfacher Schwellwert-Check (Rückwärtskompatibilität)."""
         try:
             return float(value) >= float(threshold)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as e:
+            logger.debug("§V6 QualityGate.check Schwellwert-Vergleich fehlgeschlagen — False zurückgegeben: %s", e)
             return False

@@ -34,7 +34,8 @@ def _savgol_smooth(arr: np.ndarray, window: int = 7, polyorder: int = 2) -> np.n
         from scipy.signal import savgol_filter
 
         return savgol_filter(arr, window_length=window, polyorder=polyorder).astype(np.float32)  # type: ignore[no-any-return]
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 scipy.signal.savgol_filter fehlgeschlagen — Boxcar-Fallback aktiviert (Window %d): %s", window, exc)
         # Boxcar-Fallback
         half = window // 2
         out = arr.copy()

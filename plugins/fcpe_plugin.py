@@ -153,7 +153,7 @@ def _local_argmax_decode(salience: np.ndarray, threshold: float = _VOICED_THRESH
     Returns:
         (f0_hz, voiced_prob) je als (T,) float32-Array.
     """
-    T, C = salience.shape  # noqa: N806 (DSP-Konvention: T=Zeit, C=Klassen)
+    T, C = salience.shape
     # Maximale Salience und Peak-Index pro Frame
     voiced_prob = salience.max(axis=-1).astype(np.float32)  # (T,)
     max_idx = salience.argmax(axis=-1)  # (T,) int

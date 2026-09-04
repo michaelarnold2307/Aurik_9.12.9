@@ -51,7 +51,7 @@ class TestChunkedProcessorBasic:
         assert np.all(np.isfinite(result.other))
 
         # Prüfe dass wenigstens ein Stem Non-Zero ist
-        stems_energy = [np.sum(result.vocals**2), np.sum(result.drums**2), 
+        stems_energy = [np.sum(result.vocals**2), np.sum(result.drums**2),
                         np.sum(result.bass**2), np.sum(result.other**2)]
         assert max(stems_energy) > 0, "Alle Stems sind 0"
 
@@ -138,11 +138,11 @@ class TestCrossfadeBlending:
         overlap_end = overlap_start + ChunkedProcessor.OVERLAP
 
         vocals = result.vocals[0]  # Channel 0
-        
+
         # Finite differences in Overlap-Region sollten sanft sein
         diffs = np.diff(vocals[overlap_start:overlap_end])
         max_diff = np.max(np.abs(diffs))
-        
+
         # Max Amplitude ist ~0.1, max_diff sollte klein sein (< 0.02)
         assert max_diff < 0.02, f"Discontinuity too large: {max_diff}"
 
@@ -194,7 +194,7 @@ class TestChunkLog:
         result = chunker.separate_long(audio, sr=48000)
 
         log = chunker.get_chunk_log()
-        
+
         # Für 2 Chunks sollte Log 2 Einträge haben
         assert len(log) >= 1  # Mindestens ein Chunk
 
@@ -222,14 +222,14 @@ class TestInputValidation:
     def test_invalid_audio_shape_3d(self, chunker: ChunkedProcessor) -> None:
         """3D Audio sollte Fehler geben."""
         audio = np.random.randn(2, 2, 100000).astype(np.float32)  # 3D, invalid
-        
+
         with pytest.raises(ValueError):
             chunker.separate_long(audio, sr=48000)
 
     def test_invalid_audio_shape_wrong_channels(self, chunker: ChunkedProcessor) -> None:
         """Wrong channel count sollte Fehler geben."""
         audio = np.random.randn(6, 100000).astype(np.float32)  # 6 Kanäle, invalid
-        
+
         with pytest.raises(ValueError):
             chunker.separate_long(audio, sr=48000)
 
@@ -238,7 +238,7 @@ class TestInputValidation:
         audio = np.random.randn(2, 100000).astype(np.float32) * 0.1
         audio[0, 50000:50010] = np.nan  # Injiziere NaN
         audio[1, 60000:60010] = np.inf  # Injiziere Inf
-        
+
         # Sollte nicht crashen (NaN wird zu 0 konvertiert)
         result = chunker.separate_long(audio, sr=48000)
         assert result.vocals.shape == (2, 100000)

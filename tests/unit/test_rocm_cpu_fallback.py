@@ -30,7 +30,7 @@ class _FlakySession:
     def get_inputs(self) -> list:
         return [SimpleNamespace(name="input")]
 
-    def run(self, output_names, feeds):  # noqa: ARG002 (Mock-Signatur)
+    def run(self, output_names, feeds):
         self.calls += 1
         if self.calls == 1:
             raise RuntimeError("MIOPEN failure 7: miopenStatusUnknownError")

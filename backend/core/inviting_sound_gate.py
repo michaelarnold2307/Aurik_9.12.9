@@ -166,7 +166,8 @@ def check_inviting_gate(
 
     try:
         from backend.core.dsp.zwicker_metrics import compute_roughness_asper
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 zwicker_metrics.compute_roughness_asper nicht verfügbar — Gate mit Default-Werten zurückgegeben: %s", exc)
         res.details["skipped"] = "zwicker_unavailable"
         return res
 
@@ -177,7 +178,8 @@ def check_inviting_gate(
         seg = mono[s:e]
         try:
             asper = float(compute_roughness_asper(seg.astype(np.float32), sr))
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 compute_roughness_asper fehlgeschlagen — 0.0 zurückgegeben (Window %d): %s", wi, exc)
             asper = 0.0
         sharp = compute_sharpness_acum(seg, sr)
         asper_values.append(asper)

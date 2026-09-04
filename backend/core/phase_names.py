@@ -7,6 +7,10 @@ Usage:
 
 from __future__ import annotations
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def phase_human_name(phase_id: str) -> str:
     """Return a human-readable name for a phase_id, or the id itself.
@@ -23,7 +27,8 @@ def phase_human_name(phase_id: str) -> str:
         from backend.core.phase_icons import phase_name_de
 
         return phase_name_de(phase_id)
-    except ImportError:
+    except ImportError as exc:
+        logger.debug("§V6 phase_icons.phase_name_de nicht verfügbar — Phase-ID unverändert zurückgegeben: %s", exc)
         return phase_id
 
 
@@ -33,5 +38,6 @@ def phase_human_name_with_icon(phase_id: str) -> str:
         from backend.core.phase_icons import phase_display
 
         return phase_display(phase_id)
-    except ImportError:
+    except ImportError as exc:
+        logger.debug("§V6 phase_icons.phase_display nicht verfügbar — phase_human_name Fallback aktiviert: %s", exc)
         return phase_human_name(phase_id)

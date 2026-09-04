@@ -180,9 +180,34 @@ class LyricsAligner:
             self._check_mfa_availability()
 
     def _check_whisper_availability(self) -> None:
-        """Deaktiviert Docker-based Whisper path for production policy compliance."""
+        """SOTA-Update (Rev. 2026-09-04): Lädt Whisper via faster-whisper oder openai-whisper."""
+        self._whisper_model_obj = None
         self._whisper_available = False
-        logger.info("Lyrics Aligner: Docker-based Whisper path deaktiviert by policy")
+
+        # Try faster-whisper first (3x faster, lower memory)
+        try:
+            from faster_whisper import WhisperModel  # type: ignore[import-untyped]
+
+            model_size = "medium" if self.whisper_model in {"large", "large-v3"} else self.whisper_model
+            logger.info("Lyrics Aligner: Loading faster-whisper %s...", model_size)
+            self._whisper_model_obj = WhisperModel(model_size, device="cpu")
+            self._whisper_available = True
+            logger.info("✅ Lyrics Aligner: faster-whisper verfuegbar (%s)", model_size)
+        except Exception as e1:
+            logger.debug("faster-whisper nicht verfügbar: %s", e1)
+
+        # Fallback to openai-whisper
+        if not self._whisper_available:
+            try:
+                import whisper  # type: ignore[import-untyped]
+
+                model_size = "medium" if self.whisper_model in {"large", "large-v3"} else self.whisper_model
+                logger.info("Lyrics Aligner: Loading openai-whisper %s...", model_size)
+                self._whisper_model_obj = whisper.load_model(model_size)
+                self._whisper_available = True
+                logger.info("✅ Lyrics Aligner: openai-whisper verfuegbar (%s)", model_size)
+            except Exception as e2:
+                logger.warning("Lyrics Aligner: Whisper nicht verfügbar (%s) — VAD-Fallback aktiv", e2)
 
     def _check_mfa_availability(self) -> None:
         """Prüft if MFA is available and which models are installed."""
@@ -291,7 +316,77 @@ class LyricsAligner:
         )
 
     def _whisper_transcribe(self, audio: npt.NDArray[np.float32], sr: int) -> tuple[str, str, list[dict]]:
-        """Transcribe audio with Whisper."""
+        """Transcribe audio with Whisper (SOTA: faster-whisper oder openai-whisper)."""
+        if self._whisper_available and self._whisper_model_obj is not None:
+            try:
+                # Normalize to float32 [-1, 1] → PCM16 for Whisper (Intermediate-Format, kein Audio-Dither nötig §V5)
+                pcm16 = (audio * 32767.0).astype(np.int16)
+
+                if "faster_whisper" in str(type(self._whisper_model_obj)):
+                    # faster-whisper API
+                    segments, info = self._whisper_model_obj.transcribe(
+                        pcm16,
+                        language=self.language or None,
+                        task="transcribe",
+                        beam_size=5,
+                        temperature=[0.0],
+                    )
+                    detected_lang = getattr(info, "language", "unknown") or "unknown"
+                    lang_name = getattr(info, "language_name", "") if hasattr(info, "language_name") else ""
+
+                    word_segments = []
+                    for seg in segments:
+                        # faster-whisper returns segments with text and timestamps
+                        start = float(seg.start)
+                        end = float(seg.end)
+                        text = str(seg.text).strip()
+                        confidence = float(seg.no_ts_prob) if hasattr(seg, "no_ts_prob") else 0.8
+
+                        for word in text.split():
+                            word_segments.append({
+                                "start": start,
+                                "end": end,
+                                "word": word,
+                                "confidence": min(confidence, 0.95),
+                            })
+
+                    transcript = " ".join(seg.text.strip() for seg in segments)
+                    return transcript, detected_lang, word_segments
+
+                else:
+                    # openai-whisper API
+                    result = self._whisper_model_obj.transcribe(
+                        pcm16,
+                        language=self.language or None,
+                        task="transcribe",
+                        beam_size=5,
+                        temperature=0.0,
+                    )
+                    detected_lang = result.get("language", "unknown")
+                    text_segments = result.get("segments", [])
+
+                    word_segments = []
+                    for seg in text_segments:
+                        start = float(seg["start"])
+                        end = float(seg["end"])
+                        text = str(seg["text"]).strip()
+
+                        for word in text.split():
+                            word_segments.append({
+                                "start": start,
+                                "end": end,
+                                "word": word,
+                                "confidence": 0.85,
+                            })
+
+                    transcript = result.get("text", "")
+                    return transcript.strip(), detected_lang, word_segments
+
+            except Exception as e:
+                logger.warning("Whisper Transkription fehlgeschlagen (%s) — VAD-Fallback aktiv", e)
+                self._whisper_available = False
+
+        # Fallback to VAD-only transcription
         return self._fallback_transcribe(audio, sr)
 
     def _whisper_docker_inference(self, audio: npt.NDArray[np.float32], sr: int) -> tuple[str, str, list[dict]]:

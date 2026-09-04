@@ -153,7 +153,8 @@ def _is_localized_change(pre: np.ndarray, post: np.ndarray, max_fraction: float 
         _total = _cum[-1] + 1e-12
         _n90 = int(np.searchsorted(_cum, _total * 0.9))
         return (_n90 + 1) / max(len(_sorted), 1) < max_fraction
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 _temporal_damage_ratio fehlgeschlagen — False zurückgegeben (konservativ): %s", exc)
         return False
 
 
@@ -241,7 +242,8 @@ def _spectral_bands_over_db(pre: np.ndarray, post: np.ndarray, sr: int, threshol
             if abs(10.0 * np.log10(_e_post / _e_pre)) > threshold_db:
                 _count += 1
         return _count
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 _spectral_damage_bands fehlgeschlagen — 0 zurückgegeben (konservativ): %s", exc)
         return 0
 
 
@@ -914,7 +916,8 @@ class CoordinatedRepair:
             strength = step.parameters.get("strength", 0.4)
             result = pipeline.process(audio, sr, override_strength=strength)
             return cast(np.ndarray, result.audio.astype(np.float32))
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 SOTADenoisePipeline fehlgeschlagen — Audio unverändert zurückgegeben: %s", exc)
             return audio
 
     def _run_banquet_vinyl(

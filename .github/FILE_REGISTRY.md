@@ -47,6 +47,11 @@
 | backend/core/regulator/regulator_v8.py | DEPRECATED | backend/core/regulator | nein | backend/core/regulator/regulator.py | Suffix-Variante ohne Importe (repo_graph --duplicates Fund 2026-08-22); canonical = regulator.py |
 | scripts/prepare_vocal_snr_round.py | ACTIVE | tooling/audit | nein | — | Vor-Gate-Bestand (2026-08-22) |
 | scripts/venv_sitecustomize.py | ACTIVE | tooling/venv | nein | — | Vor-Gate-Bestand (2026-08-22) |
+| tests/integration/test_phase_cascade_integration.py | ACTIVE | testing/integration | ja | — | Phase-Kaskaden-E2E: 15+ Tests für NR-/Dynamik-/Gesang-Kette, NaN/Inf-Schutz, Shape-Erhalt, Determinismus, Peak-Bounds, Edge-Cases, Performance-Grenzen (SOTA 2026-09) |
+| backend/core/phases/_denoise_helpers.py | ACTIVE | backend/core/dsp | ja | — | Module-level helper functions & constants für phase_03_denoise: Era-adaptive NR-Routing (§4.4), Decade-Stärke-Multiplikator (§2.14+); stateless, keine Phase-Instanz nötig (Split 2026-09) |
+| backend/core/phases/_denoise_algorithms.py | ACTIVE | backend/core/dsp | ja | — | Core Denoising-Algorithmen: IMCRA Noise Estimation (Cohen 2002), OMLSA Gain (Cohen 2003), Salience G_floor, Adaptive Guard Profile, Phase Correction (Prusa 2017), ERB-Bands (Glasberg 1990), Multi-/Masking-Gate, Musical Noise Suppression, Transient Preservation; stateless Funktionen (Split 2026-09) |
+| backend/api/bridge_cache.py | ACTIVE | api/bridge | ja | — | Thread-safe LRU caches für Analyse-Ergebnisse (Defect, Era/Genre, Medium, Restorability); content-addressed Keys verhindern redundante Re-Analyse bei Datei-Umbenennung; extrahiert aus bridge.py Zeilen 238-640 (Split 2026-09) |
+| backend/api/bridge_core.py | ACTIVE | api/bridge | ja | — | Lazy-import wrappers für Enums, Restorer-Klassen, Denker, DefectScanner, MediumClassifier, Era/Genre-Classifiers und RestorabilityEstimator; extrahiert aus bridge.py (Split 2026-09) |
 
 ## Pflege-Regeln
 

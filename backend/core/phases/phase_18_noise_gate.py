@@ -312,11 +312,11 @@ class NoiseGate(PhaseInterface):
             # bool → float32 Wahrscheinlichkeitskurve (NaN/Inf-sicher)
             vad_probabilities = bool_mask.astype(np.float32)
             vad_probabilities = np.nan_to_num(vad_probabilities, nan=1.0, posinf=1.0, neginf=0.0)
-            return np.asarray(np.clip(vad_probabilities, 0.0, 1.0), dtype=np.float32)  # type: ignore[no-any-return]
+            return np.nan_to_num(np.clip(vad_probabilities, 0.0, 1.0).astype(np.float32), nan=0.0)  # type: ignore[no-any-return]
         except Exception as e:
             logger.warning("Voice activity detection fehlgeschlagen (DSP-only Modus): %s", e)
             # Fallback: Gate komplett offen (kein Signalverlust)
-            return np.ones(len(audio), dtype=np.float32)  # type: ignore[no-any-return]
+            return np.nan_to_num(np.ones(len(audio), dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
     def process(
         self,
@@ -1041,7 +1041,7 @@ class NoiseGate(PhaseInterface):
     def _combine_bands(self, bands: list) -> np.ndarray:
         """Kombiniert frequency bands back into full-bandwidth signal."""
         # Simple summation (Linkwitz-Riley filters sum to flat response)
-        return np.asarray(sum(bands), dtype=np.float32)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(sum(bands), dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
     def _apply_gate(
         self,
@@ -1134,4 +1134,4 @@ class NoiseGate(PhaseInterface):
         gain_linear = np.maximum(gain_linear, float(np.clip(masking_gain_floor, 0.10, 1.0)))
         gated = audio * gain_linear
 
-        return np.asarray(gated, dtype=np.float32)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(gated, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]

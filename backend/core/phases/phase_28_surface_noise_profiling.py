@@ -923,4 +923,4 @@ class SurfaceNoiseProfiling(PhaseInterface):
         log_G = np.clip(log_G, np.log(G_floor), 0.0)
         G = np.exp(log_G)
         G = np.nan_to_num(G, nan=G_floor, posinf=1.0, neginf=G_floor)
-        return np.asarray(np.clip(G, G_floor, 1.0), dtype=np.float32)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.clip(G, G_floor, 1.0).astype(np.float32), nan=0.0)  # type: ignore[no-any-return]

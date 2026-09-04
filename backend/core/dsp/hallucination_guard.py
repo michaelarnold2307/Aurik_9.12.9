@@ -58,7 +58,8 @@ def _get_adaptive_rollback_threshold() -> float:
         from backend.core.signal_flow_tracer import get_hallucination_guard_threshold
 
         return max(_ROLLBACK_THRESHOLD_FLOOR, get_hallucination_guard_threshold())
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 SFT-Halluzinationsschwelle nicht verfügbar — Floor-Wert zurückgegeben (0.15): %s", exc)
         return _ROLLBACK_THRESHOLD_FLOOR
 
 

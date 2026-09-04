@@ -133,9 +133,9 @@ def _ffmpeg_restore(audio: np.ndarray, sr: int) -> np.ndarray:
 
 
 def _aurik_restore(case: dict, audio: np.ndarray, sr: int) -> np.ndarray:
+    from backend.core.performance_guard import QualityMode
     from backend.core.real_audio_strategy_golden_gate import _scan_strategy_case
     from backend.core.unified_restorer_v3 import RestorationConfig, UnifiedRestorerV3
-    from backend.core.performance_guard import QualityMode
 
     strat = _scan_strategy_case(case, ROOT, _TARGET_SR)
     planned = list(strat.combined_phases)

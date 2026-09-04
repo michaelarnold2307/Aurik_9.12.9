@@ -635,9 +635,7 @@ class MonoToStereoPhaseV2(PhaseInterface):
             return enhanced  # type: ignore[no-any-return]
         except Exception as e:
             logger.warning("Verarbeitungsschritt_32_mono_to_stereo.py::_verbessern_hf_content Ersatzpfad: %s", e)
-            return audio
-
-    def _check_mono_compatibility(self, audio: np.ndarray) -> bool:
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
         """
         Verify mono compatibility (mono fold-down sounds good).
 

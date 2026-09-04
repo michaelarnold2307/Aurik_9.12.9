@@ -106,7 +106,8 @@ class AdaptiveResourceManager:
                 self._mem_cache_value = float(psutil.virtual_memory().percent)
                 self._mem_cache_ts = _now
                 return float(self._mem_cache_value)
-            except AttributeError:
+            except AttributeError as exc:
+                logger.debug("§V6 psutil.virtual_memory().percent nicht verfügbar — Fallback auf 0.0: %s", exc)
                 return 0.0  # Mock-Objekt ohne .percent (z. B. in Tests)
         else:
             return 0  # Fallback: keine Überwachung
@@ -116,7 +117,8 @@ class AdaptiveResourceManager:
         if psutil:
             try:
                 return float(psutil.virtual_memory().available) / (1024 * 1024)
-            except AttributeError:
+            except AttributeError as exc:
+                logger.debug("§V6 psutil.virtual_memory().available nicht verfügbar — Fallback auf inf: %s", exc)
                 return float("inf")  # Mock-Objekt ohne .available
         else:
             return float("inf")  # Fallback: assume unlimited

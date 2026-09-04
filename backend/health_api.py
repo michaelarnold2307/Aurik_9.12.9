@@ -69,3 +69,4 @@ if _instrumentator_spec is not None:
     Instrumentator = getattr(_instrumentator_module, "Instrumentator", None)
     if Instrumentator is not None:
         Instrumentator().instrument(app).expose(app)
+logger = logging.getLogger(__name__)

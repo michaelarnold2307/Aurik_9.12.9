@@ -615,7 +615,7 @@ class TapeSaturation(PhaseInterface):
         if peak > 0.95:
             saturated = saturated * (0.95 / peak)
 
-        return np.asarray(saturated, dtype=np.float32)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(saturated, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
     @staticmethod
     def _tanh_adaa(x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
@@ -633,11 +633,11 @@ class TapeSaturation(PhaseInterface):
 
         def _log_cosh(x: np.ndarray) -> np.ndarray:
             ax = np.abs(x)
-            return np.asarray(ax + np.log1p(np.exp(-2.0 * ax)) - np.log(2.0), dtype=np.float32)  # type: ignore[no-any-return]
+            return np.nan_to_num(np.asarray(ax + np.log1p(np.exp(-2.0 * ax)) - np.log(2.0), dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
         midpoint = np.tanh(0.5 * (x0 + x1))
         adaa = (_log_cosh(x0) - _log_cosh(x1)) / np.where(close, 1.0, dX)
-        return np.where(close, midpoint, adaa)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.where(close, midpoint, adaa), nan=0.0)  # type: ignore[no-any-return]
 
     def _saturate_band(
         self,
@@ -693,7 +693,7 @@ class TapeSaturation(PhaseInterface):
         if peak > 1.0:
             saturated_with_harmonics /= peak
 
-        return np.asarray(saturated_with_harmonics, dtype=np.float32)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(saturated_with_harmonics, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
     def _estimate_thd(self, original: np.ndarray, processed: np.ndarray) -> float:
         """

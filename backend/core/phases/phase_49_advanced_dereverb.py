@@ -1478,7 +1478,8 @@ class AdvancedDereverbPhase(PhaseInterface):
             XhBw = Xw.conj().T @ b
             reg = 1e-4 * np.eye(K)
             g = np.linalg.solve(XhXw + reg, XhBw)
-        except np.linalg.LinAlgError:
+        except np.linalg.LinAlgError as exc:
+            logger.debug("§V6 LS-Reverb-Prediction fehlgeschlagen — Nullen zurückgegeben (LinAlgError): %s", exc)
             return np.zeros_like(y)  # type: ignore[no-any-return]
 
         # Vectorized reverb prediction: r(t) = Σ_k g_k · y(t-D-k-1)

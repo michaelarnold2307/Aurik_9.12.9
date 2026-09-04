@@ -57,7 +57,8 @@ import time
 import numpy as np
 from scipy import signal
 
-from backend.core.audio_utils import to_channels_last, safe_resample_poly as _safe_resample_poly11
+from backend.core.audio_utils import safe_resample_poly as _safe_resample_poly11
+from backend.core.audio_utils import to_channels_last
 from backend.core.defect_scanner import MaterialType
 from backend.core.phase_strength_contract import resolve_phase_strength_contract
 

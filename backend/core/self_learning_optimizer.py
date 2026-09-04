@@ -162,6 +162,7 @@ class SelfLearningOptimizer:
         self.learning_rate: float = 0.05
         self.model_params: dict[str, float] = {}
         self._legacy_history: list[dict[str, Any]] = []
+        self._max_legacy_history: int = 100  # Cap to prevent unbounded memory growth
 
         # Zustand laden
         self._load_state()
@@ -382,6 +383,9 @@ class SelfLearningOptimizer:
             grad = (feedback - self.predict(features)) * v
             self.model_params[k] += self.learning_rate * grad
         self._legacy_history.append({"features": features, "feedback": feedback})
+        # Cap history to prevent unbounded memory growth
+        if len(self._legacy_history) > self._max_legacy_history:
+            self._legacy_history = self._legacy_history[-self._max_legacy_history:]
 
     def predict(self, features: dict[str, float]) -> float:
         """[Deprecated] Lineare Vorhersage basierend auf gelernten Gewichten."""

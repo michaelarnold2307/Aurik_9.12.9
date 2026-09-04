@@ -481,8 +481,7 @@ class TransparentDynamicsV1(PhaseInterface):
                 _smp = get_medium_profile(str(getattr(material_enum, "value", material_enum)).lower())
                 _is_compressed_mat = bool(getattr(_smp, "is_compressed", _is_compressed_mat))
             except Exception:
-                logger.debug("Stiller optionaler Ausnahmefall ignoriert", exc_info=True)
-                pass
+                logger.debug("§V6 Material-Profil-Laden fehlgeschlagen — Standard-Komprimierungs-Annahme")
             if _is_compressed_mat:
                 ratio = float(np.clip(ratio, 1.1, 2.5))
                 logger.info(
@@ -833,7 +832,7 @@ class TransparentDynamicsV1(PhaseInterface):
         # Apply gain reduction
         audio_compressed = audio * gain_smooth
 
-        return np.asarray(audio_compressed)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(audio_compressed), nan=0.0)  # type: ignore[no-any-return]
 
     def get_metadata(self) -> PhaseMetadata:
         """Gibt phase metadata zurück."""

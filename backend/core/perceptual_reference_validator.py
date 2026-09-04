@@ -138,7 +138,8 @@ class PerceptualReferenceValidator:
                 rms=rms,
                 sample_rate=sr,
             )
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 _extract_perceptual_anchor fehlgeschlagen — Minimal-Anker zurückgegeben (Label %s): %s", label, exc)
             return PerceptualAnchor(label=label, sample_rate=sr)
 
     @staticmethod
@@ -216,7 +217,8 @@ class PerceptualReferenceValidator:
             result.accepted = result.perceptual_similarity >= _RESTORATION_GATE
             return result
 
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 PerceptualValidation fehlgeschlagen — accepted=True zurückgegeben (konservativ): %s", exc)
             return PerceptualValidationResult(accepted=True)
 
     # ── Helfer ──────────────────────────────────────────────────────

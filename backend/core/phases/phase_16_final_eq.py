@@ -428,7 +428,7 @@ class FinalEQ(PhaseInterface):
             logger.debug(
                 "Verarbeitungsschritt_16: audio too short (%d < %d), skipping EQ", len(audio), MIN_AUDIO_SAMPLES
             )
-            return np.asarray(audio, dtype=np.float32).copy()  # type: ignore[no-any-return]
+            return np.nan_to_num(np.asarray(audio, dtype=np.float32).copy(), nan=0.0)  # type: ignore[no-any-return]
 
         eq_audio = audio.copy()
 

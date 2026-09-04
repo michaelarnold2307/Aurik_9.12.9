@@ -40,7 +40,8 @@ def _load_torch() -> bool:
 
         torch = _torch  # type: ignore[assignment]
         return True
-    except (ImportError, Warning):
+    except (ImportError, Warning) as exc:
+        logger.debug("§V6 torch nicht verfügbar — False zurückgegeben (Semantic Goals): %s", exc)
         return False
 
 

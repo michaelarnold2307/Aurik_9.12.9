@@ -440,13 +440,13 @@ class Exciter(PhaseInterface):
         if peak > 0.99:
             excited_audio = excited_audio * (0.99 / peak)
 
-        return np.asarray(excited_audio)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(excited_audio), nan=0.0)  # type: ignore[no-any-return]
 
     def _extract_band(self, audio: np.ndarray, sample_rate: int, freq_range: tuple[float, float]) -> np.ndarray:
         """Extrahiert frequency band using bandpass filter."""
         sos = signal.butter(4, freq_range, btype="band", fs=sample_rate, output="sos")
         # §2.51 Anti-Zeitversatz: sosfiltfilt (Zero-Phase) — band wird mit original gemischt.
-        return np.asarray(signal.sosfiltfilt(sos, audio))  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(signal.sosfiltfilt(sos, audio)), nan=0.0)  # type: ignore[no-any-return]
 
     def _generate_harmonics(
         self, audio: np.ndarray, intensity: float, harmonic_type: str, saturation_type: str
@@ -483,7 +483,7 @@ class Exciter(PhaseInterface):
         sos_hp = signal.butter(2, 1000, btype="high", fs=48000, output="sos")
         harmonics_only = signal.sosfiltfilt(sos_hp, saturated)
 
-        return np.asarray(harmonics_only * 0.7)  # type: ignore[no-any-return]  # Scale down
+        return np.nan_to_num(np.asarray(harmonics_only * 0.7), nan=0.0)  # type: ignore[no-any-return]  # Scale down
 
     def _measure_hf_energy(self, audio: np.ndarray, sample_rate: int) -> float:
         """Misst high-frequency energy (>6 kHz)."""

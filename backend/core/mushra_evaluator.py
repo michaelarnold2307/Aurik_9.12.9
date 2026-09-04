@@ -497,7 +497,8 @@ class MushraEvaluator:
                 from backend.core.musical_goals.musical_goals_metrics import get_checker
 
                 self._mu_checker = get_checker()  # type: ignore[assignment]
-            except ImportError:
+            except ImportError as exc:
+                logger.debug("§V6 musical_goals.musical_goals_metrics nicht verfügbar — leeres Dict zurückgegeben (MUSHRA): %s", exc)
                 return {}
 
         audio_f32 = np.ascontiguousarray(audio, dtype=np.float32)

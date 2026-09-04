@@ -356,7 +356,8 @@ class StreamingDoNoHarm:
                 "crest_db": crest,
                 "rms_db": rms_db,
             }
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 _compute_quality_metrics fehlgeschlagen — leeres Dict zurückgegeben: %s", exc)
             return {}
 
 

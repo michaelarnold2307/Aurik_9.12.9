@@ -172,20 +172,21 @@ def test_media_type_enum_iteration():
 
 
 def test_defect_type_enum_values():
-    """Test DefectType enum has expected values"""
-    assert DefectType.BROADBAND_NOISE == "broadband_noise"
-    assert DefectType.CRACKLE_POPS == "crackle_pops"
-    assert DefectType.HUM == "hum"
-    assert DefectType.DROPOUT == "dropout"
-    assert DefectType.CLIPPING == "clipping"
-    assert DefectType.COMPRESSION == "compression"
-    assert DefectType.DISTORTION == "distortion"
+    """Test DefectType enum has expected values (kanonisch: defect_scanner)."""
+    # Kern-Defekte vorhanden
+    assert DefectType.CLICKS.value == "clicks"
+    assert DefectType.CRACKLE.value == "crackle"
+    assert DefectType.HUM.value == "hum"
+    assert DefectType.WOW.value == "wow"
+    assert DefectType.FLUTTER.value == "flutter"
+    assert DefectType.CLIPPING.value == "clipping"
+    assert DefectType.DROPOUTS.value == "dropouts"
 
 
 def test_defect_type_enum_iteration():
-    """Test DefectType enum can be iterated"""
+    """Test DefectType enum can be iterated (54+ Defekttypen)."""
     defect_types = list(DefectType)
-    assert len(defect_types) == 7
+    assert len(defect_types) >= 54, f"Erwartete ≥54 Defekttypen, aber {len(defect_types)} vorhanden."
     assert DefectType.HUM in defect_types
     assert DefectType.CLIPPING in defect_types
 

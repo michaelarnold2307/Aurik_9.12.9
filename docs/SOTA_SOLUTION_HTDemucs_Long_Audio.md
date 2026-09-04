@@ -80,7 +80,7 @@ Hanning-Länge: 200 ms @ 48kHz = 9600 samples
 In Overlap-Region [A, A+O]:
   - Left-Fade: Hanning fade-out über [A, A+4800]
   - Right-Fade: Hanning fade-in über [A+4800, A+O]
-  
+
 result[n] = left[n] * (1 - w[n]) + right[n] * w[n]
   wobei w[n] = Hanning Envelope
 ```
@@ -90,17 +90,17 @@ result[n] = left[n] * (1 - w[n]) + right[n] * w[n]
 ```python
 def separate_long_audio(audio: np.ndarray, sr: int = 48000) -> SeparationResult:
     """Chunked Separation mit Overlap-Blending."""
-    
+
     # Konstanten
     WINDOW_SIZE = 343980
     OVERLAP = 42000
     STRIDE = WINDOW_SIZE - OVERLAP
     CROSSFADE_MS = 200
     CROSSFADE_SAMPLES = int(sr * CROSSFADE_MS / 1000)  # 9600 @ 48kHz
-    
+
     audio = to_stereo(audio, sr)  # Ensure (2, T)
     orig_length = audio.shape[1]
-    
+
     # Initialisiere Output-Stems
     stems_out = {
         'vocals': np.zeros((2, orig_length), dtype=np.float32),
@@ -108,26 +108,26 @@ def separate_long_audio(audio: np.ndarray, sr: int = 48000) -> SeparationResult:
         'bass': np.zeros((2, orig_length), dtype=np.float32),
         'other': np.zeros((2, orig_length), dtype=np.float32),
     }
-    
+
     # Tracking für Overlap-Blending
     blend_count = np.zeros(orig_length, dtype=np.float32)  # Normalisierungs-Counter
-    
+
     # Chunking
     chunk_idx = 0
     pos = 0
-    
+
     while pos < orig_length:
         chunk_start = pos
         chunk_end = min(pos + WINDOW_SIZE, orig_length)
         chunk_len = chunk_end - chunk_start
-        
+
         # Extrahiere Chunk
         chunk = audio[:, chunk_start:chunk_end]
-        
+
         # Pad wenn nötig (letzter Chunk kürzer)
         if chunk_len < WINDOW_SIZE:
             chunk = np.pad(chunk, ((0, 0), (0, WINDOW_SIZE - chunk_len)))
-        
+
         # HTDemucs-Separation
         try:
             separated = htdemucs.separate(chunk, sr)
@@ -141,10 +141,10 @@ def separate_long_audio(audio: np.ndarray, sr: int = 48000) -> SeparationResult:
             logger.error(f"Chunk {chunk_idx} Fehler: {e}")
             # Fallback: Stille (oder Skip)
             stems_chunk = {k: np.zeros_like(chunk) for k in stems_chunk}
-        
+
         # Trim Chunk zurück auf Original-Länge (falls gepaddet)
         stems_chunk = {k: v[:, :chunk_len] for k, v in stems_chunk.items()}
-        
+
         # Blende in Output
         if chunk_idx == 0:
             # Erster Chunk: Keine Blending
@@ -156,40 +156,40 @@ def separate_long_audio(audio: np.ndarray, sr: int = 48000) -> SeparationResult:
             overlap_start = chunk_start
             overlap_end = min(chunk_start + OVERLAP, orig_length)
             fade_len = overlap_end - overlap_start
-            
+
             # Hanning Crossfade
             hann_fade = np.hanning(fade_len * 2)  # Full Hanning
             fade_out = hann_fade[:fade_len]  # Left half
             fade_in = hann_fade[fade_len:]   # Right half
-            
+
             for stem, data in stems_chunk.items():
                 # Fade-in in Overlap-Region
                 data_overlap = data[:, :fade_len]
-                
+
                 # Blende mit bestehendem Output
                 stems_out[stem][:, overlap_start:overlap_end] *= (1 - fade_in[np.newaxis, :])
                 stems_out[stem][:, overlap_start:overlap_end] += data_overlap * fade_in[np.newaxis, :]
-                
+
                 # Nicht-Overlap-Teil einfach addieren
                 stems_out[stem][:, overlap_end:chunk_end] = data[:, fade_len:chunk_len]
-            
+
             blend_count[overlap_start:overlap_end] += fade_in
             blend_count[overlap_end:chunk_end] += 1.0
-        
+
         # Nächster Chunk
         pos += STRIDE
         chunk_idx += 1
-    
+
     # Normalisierung (durchschnittliche Amplitude erhalten)
     for stem in stems_out:
         # Wo blend_count > 0, dividiere durch blend_count
         mask = blend_count > 0
         stems_out[stem][:, mask] /= blend_count[mask]
-    
+
     # Trim zu Original-Länge (falls über hinausgewachsen)
     for stem in stems_out:
         stems_out[stem] = stems_out[stem][:, :orig_length]
-    
+
     return SeparationResult(**stems_out, sr=sr)
 ```
 
@@ -204,29 +204,29 @@ def separate_long_audio(audio: np.ndarray, sr: int = 48000) -> SeparationResult:
 ```python
 class ChunkedProcessor:
     """Orchestriert HTDemucs-Separation über lange Audio."""
-    
+
     WINDOW_SIZE = 343980  # Fixed
     OVERLAP = 42000  # 12% @ 48kHz
     STRIDE = WINDOW_SIZE - OVERLAP
     CROSSFADE_MS = 200
-    
+
     def __init__(self, htdemucs_plugin: HtdemucsPlugin):
         self.plugin = htdemucs_plugin
-    
+
     def separate_long(self, audio: np.ndarray, sr: int) -> SeparationResult:
         """Chunked separation mit Overlap-Blending."""
         # (siehe Pseudocode oben)
         pass
-    
+
     def _generate_crossfade_window(self, length: int) -> np.ndarray:
         """Erzeugt Hanning Crossfade."""
         return np.hanning(length * 2)[:length]
-    
-    def _blend_chunk(self, 
-                     stems_out, 
-                     stems_chunk, 
-                     chunk_start, 
-                     chunk_end, 
+
+    def _blend_chunk(self,
+                     stems_out,
+                     stems_chunk,
+                     chunk_start,
+                     chunk_end,
                      chunk_idx):
         """Blended Chunk in Output."""
         # (Crossfade-Logik)
@@ -247,17 +247,17 @@ class ChunkedProcessor:
 ```python
 class HtdemucsPlugin:
     # ...existing code...
-    
+
     def separate(self, audio: np.ndarray, sr: int) -> SeparationResult:
         # NEW: Nutze ChunkedProcessor für längere Audio
-        
+
         if audio.shape[1] <= self.WINDOW_SIZE:
             # Direct separation (existing)
             return self._separate_direct(audio, sr)
         else:
             # Chunked separation (new)
             from plugins.htdemucs_chunked_processor import ChunkedProcessor
-            
+
             chunker = ChunkedProcessor(self)
             return chunker.separate_long(audio, sr)
 ```
@@ -276,10 +276,10 @@ class HtdemucsPlugin:
 class RestaurerDenker:
     def _build_global_plan(self, ...):
         # NEW: Chunk-Awareness für Quality Gates
-        
+
         # Separation Fidelity wird jetzt über ganzen Song gemessen
         # (nicht nur 7s-Fenster)
-        
+
         if len(musical_goals.separation_fidelity) > 0:
             sep_fidelity = np.mean(musical_goals.separation_fidelity)
             # Verwende echte Wert statt Schätzung
@@ -390,10 +390,10 @@ def test_musical_goals_separation_fidelity_full_audio():
     """Separation Fidelity wird für ganzen Song gemessen."""
     audio = load_test_audio("elke_best_30s.wav")  # 30s
     result = separate_chunked(audio, sr=48000)
-    
+
     sep_fidelity = measure_separation_fidelity(audio, result)
     assert 0.8 < sep_fidelity < 1.0  # Realistischer Range
-    
+
     # Prüfe dass es nicht auf 7s-Sampling basiert
     sep_fidelity_7s = measure_separation_fidelity(audio[:, :343980], result[:, :343980])
     # Sollten unterschiedlich sein (long audio nutzt mehr Kontext)
@@ -402,9 +402,9 @@ def test_musical_goals_separation_fidelity_full_audio():
 def test_end_to_end_restoration_with_chunked_separation():
     """Vollständige Restaurierungs-Pipeline mit Chunked Separation."""
     audio = load_test_audio("elke_best_60s.wav")
-    
+
     result = aurik_restore(audio, mode='restoration')
-    
+
     # Prüfe dass restoration über ganzen Song hing und nicht nur 7s
     # (z.B. bessere Noise Removal am Ende, keine Lücken)
     ✅
@@ -480,4 +480,3 @@ def test_end_to_end_restoration_with_chunked_separation():
 2. **Morgen**: Phase 1 Implementation (ChunkedProcessor)
 3. **+3 Tage**: Phase 2/3 Integration + Full Testing
 4. **+5 Tage**: Validation auf echten Audio-Samples (Elke Best etc)
-

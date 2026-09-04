@@ -1399,7 +1399,33 @@ class MusicalQualityAssurance:
                 f"Empfehlung: Studio-2026-Mode für maximale Qualität."
             )
         else:
-            verdict = "❌ QUALITY NOT GUARANTEED - Unknown issue"
+            # §v10.703 Deterministischer Fallback: Kein "Unknown issue", sondern konkrete Diagnose
+            # Dieser Zustand tritt auf, wenn alle Gates bestanden wurden, aber quality_guaranteed=False
+            # und keine der spezifischen Failure-Bedingungen zutrifft.
+            _diagnostic_parts = []
+
+            if not natural_sound:
+                _diagnostic_parts.append(f"naturalness={output_quality.naturalness:.2f} < {_min_naturalness:.2f}")
+            if not character_preserved:
+                _diagnostic_parts.append(f"character_preservation={integrity_result.character_preservation:.1%} < 80%")
+            if output_quality.overall_score < input_quality.overall_score:
+                _diagnostic_parts.append(
+                    f"overall_score gesunken: {output_quality.overall_score:.1f} < {input_quality.overall_score:.1f}"
+                )
+
+            if _diagnostic_parts:
+                verdict = (
+                    "⚠️ QUALITY UNCERTAIN — Deterministische Diagnose: "
+                    + "; ".join(_diagnostic_parts)
+                    + f". MUSHRA={_mushra:.0f}, HPI={_hpi:.2f}"
+                )
+            else:
+                # Edge-Case: Alle Metriken ok, aber quality_guaranteed=False (z. B. Schwellwert-Konflikt)
+                verdict = (
+                    "⚠️ QUALITY UNCERTAIN — Gate-Schwellwerte nicht simultan erfüllt "
+                    f"(MUSHRA={_mushra:.0f}, HPI={_hpi:.2f}, improvement={musical_improvement:+.3f}). "
+                    "Empfehlung: Processing-Intensität reduzieren."
+                )
 
         # Collect warnings
         warnings = []

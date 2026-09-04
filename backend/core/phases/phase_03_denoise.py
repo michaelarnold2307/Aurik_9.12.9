@@ -76,6 +76,29 @@ import scipy.signal as signal
 from backend.core.audio_utils import safe_stft  # §v10.115 explicit wrapper (no monkey-patch)
 from backend.core.ml_model_readiness import check_ml_model_ready
 
+from ._denoise_algorithms import (
+    BAND_BOUNDARIES,
+    MRSA_CROSSFADE_BW_HZ,
+    MRSA_ZONES,
+    apply_gain_gradient_phase_correction,
+    apply_masking_gate,
+    apply_multiband_gate,
+    compute_adaptive_guard_profile,
+    compute_erb_bands,
+    compute_omlsa_gain,
+    compute_salience_g_floor,
+    estimate_noise_imcra,
+    estimate_noise_profile_adaptive,
+    preserve_transients,
+    suppress_musical_noise,
+)
+
+# ── Extracted helpers & algorithms ────────────────────────────────────────────
+from ._denoise_helpers import (
+    ERA_DECADE_KNOTS,
+    _determine_era_nr_routing,
+    decade_strength_multiplier,
+)
 from .phase_interface import PhaseCategory, PhaseInterface, PhaseMetadata, PhaseResult, create_phase_result
 
 # Resource Management for fallback to lightweight algorithms
@@ -106,92 +129,6 @@ except ImportError:
     )
 
 logger = logging.getLogger(__name__)
-
-# §4.4 Era-Aware NR-Routing constants
-_OMLSA_ONLY_MATERIALS_P03 = frozenset({"wax_cylinder", "wire_recording", "acoustic_recording"})
-_ERA_ACOUSTIC_CUTOFF = 1930  # Phonograph era: character noise, no ML NR
-_ERA_EARLY_ELECTRIC_CUTOFF = 1945  # Shellac electrical: restricted DFN only
-_MIIPHER_SNR_CUTOFF_DB = 10.0  # MIIPHER primary when SNR below this threshold
-_MIIPHER_SINGING_MIN = 0.35  # Minimum PANNs confidence for MIIPHER activation
-
-# §2.14+ Era-adaptive NR: piecewise-linear era→strength multiplier (kalibriert):
-#   1890–1930: ×1.15 (aggressiv — hohes intrinsisches Rauschen)
-#   1940:      ×1.10 (frühe elektrische Ära)
-#   1950:      ×1.05 (verbessertes Tape/Vinyl)
-#   1960:      ×1.00 (neutrale Baseline)
-#   1970:      ×0.95 (bessere Produktion)
-#   1980:      ×0.90 (digitale Transition)
-#   1990+:     ×0.80 (saubere digitale Quellen)
-ERA_DECADE_KNOTS: tuple[tuple[int, float], ...] = (
-    (1890, 1.15),
-    (1930, 1.15),
-    (1940, 1.10),
-    (1950, 1.05),
-    (1960, 1.00),
-    (1970, 0.95),
-    (1980, 0.90),
-    (1990, 0.80),
-    (2025, 0.80),
-)
-_ERA_DECADE_MIN = ERA_DECADE_KNOTS[0][0]
-_ERA_DECADE_MAX = ERA_DECADE_KNOTS[-1][0]
-
-
-def decade_strength_multiplier(decade: int) -> float:
-    """Stärke-Multiplikator für eine Aufnahme-Dekade (§2.14+ Era-adaptive NR).
-
-    Piecewise-lineare Interpolation über ``ERA_DECADE_KNOTS``; außerhalb des
-    Knotenbereichs wird auf den Randwert geklemmt (1890/2025).
-    """
-    _dec = float(max(_ERA_DECADE_MIN, min(_ERA_DECADE_MAX, int(decade))))
-    _era_decades = [k[0] for k in ERA_DECADE_KNOTS]
-    _era_mults = [k[1] for k in ERA_DECADE_KNOTS]
-    return float(np.interp(_dec, _era_decades, _era_mults))
-
-
-def _determine_era_nr_routing(
-    era_decade: int,
-    material_type: str,
-    est_snr_db: "float | None",
-    panns_singing: float,
-    is_vocal_material: bool,
-    is_non_digital: bool,
-) -> str:
-    """
-    §4.4 SOTA Era-Aware ML-NR Routing decision (v10.0.0.x).
-
-    Returns one of:
-      "miipher_primary"  — MIIPHER → DFN fallback (deep SNR, post-1950, vocal)
-      "sota_4layer"      — §v10.200 SOTA 4-Ebenen Denoiser (post-1950, music, high-quality)
-      "dfn_primary"      — DFN primary, current SOTA behavior
-      "dfn_restricted"   — DFN capped at 30 %% wet (early electrical 1930-1945, shellac)
-      "omlsa_only"       — No ML NR (acoustic era, wax/wire, digital material)
-
-    §0a Carrier-Chain compliance: Pre-1945 phonograph surface noise IS carrier
-    character (SOFT_SATURATION = BEWAHREN). DFN/MIIPHER are speech-trained; applied
-    to 1930s shellac they remove harmonic texture → timbral corruption. OMLSA with
-    conservative g_floor is correct for those eras (§2.46 Carrier-Chain-Stufen).
-    For post-1950 deep-noise vocal (SNR < 10 dB), MIIPHER delivers highest vocal
-    quality (Zhang et al. 2023, Google; §4.4 SOTA Matrix 2026).
-    """
-    mat = str(getattr(material_type, "value", material_type) or "unknown").lower()
-    if mat in _OMLSA_ONLY_MATERIALS_P03 or not is_non_digital:
-        return "omlsa_only"
-    if era_decade <= _ERA_ACOUSTIC_CUTOFF:
-        return "omlsa_only"
-    if era_decade <= _ERA_EARLY_ELECTRIC_CUTOFF and mat in ("shellac", "shellac_early"):
-        return "dfn_restricted"
-    if (
-        is_vocal_material
-        and panns_singing >= _MIIPHER_SINGING_MIN
-        and est_snr_db is not None
-        and est_snr_db < _MIIPHER_SNR_CUTOFF_DB
-    ):
-        return "miipher_primary"
-    # §v10.200: Use SOTA 4-Layer for post-1950 music (non-vocal) material
-    if not is_vocal_material and era_decade > _ERA_EARLY_ELECTRIC_CUTOFF:
-        return "sota_4layer"
-    return "dfn_primary"
 
 
 class DenoisePhase(PhaseInterface):
@@ -384,29 +321,6 @@ class DenoisePhase(PhaseInterface):
         "dat": 1.0,
         "unknown": 1.5,
     }
-
-    # Frequency band boundaries
-    BAND_BOUNDARIES = {
-        "low": (20, 500),  # Bass/Low-Mid
-        "mid": (500, 5000),  # Midrange
-        "high": (5000, 20000),  # High frequencies (hiss region)
-    }
-
-    # MRSA Multi-Resolution Spectral Analysis zones (mandatory, §DSP-Spezialregeln)
-    # VERBOTEN: arbitrary FFT sizes — only these 5 zone-optimal windows are permitted.
-    # Each zone uses the optimal time-frequency resolution for its frequency content:
-    #   sub_bass (win=65536): ~1.36 s window → 0.73 Hz/bin freq resolution for bass transients
-    #   air (win=128): ~2.7 ms window → 375 Hz/bin → precise temporal resolution for HF
-    _MRSA_ZONES: tuple = (
-        # (name,       win_size, hop_size, f_low_hz, f_high_hz)
-        ("sub_bass", 65536, 16384, 0, 250),
-        ("mid_low", 16384, 4096, 250, 2500),
-        ("mid", 8192, 2048, 2500, 8000),
-        ("presence", 1024, 256, 8000, 16000),
-        ("air", 128, 32, 16000, 24000),
-    )
-    # Hanning crossfade transition bandwidth at zone boundaries (~10 ms spectral transition)
-    _MRSA_CROSSFADE_BW_HZ: float = 100.0
 
     def get_metadata(self) -> PhaseMetadata:
         return PhaseMetadata(
@@ -2901,7 +2815,7 @@ class DenoisePhase(PhaseInterface):
         # §A Salience-adaptive G_floor (Moore 2003): compute once on full audio at
         # reference STFT timing; each zone resamples the curve to its own frame count.
         _g_floor_base_val = float(params.get("g_floor", 0.1))
-        _g_floor_ref_vec = self._compute_salience_g_floor(audio, sr, _g_floor_base_val, n_t, REF_HOP)
+        _g_floor_ref_vec = compute_salience_g_floor(audio, sr, _g_floor_base_val, n_t, REF_HOP)
 
         # §2.62 Psychoakustischer Masking-Guard (ISO 11172-3 / MPEG Psychoacoustic Model 1):
         # NR darf nur Rauschen entfernen das über der Maskierungsschwelle liegt.
@@ -2931,7 +2845,7 @@ class DenoisePhase(PhaseInterface):
                 "§2.62 Verarbeitungsschritt_03 Masking-Guard nicht verfügbar (nicht blockierend): %s", _msk_exc_03
             )
 
-        for zone_name, zone_win, zone_hop, f_low, f_high in self._MRSA_ZONES:
+        for zone_name, zone_win, zone_hop, f_low, f_high in MRSA_ZONES:
             try:
                 # Use zone-specific STFT if audio is long enough; fall back to reference STFT
                 if n_samples >= zone_win * 2:
@@ -2948,7 +2862,7 @@ class DenoisePhase(PhaseInterface):
 
                 # --- Noise PSD estimation ---
                 if noise_start is not None and noise_end is not None:
-                    nm_z = self._estimate_noise_profile_adaptive(Zxx_z, f_z, t_z, noise_start, noise_end)
+                    nm_z = estimate_noise_profile_adaptive(Zxx_z, f_z, t_z, noise_start, noise_end)
                     if nm_z.ndim == 1:
                         nm_z = nm_z[:, np.newaxis] * np.ones((1, n_z_t))
                 elif n_z_t > 10_000:
@@ -2960,7 +2874,7 @@ class DenoisePhase(PhaseInterface):
                     nm_z = np.percentile(mag_z, 10, axis=1, keepdims=True) * np.ones((1, n_z_t))
                     nm_z = np.maximum(nm_z, 1e-8)
                 else:
-                    nm_z = self._estimate_noise_imcra(mag_z, t_z, sr=sr)
+                    nm_z = estimate_noise_imcra(mag_z, t_z, sr=sr)
 
                 # --- OMLSA gain chain ---
                 # Resample salience G_floor vector to this zone's frame count.
@@ -2972,7 +2886,7 @@ class DenoisePhase(PhaseInterface):
                     ).astype(np.float32)
                 else:
                     _g_floor_zone = _g_floor_ref_vec
-                G_z, _ = self._compute_omlsa_gain(mag_z, nm_z, params, g_floor_vec=_g_floor_zone)
+                G_z, _ = compute_omlsa_gain(mag_z, nm_z, params, g_floor_vec=_g_floor_zone)
                 # §2.62: Per-Frequenz-Masking-Floor anwenden (non-blocking).
                 # Hebt G_z in Bins an, wo Rauschen unterhalb der Maskierungsschwelle liegt —
                 # verhindert klinisches Klangbild durch Überunterdrückung unhörbaren Rauschens.
@@ -2983,16 +2897,16 @@ class DenoisePhase(PhaseInterface):
                     except Exception as e:
                         logger.warning("Verarbeitungsschritt_03_denoise.py::unbekannter Ersatzpfad: %s", e)
                         pass  # nie pipeline-blockierend
-                G_mb = self._apply_multiband_gate(G_z, f_z, params["bands"])
-                G_sm = self._suppress_musical_noise(
+                G_mb = apply_multiband_gate(G_z, f_z, params["bands"])
+                G_sm = suppress_musical_noise(
                     G_mb,
                     params["musical_noise_suppression"],
                     params["smoothing_time"],
                     params["smoothing_freq"],
                 )
                 # §D masking gate: attenuate chirp artefacts below simultaneous masking threshold
-                G_ms = self._apply_masking_gate(G_sm, mag_z)
-                G_tr = self._preserve_transients(mag_z, G_ms, params["transient_preserve"])
+                G_ms = apply_masking_gate(G_sm, mag_z)
+                G_tr = preserve_transients(mag_z, G_ms, params["transient_preserve"])
 
                 all_gain_mb_means.append(float(np.mean(G_mb)))
                 all_gain_sm_means.append(float(np.mean(G_sm)))
@@ -3006,8 +2920,8 @@ class DenoisePhase(PhaseInterface):
                 G_z_zone = G_tr[zm_z, :]  # (n_zone_freq, n_z_t)
 
                 # Reference STFT bins for this zone (extended by crossfade bandwidth)
-                ref_zm = (f_ref >= max(0.0, float(f_low) - self._MRSA_CROSSFADE_BW_HZ)) & (
-                    f_ref <= min(nyquist, float(f_high) + self._MRSA_CROSSFADE_BW_HZ)
+                ref_zm = (f_ref >= max(0.0, float(f_low) - MRSA_CROSSFADE_BW_HZ)) & (
+                    f_ref <= min(nyquist, float(f_high) + MRSA_CROSSFADE_BW_HZ)
                 )
                 if not np.any(ref_zm):
                     continue
@@ -3116,7 +3030,7 @@ class DenoisePhase(PhaseInterface):
             logger.debug("§v10.303.13 Transient-Guard (nicht blockierend): %s", _texc)
 
         # Apply MRSA gain with gain-gradient phase correction (Prusa & Holighaus 2017 §3.4)
-        Zxx_processed = self._apply_gain_gradient_phase_correction(Zxx_ref, G_combined, REF_HOP, sr)
+        Zxx_processed = apply_gain_gradient_phase_correction(Zxx_ref, G_combined, REF_HOP, sr)
 
         # Direct ISTFT reconstruction — Zxx_processed retains full phase information.
         # Direct ISTFT is both semantically correct and 50-100× faster than PGHI.
@@ -3148,8 +3062,8 @@ class DenoisePhase(PhaseInterface):
 
         logger.debug(
             "MRSA: %d/%d zones ok, valid_bins=%d/%d, gain_mb=%.3f, gain_sm=%.3f",
-            sum(1 for _ in self._MRSA_ZONES),
-            len(self._MRSA_ZONES),
+            sum(1 for _ in MRSA_ZONES),
+            len(MRSA_ZONES),
             int(np.sum(valid)),
             n_bins,
             gain_mb_mean,
@@ -3226,7 +3140,7 @@ class DenoisePhase(PhaseInterface):
         # After bias correction, average sigma2 within each perceptual band so that
         # an isolated low-energy bin cannot over-suppress its fricative neighbours.
         if n_freq > 1 and sr > 0:
-            erb_idx = self._compute_erb_bands(n_freq, sr)
+            erb_idx = compute_erb_bands(n_freq, sr)
             n_erb = int(erb_idx.max()) + 1
             sigma2_grouped = np.empty_like(sigma2)
             for b in range(n_erb):
@@ -3654,7 +3568,7 @@ class DenoisePhase(PhaseInterface):
         """
         gain_modified = gain.copy()
 
-        for band_name, (f_low, f_high) in self.BAND_BOUNDARIES.items():
+        for band_name, (f_low, f_high) in BAND_BOUNDARIES.items():
             # Find frequency bins in this band
             mask = (freqs >= f_low) & (freqs <= f_high)
 
@@ -3786,8 +3700,8 @@ class DenoisePhase(PhaseInterface):
 
         try:
             from backend.core.audio_utils import safe_sosfiltfilt as _safe_sosfiltfilt03
-            hf_before = _safe_sosfiltfilt(sos, before)
-            hf_after = _safe_sosfiltfilt(sos, after)
+            hf_before = _safe_sosfiltfilt03(sos, before)
+            hf_after = _safe_sosfiltfilt03(sos, after)
         except Exception as e:
             logger.warning("Verarbeitungsschritt_03_denoise.py::_measure_noise_reduction Ersatzpfad: %s", e)
             return 0.0

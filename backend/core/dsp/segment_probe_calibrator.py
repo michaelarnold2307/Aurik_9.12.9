@@ -273,6 +273,7 @@ def run_segment_probe(
 
         _snapshot_fn = _UV3._fast_goal_snapshot  # pylint: disable=protected-access
     except Exception as _imp_err:
+        logger.debug("§V6 UV3._fast_goal_snapshot Import fehlgeschlagen — Probe mit Oracle-Stärke zurückgegeben (skipped): %s", _imp_err)
         return SegmentProbeResult(
             confirmed_strength=oracle_strength,
             oracle_strength=oracle_strength,

@@ -4,9 +4,9 @@ import logging
 import os
 
 import torch
-from torch.utils.data.distributed import DistributedSampler
-from torch.utils.data import DataLoader, Subset
 from torch.nn.parallel.distributed import DistributedDataParallel
+from torch.utils.data import DataLoader, Subset
+from torch.utils.data.distributed import DistributedSampler
 
 logger = logging.getLogger(__name__)
 rank = 0

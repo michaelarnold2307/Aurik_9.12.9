@@ -1404,7 +1404,7 @@ class HarmonicRestorationPhase(PhaseInterface):
         # Zero out harmonics beyond the FFT grid
         valid = (harmonic_freqs <= freqs[-1]).astype(np.float64)
         mag_at_harmonics = magnitude[bin_indices] * valid  # (n_f0, n_harm)
-        return np.asarray(mag_at_harmonics @ weights)  # type: ignore[no-any-return]  # (n_f0,)
+        return np.nan_to_num(np.asarray(mag_at_harmonics @ weights), nan=0.0)  # type: ignore[no-any-return]  # (n_f0,)
 
     def _detect_multi_pitch_f0s_with_analysis(
         self, mono: np.ndarray, n_max: int = 4
@@ -1622,11 +1622,11 @@ class HarmonicRestorationPhase(PhaseInterface):
 
         def _log_cosh(x: np.ndarray) -> np.ndarray:
             ax = np.abs(x)
-            return np.asarray(ax + np.log1p(np.exp(-2.0 * ax)) - np.log(2.0))  # type: ignore[no-any-return]
+            return np.nan_to_num(np.asarray(ax + np.log1p(np.exp(-2.0 * ax)) - np.log(2.0)), nan=0.0)  # type: ignore[no-any-return]
 
         midpoint = np.tanh(0.5 * (x0 + x1))  # fallback for near-identical samples
         adaa = (_log_cosh(x0) - _log_cosh(x1)) / np.where(close, 1.0, dX)
-        return np.where(close, midpoint, adaa)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.where(close, midpoint, adaa), nan=0.0)  # type: ignore[no-any-return]
 
     def _tube_saturation(self, audio: np.ndarray, even_ratio: float) -> np.ndarray:
         """
@@ -1670,7 +1670,7 @@ class HarmonicRestorationPhase(PhaseInterface):
         # Hard limit at ±1.0 — verhindert Übersteuerungsartefakte (§0h)
         saturated = np.clip(saturated, -1.0, 1.0)
 
-        return np.asarray(saturated)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(saturated), nan=0.0)  # type: ignore[no-any-return]
 
     def _transformer_saturation(self, audio: np.ndarray) -> np.ndarray:
         """Transformatorsättigung (symmetrisch, ausgewogene Harmonik) mit ADAA.
@@ -1715,7 +1715,7 @@ class HarmonicRestorationPhase(PhaseInterface):
         except Exception:
             filtered = harmonics * 0.0
 
-        return np.asarray(filtered)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(filtered), nan=0.0)  # type: ignore[no-any-return]
 
     def _measure_hf_energy(self, audio: np.ndarray, freq_range: list[int]) -> float:
         """
@@ -1821,15 +1821,15 @@ class HarmonicRestorationPhase(PhaseInterface):
             elif audio.ndim == 2:
                 result = np.column_stack([_apply_mono(audio[:, c]) for c in range(audio.shape[1])])
             else:
-                return audio
+                return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
             result = np.nan_to_num(result, nan=0.0, posinf=0.0, neginf=0.0)
             return np.clip(result, -1.0, 1.0).astype(np.float32)  # type: ignore[no-any-return]
         except Exception as e:
             logger.warning("Verarbeitungsschritt_07_harmonic_restoration.py::_anwenden_mono Ersatzpfad: %s", e)
-            return audio
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
 
     @staticmethod
-    def _measure_h2_ratio(audio: np.ndarray, sample_rate: int) -> float:
+    def _measure_h2_ratio(self, audio: np.ndarray, sample_rate: int) -> float:
         """Schätzt H2/H1 amplitude ratio via multi-frame FFT averaging.
 
         Averages over up to 8 non-overlapping 2048-sample frames from the

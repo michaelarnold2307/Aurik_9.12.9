@@ -1331,7 +1331,8 @@ class MLDeviceManager:
                     torch.cuda.synchronize()
                     torch.set_num_interop_threads(_ROCM_TORCH_THREADS)
                     return True
-                except Exception:
+                except Exception as exc:
+                    logger.debug("§V6 ROCm-Warmup-Operation fehlgeschlagen — False zurückgegeben (CUDA-Tensor): %s", exc)
                     return False
 
             from concurrent.futures import ThreadPoolExecutor as _WarmupTPE

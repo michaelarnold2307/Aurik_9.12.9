@@ -166,10 +166,10 @@ class StemTargetedNRPhase(PhaseInterface):
         """Channels-last [N, C] → Mono [N]."""
         a = np.asarray(audio, dtype=np.float32)
         if a.ndim == 1:
-            return a  # type: ignore[no-any-return]
+            return np.nan_to_num(a, nan=0.0)  # type: ignore[no-any-return]
         if a.ndim == 2 and a.shape[1] <= 2:
-            return np.asarray(a.mean(axis=1), dtype=np.float32)  # type: ignore[no-any-return]
-        return np.asarray(a.mean(axis=-1), dtype=np.float32)  # type: ignore[no-any-return]
+            return np.nan_to_num(np.asarray(a.mean(axis=1), dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(a.mean(axis=-1), dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
     @staticmethod
     def _apply_dsp_nr(
@@ -189,7 +189,7 @@ class StemTargetedNRPhase(PhaseInterface):
         stem_f = np.asarray(stem, dtype=np.float32)
         if dfn_plugin is not None:
             try:
-                return np.asarray(dfn_plugin.enhance(stem_f, sr, energy_bias_db=energy_bias_db), dtype=np.float32)  # type: ignore[no-any-return]
+                return np.nan_to_num(np.asarray(dfn_plugin.enhance(stem_f, sr, energy_bias_db=energy_bias_db), dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
             except Exception as _e:
                 logger.debug("Verarbeitungsschritt_66: DFN verbessern Fehler (OMLSA-Ersatzpfad): %s", _e)
 
@@ -202,11 +202,11 @@ class StemTargetedNRPhase(PhaseInterface):
             if stem_f.ndim == 2:
                 # Beide Kanäle mit identischem Gain
                 diff = cleaned - mono_f
-                return np.asarray(np.clip(stem_f + diff[:, np.newaxis], -1.0, 1.0), dtype=np.float32)  # type: ignore[no-any-return]
-            return np.asarray(np.clip(cleaned, -1.0, 1.0), dtype=np.float32)  # type: ignore[no-any-return]
+                return np.nan_to_num(np.clip(stem_f + diff[:, np.newaxis], -1.0, 1.0).astype(np.float32), nan=0.0)  # type: ignore[no-any-return]
+            return np.nan_to_num(np.clip(cleaned, -1.0, 1.0).astype(np.float32), nan=0.0)  # type: ignore[no-any-return]
         except Exception as _e2:
             logger.debug("Verarbeitungsschritt_66: OMLSA-Ersatzpfad Fehler: %s", _e2)
-        return stem_f  # type: ignore[no-any-return]
+        return np.nan_to_num(stem_f, nan=0.0)  # type: ignore[no-any-return]
 
     def process(  # type: ignore[override]  # pylint: disable=arguments-differ
         self,

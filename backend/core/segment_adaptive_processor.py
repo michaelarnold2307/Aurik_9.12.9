@@ -363,3 +363,4 @@ get_segment_processor = get_segment_adaptive_processor
 process_adaptive = process_segment_adaptive
 
 __all__ += ["_CHUNK_MAX_S", "_CHUNK_MIN_S", "adaptive_chunk_size"]
+logger = logging.getLogger(__name__)

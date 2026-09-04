@@ -1401,7 +1401,8 @@ class PhaseInteractionDenker:
 
         try:
             from denker.cross_phase_coordinator import PHASE_FREQ_PROFILES
-        except ImportError:
+        except ImportError as e:
+            logger.debug("§V6 PHASE_FREQ_PROFILES-Import fehlgeschlagen — ungeordnete Phasenliste zurückgegeben: %s", e)
             return list(phases)
 
         phase_set = set(phases)
@@ -1567,7 +1568,8 @@ class PhaseInteractionDenker:
             return list(phases)
         try:
             from denker.cross_phase_coordinator import PHASE_FREQ_PROFILES
-        except ImportError:
+        except ImportError as e:
+            logger.debug("§V6 _dag_reorder_fallback: PHASE_FREQ_PROFILES-Import fehlgeschlagen — ungeordnete Liste zurückgegeben: %s", e)
             return list(phases)
         subtractive: list[Any] = []
         additive: list[Any] = []
@@ -1589,7 +1591,8 @@ def _freq_range_to_band_name(f_low: float, f_high: float) -> str:
     """Mapped einen Frequenzbereich auf den nächstgelegenen FREQ_BANDS-Namen."""
     try:
         from denker.cross_phase_coordinator import FREQ_BANDS
-    except ImportError:
+    except ImportError as e:
+        logger.debug("§V6 _freq_range_to_band_name: FREQ_BANDS-Import fehlgeschlagen — 'mid' zurückgegeben: %s", e)
         return "mid"
     center = (f_low + f_high) / 2
     best_band = "mid"

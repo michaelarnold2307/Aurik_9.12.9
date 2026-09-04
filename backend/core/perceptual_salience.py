@@ -28,6 +28,7 @@ import logging
 import os
 import threading
 from dataclasses import dataclass, field
+from typing import cast
 
 import numpy as np
 
@@ -474,10 +475,11 @@ class PerceptualSalienceEstimator:
                         )
                 elif _post_masked > 0:
                     logger.info(
-                        "Hörordnung Ebene 2: SOTA-Masking maskiert %d/%d Events (%d über Cap verfeinert)",
+                        "Hörordnung Ebene 2: SOTA-Masking maskiert %d/%d Events (%d über Cap verfeinert, %d total)",
                         _post_masked,
                         _post_n,
                         len(erb_saliences),
+                        len(erb_anns),
                     )
             except ImportError:
                 logger.debug("ERB masking model not verfuegbar, using broadband only")
@@ -638,7 +640,7 @@ class PerceptualSalienceEstimator:
         e = min(len(mono), int(loc_end * sr))
 
         if e <= s:
-            return np.full(n_bands, -120.0, dtype=np.float64)
+            return cast(np.ndarray, (np.full(n_bands, -120.0, dtype=np.float64)))
 
         segment = mono[s:e]
         n_fft = max(256, min(self._GLOBAL_N_FFT, len(segment)))

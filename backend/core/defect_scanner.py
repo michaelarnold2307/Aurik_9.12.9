@@ -239,6 +239,10 @@ class DefectType(Enum):
     SCRAPE_FLUTTER = "scrape_flutter"
     # Temporäre Hochton-Auslöschung durch zugesetzten/verschmutzten Magnetkopf → phase_56 + phase_25.
     TAPE_HEAD_CLOG = "tape_head_clog"
+    # §DefectType-Konsolidierung: Legacy-Einträge für ai_framework / data_models Kompatibilität
+    HISS = "hiss"  # Tape hiss, broadband noise (alias zu HIGH_FREQ_NOISE)
+    DISTORTION = "distortion"  # Generic distortion (alias zu OVERLOAD_DISTORTION)
+    DROPOUT = "dropout"  # Singular form (alias zu DROPOUTS)
 
 
 class MaterialType(Enum):
@@ -1562,7 +1566,7 @@ class DefectScanner:
             logger.debug("DefectScanner initialisiert: SR=%s, Material=%s (vorgegeben)", sample_rate, material_type)
         else:
             logger.debug("DefectScanner initialisiert: SR=%s (Material wird in restore() auto-detected)", sample_rate)
-        
+
         # Welch-PSD-Cache (P1): gültig für Dauer eines scan()-Calls - wird in scan() gesetzt.
         self._scan_welch_cache: dict[tuple[object, ...], tuple[np.ndarray, np.ndarray]] = {}
 
@@ -3928,7 +3932,8 @@ class DefectScanner:
         """
         try:
             from scipy.linalg import solve_toeplitz as _solve_toeplitz  # pylint: disable=import-outside-toplevel
-        except ImportError:
+        except ImportError as exc:
+            logger.debug("§V6 scipy.linalg.solve_toeplitz nicht verfügbar — 0.0 Click-Rate zurückgegeben: %s", exc)
             return 0.0
 
         lpc_order = 30  # spec: 30-40 @ 48 kHz

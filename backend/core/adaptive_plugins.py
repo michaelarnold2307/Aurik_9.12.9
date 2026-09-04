@@ -149,7 +149,8 @@ class SibilantNet:
         try:
             sos_bp = butter(4, [f_lo / (sr / 2), f_hi / (sr / 2)], btype="band", output="sos")
             sib_band = sosfilt(sos_bp, mono)
-        except Exception:  # pragma: no cover
+        except Exception as exc:  # pragma: no cover
+            logger.debug("§V6 Bandpass-Filter fehlgeschlagen — Audio unverändert zurückgegeben: %s", exc)
             return audio
 
         full_rms = _rms(mono)
@@ -171,7 +172,8 @@ class SibilantNet:
             from scipy.signal import lfilter
 
             processed = lfilter(b_notch, a_notch, mono)
-        except Exception:  # pragma: no cover
+        except Exception as exc:  # pragma: no cover
+            logger.debug("§V6 iirnotch/lfilter fehlgeschlagen — Audio unverändert zurückgegeben: %s", exc)
             return audio
 
         # Blend
@@ -186,7 +188,8 @@ class SibilantNet:
             ch_data = audio[..., ch]
             try:
                 ch_proc = lfilter(b_notch, a_notch, ch_data)
-            except Exception:
+            except Exception as exc:
+                logger.debug("§V6 lfilter Channel %d fehlgeschlagen — Original-Daten beibehalten: %s", ch, exc)
                 ch_proc = ch_data
             result[..., ch] = np.clip((1.0 - strength) * ch_data + strength * ch_proc, -1.0, 1.0)
         return result  # type: ignore[no-any-return]

@@ -299,8 +299,8 @@ class PostProcessingGate:
 
             full_scores = _measure_quick(audio, sr, precise_override=True, enable_vocal_guard=False)
             return {g: full_scores.get(g, 0.5) for g in goals}
-        except Exception:
-            # Fallback: leere Scores — Gate wird immer passieren
+        except Exception as e:
+            logger.warning("§V6 _measure fehlgeschlagen — alle Goals auf 0.5 gesetzt (Gate passiert immer): %s", e)
             return dict.fromkeys(goals, 0.5)
 
     # ── Signatur-Validierung ────────────────────────────────────────

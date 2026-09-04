@@ -479,7 +479,10 @@ class FrequencyRestorationPhase(PhaseInterface):
                 _ext = list(params.get("extension_range_hz", [10000, 16000]))
                 params["extension_range_hz"] = [min(_ext[0], _bw_cap), min(_ext[1], _bw_cap)]
         except Exception:
-            pass  # Non-blocking: SourceMediumProfile nicht verfügbar
+            logger.warning(
+                "§V6 Phase-06 SourceMediumProfile nicht verfügbar → Default-Parameter: %s",
+                str(Exception),
+            )
 
         # §2.41 Source-Fidelity: Zielbandbreite aus SongCalibrationProfile nutzen.
         # Wenn das Original eine höhere Bandbreite hatte als der Träger normalerweise
@@ -1451,7 +1454,7 @@ class FrequencyRestorationPhase(PhaseInterface):
             if quality_mode in ("quality", "maximum"):
                 # Quality-first: extended timeout already applied via watchdog profile.
                 # studio_2026 uses the same extended profile via _compute_flashsr_watchdog_profile.
-                pass
+                logger.debug("§v10.303 FlashSR Quality-Modus aktiv — erweitertes Timeout angewendet")
 
             # Quality-first watchdog policy:
             # - quality/maximum: do not let time factor prematurely cap FlashSR quality.

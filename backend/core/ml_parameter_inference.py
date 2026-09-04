@@ -45,7 +45,8 @@ class InferenceResult:
     def get(self, key: str, default: Any = None) -> Any:  # backward compat
         try:
             return self[key]
-        except KeyError:
+        except KeyError as exc:
+            logger.debug("§V6 ML-Parameter-Key nicht gefunden — Default-Wert zurückgegeben (Key %s): %s", key, exc)
             return default
 
 

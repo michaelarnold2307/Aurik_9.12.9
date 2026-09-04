@@ -443,7 +443,8 @@ def _extract_formants(audio: np.ndarray, sr: int, n_formants: int = 4) -> list[f
         formants = [f for f, _ in peak_values[:n_formants]]
         formants.sort()  # Sort by frequency
         return formants
-    except Exception:
+    except Exception as e:
+        logger.debug("§V6 Formant-Erkennung fehlgeschlagen — leere Liste zurückgegeben: %s", e)
         return []
 
 

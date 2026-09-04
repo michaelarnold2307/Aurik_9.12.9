@@ -320,3 +320,4 @@ def bark_dynamics_target(
             gain_db[b] = 0.0  # Unhörbar → nicht anfassen
 
     return cast(np.ndarray, gain_db)
+logger = logging.getLogger(__name__)

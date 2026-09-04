@@ -1,11 +1,11 @@
-import os
 import logging
+import os
 
 import torch
 import torchaudio
 from PIL import Image
-
 from src.utils import LogProgress, convert_spectrogram_to_heatmap
+
 logger = logging.getLogger(__name__)
 
 def get_estimate(model, lr_sig):

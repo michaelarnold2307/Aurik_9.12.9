@@ -1435,7 +1435,8 @@ class DropoutRepairPhase(PhaseInterface):
                 processed_audio[:, 0], processed_audio[:, 1], sample_rate, num_points=3
             )
             lag_out = _lag_out_result["median_lag"] if _lag_out_result.get("num_points", 0) >= 2 else 0.0
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 STCG-Lag-Multi-Point fehlgeschlagen — Audio unverändert zurückgegeben (Stereo %s): %s", processed_audio.shape, exc)
             return processed_audio, stats
 
         stats["lag_input_samples"] = int(lag_in)

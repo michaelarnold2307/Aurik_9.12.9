@@ -903,7 +903,7 @@ class EQCorrectionPhase(PhaseInterface):
                     _mat_key = _k
                     break
             else:
-                return audio  # No profile → bypass
+                return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # No profile → bypass
 
         ref_profile = _ERA_OT_PROFILES[_mat_key]
         _band_hz = {"bass": 200.0, "low_mid": 600.0, "mid": 2000.0, "high_mid": 6000.0, "high": 14000.0}
@@ -913,7 +913,7 @@ class EQCorrectionPhase(PhaseInterface):
         mono = np.asarray(mono, dtype=np.float64)
         n_fft = 4096
         if len(mono) < n_fft:
-            return audio
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
         win = np.hanning(n_fft)
         spec = np.abs(np.fft.rfft(mono[:n_fft] * win))
         freqs = np.fft.rfftfreq(n_fft, d=1.0 / sample_rate)
@@ -948,12 +948,16 @@ class EQCorrectionPhase(PhaseInterface):
                 eq_corrections[band_name] = correction_db
 
         if not eq_corrections:
-            return audio  # No significant transport shift
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # No significant transport shift
 
         # Apply corrections as smooth Butterworth shelving/peaking filters
         result = np.asarray(audio, dtype=np.float64)
         try:
-            from scipy.signal import butter, sosfiltfilt  # pylint: disable=import-outside-toplevel
+            from scipy.signal import butter  # pylint: disable=import-outside-toplevel
+
+            from backend.core.audio_utils import (
+                safe_sosfiltfilt as _safe_sosfiltfilt04,  # pylint: disable=import-outside-toplevel
+            )
 
             for band_name, gain_db in eq_corrections.items():
                 if abs(gain_db) < 0.3:
@@ -968,15 +972,15 @@ class EQCorrectionPhase(PhaseInterface):
                 # Actually: LP + (1-LP) × gain_lin = blend toward reference
                 sos = butter(1, wn, btype="low", output="sos")
                 if result.ndim == 1:
-                    lp = sosfiltfilt(sos, result)
+                    lp = _safe_sosfiltfilt04(sos, result)
                     result = lp * gain_lin + (result - lp)
                 else:
                     for ch in range(result.shape[0]):
-                        lp = sosfiltfilt(sos, result[ch])
+                        lp = _safe_sosfiltfilt04(sos, result[ch])
                         result[ch] = lp * gain_lin + (result[ch] - lp)
         except Exception as _filter_exc:
             logger.debug("§C7 Spectral-OT filter nicht blockierend: %s", _filter_exc)
-            return audio
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
 
         result = np.nan_to_num(result, nan=0.0, posinf=0.0, neginf=0.0)
         return np.clip(result, -1.0, 1.0).astype(audio.dtype)  # type: ignore[no-any-return]
@@ -1208,13 +1212,13 @@ class EQCorrectionPhase(PhaseInterface):
         is outside the known range (> factor-of-2 mismatch).
         """
         if not self.HEAD_BUMP_PROFILES:
-            return audio
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
 
         known_speeds = sorted(self.HEAD_BUMP_PROFILES.keys())
         nearest = min(known_speeds, key=lambda s: abs(s - speed_ips))
         # Skip if the nearest known speed is more than 1.5× away (unknown speed)
         if abs(nearest - speed_ips) / (nearest + 1e-9) > 1.5:
-            return audio
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
 
         f_hz, cut_db, q = self.HEAD_BUMP_PROFILES[nearest]
         return self._apply_peaking_filter(audio, freq=f_hz, Q=q, gain_db=-cut_db, _phase_mode="minimum")
@@ -1233,7 +1237,7 @@ class EQCorrectionPhase(PhaseInterface):
             logger.debug(
                 "Verarbeitungsschritt_04: audio too short (%d < %d), skipping EQ", len(audio), MIN_AUDIO_SAMPLES
             )
-            return np.asarray(audio, dtype=np.float32).copy()  # type: ignore[no-any-return]
+            return np.nan_to_num(np.asarray(audio, dtype=np.float32).copy(), nan=0.0)  # type: ignore[no-any-return]
 
         result = audio.copy()
 
@@ -1293,14 +1297,14 @@ class EQCorrectionPhase(PhaseInterface):
             # channels-first (2,N). Use correct axis for each format.
             if audio.shape[0] == 2 and audio.shape[1] > 2:
                 # channels-first (2, N): filter along axis 1 (samples)
-                filtered[0, :] = signal.sosfiltfilt(sos, audio[0, :])
-                filtered[1, :] = signal.sosfiltfilt(sos, audio[1, :])
+                filtered[0, :] = _safe_sosfiltfilt04(sos, audio[0, :])
+                filtered[1, :] = _safe_sosfiltfilt04(sos, audio[1, :])
             else:
                 # channels-last (N, 2): filter each column
-                filtered[:, 0] = signal.sosfiltfilt(sos, audio[:, 0])
-                filtered[:, 1] = signal.sosfiltfilt(sos, audio[:, 1])
+                filtered[:, 0] = _safe_sosfiltfilt04(sos, audio[:, 0])
+                filtered[:, 1] = _safe_sosfiltfilt04(sos, audio[:, 1])
         else:
-            filtered = signal.sosfiltfilt(sos, audio)
+            filtered = _safe_sosfiltfilt04(sos, audio)
 
         return filtered  # type: ignore[no-any-return]
 

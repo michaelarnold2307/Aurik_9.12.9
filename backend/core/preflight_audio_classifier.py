@@ -76,5 +76,6 @@ def classify_audio(audio: np.ndarray, sr: int) -> AudioClass:
 
         return result
 
-    except Exception:
+    except Exception as e:
+        logger.debug("§V6 PreflightAudioClassifier fehlgeschlagen — leeres AudioClass zurückgegeben: %s", e)
         return AudioClass()

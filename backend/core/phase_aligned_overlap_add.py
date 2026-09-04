@@ -206,5 +206,6 @@ def should_skip_alignment(overlap: np.ndarray, sr: int, erb_masker=None) -> bool
 
         # If residual is >20 dB below masking threshold, alignment is unnecessary
         return cast(bool, residual_db < threshold_db - 20.0)
-    except Exception:
+    except Exception as exc:
+        logger.debug("§V6 _is_phase_alignment_necessary fehlgeschlagen — False zurückgegeben (Overlap %s): %s", overlap.shape, exc)
         return False

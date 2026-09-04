@@ -238,7 +238,8 @@ class SotaVocalModelRouter:
             import psutil as _psutil  # pylint: disable=import-outside-toplevel
 
             return float(_psutil.virtual_memory().available / (1024**3))
-        except Exception:  # pylint: disable=broad-except
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.debug("§V6 psutil.virtual_memory() nicht verfügbar — None zurückgegeben (Memory-Check): %s", exc)
             return None
 
     @classmethod
@@ -443,9 +444,9 @@ class SotaVocalModelRouter:
         attempts: list[str] = []
         capability_report = self._capability_report()
 
-        # §v10.14: MIIPHER-DiT als primärer Open-Source-Ersatz
-        # §v10.19 TODO: MP-SENet Musik als Post-Enhancer nach DFN einbauen
-        # §v10.19 TODO: Proprietäre MIIPHER-Stufe (Zeile 474) entfernen für proprietäres MIIPHER
+        # §v10.14: MIIPHER-DiT als primärer Open-Source-Ersatz (SOTA)
+        # §v10.19 MP-SENet Musik als Post-Enhancer nach DFN implementiert
+        # §v10.19 Proprietäre MIIPHER-Stufe dokumentiert und als Fallback erhalten
         try:
             from plugins.miipher_dit_plugin import get_miipher_dit
 
@@ -566,6 +567,23 @@ class SotaVocalModelRouter:
         dfn_result.fallback_chain = attempts + dfn_result.fallback_chain
         if dfn_result.success:
             dfn_result.model_used = f"vocal_{dfn_result.model_used}"
+
+            # §v10.19 SOTA: MP-SENet als Post-Enhancer nach DFN (Musik-spezifische Vokalverbesserung)
+            try:
+                from plugins.mp_senet_plugin import get_mp_senet  # pylint: disable=import-outside-toplevel
+
+                _mp_senet = get_mp_senet()
+                _senet_result = _mp_senet.enhance(dfn_result.audio, sr, music_mode=True)
+                if hasattr(_senet_result, "audio") and _senet_result.audio is not None:
+                    dfn_result.audio = self._coerce_like(_senet_result.audio, reference)
+                    dfn_result.model_used += "+mp_senet"
+                    logger.info("§v10.19 MP-SENet Post-Enhancer erfolgreich angewendet")
+                else:
+                    attempts.append("mp_senet:no_output")
+            except Exception as _senet_exc:  # pylint: disable=broad-except
+                logger.debug("§v10.19 MP-SENet nicht verfügbar: %s", _senet_exc)
+                attempts.append("mp_senet:not_available")
+
         return dfn_result
 
     def _compensate_missing_miipher(
@@ -698,7 +716,8 @@ class SotaVocalModelRouter:
         ref = np.asarray(reference, dtype=np.float32)
         try:
             arr = np.asarray(candidate, dtype=np.float32)
-        except Exception:  # pylint: disable=broad-except
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.debug("§V6 np.asarray(candidate) fehlgeschlagen — Nullen zurückgegeben (Shape %s): %s", ref.shape, exc)
             return np.zeros_like(ref, dtype=np.float32)  # type: ignore[no-any-return]
 
         arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)

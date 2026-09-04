@@ -70,7 +70,8 @@ def _discover_rocm_lib_dirs() -> list[str]:
     def _ver_key(p: Path) -> tuple:
         try:
             return tuple(int(x) for x in p.name.removeprefix("rocm-").split(".") if x.isdigit())
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 ROCM-Version-Key-Parsing fehlgeschlagen — leeres Tuple zurückgegeben (Path %s): %s", p, exc)
             return ()
 
     dirs: list[str] = []
@@ -172,7 +173,8 @@ def is_migraphx_available() -> bool:
     try:
         _load_bridge()
         return True
-    except (RuntimeError, OSError):
+    except (RuntimeError, OSError) as exc:
+        logger.debug("§V6 MIGraphX-Bridge nicht ladbar — False zurückgegeben (Bridge-Load-Fehler): %s", exc)
         return False
 
 
@@ -185,9 +187,9 @@ def migraphx_model_size_mb(model_path: str | Path) -> float:
     """Dateigröße eines ONNX-Modells in MB (0.0 bei nicht lesbarer Datei)."""
     try:
         return Path(model_path).stat().st_size / (1024 * 1024)
-    except OSError:
+    except OSError as exc:
+        logger.debug("§V6 ONNX-Dateigröße nicht lesbar — 0.0 MB zurückgegeben (Path %s): %s", model_path, exc)
         return 0.0
-
 
 def is_migraphx_size_eligible(model_path: str | Path) -> bool:
     """True, wenn das Modell klein genug für MIGraphX ist (§v10.40 Größenlimit)."""

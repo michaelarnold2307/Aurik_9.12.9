@@ -1415,7 +1415,8 @@ class AurikDenker:
                 from backend.core.surgical_defect_analyzer import SURGICAL_DEFECT_TYPES
 
                 return SURGICAL_DEFECT_TYPES
-            except ImportError:
+            except ImportError as e:
+                logger.debug("§V6 SURGICAL_DEFECT_TYPES-Import fehlgeschlagen — leeres Frozenset zurückgegeben: %s", e)
                 return frozenset()
 
         def _defekt_scan_cb(pct: int, name: str = "") -> None:

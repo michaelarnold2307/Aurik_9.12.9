@@ -786,7 +786,7 @@ class TransientPreservationPhase(PhaseInterface):
         # Simple sum (assumes linear-phase filters with minimal overlap)
         combined = np.sum(bands, axis=0)
 
-        return np.asarray(combined)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(combined), nan=0.0)  # type: ignore[no-any-return]
 
     def _shape_transients_per_band(
         self,

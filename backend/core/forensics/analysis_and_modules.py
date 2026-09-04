@@ -1046,7 +1046,7 @@ class AnalysisEngineAdapter:
         if _crackle_density > 0.05:
             detected_defects.append(
                 DefectDetection(
-                    defect_type=DefectType.CRACKLE_POPS,
+                    defect_type=DefectType.CRACKLE,
                     severity=float(np.clip(_crackle_density * 8.0, 0.0, 1.0)),
                     confidence=0.75,
                     affected_frequency_range=None,

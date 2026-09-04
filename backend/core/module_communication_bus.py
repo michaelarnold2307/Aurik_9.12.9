@@ -87,3 +87,4 @@ def get_module_communication_bus() -> ModuleCommunicationBus:
             if _module_communication_bus_instance is None:
                 _module_communication_bus_instance = ModuleCommunicationBus()
     return _module_communication_bus_instance
+logger = logging.getLogger(__name__)

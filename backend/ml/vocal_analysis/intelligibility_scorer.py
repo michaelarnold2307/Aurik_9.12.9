@@ -300,7 +300,8 @@ class IntelligibilityScorer:
 
             try:
                 a = solve_toeplitz(R, r_rest)
-            except np.linalg.LinAlgError:
+            except np.linalg.LinAlgError as e:
+                logger.debug("§V6 LPC-Toeplitz-Lösung fehlgeschlagen — None zurückgegeben (LinAlgError): %s", e)
                 return None
 
             # Guard: degenerate LPC → LAPACK DLASCL failure
@@ -310,7 +311,8 @@ class IntelligibilityScorer:
             # Find roots of LPC polynomial
             try:
                 roots = np.roots(np.r_[1, -a])
-            except (np.linalg.LinAlgError, ValueError):
+            except (np.linalg.LinAlgError, ValueError) as e:
+                logger.debug("§V6 LPC-Polynom-Roots fehlgeschlagen — None zurückgegeben: %s", e)
                 return None
 
             # Convert complex roots to frequencies

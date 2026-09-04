@@ -1661,6 +1661,68 @@ _PHASE_MAP: dict[DefectType, PhaseAssignment] = {
             "preserve_analog_character": True,
         },
     ),
+    # ------------------------------------------------------------------
+    # §DefectType-Konsolidierung: Legacy-Einträge für ai_framework / data_models Kompatibilität
+    # ------------------------------------------------------------------
+    DefectType.HISS: PhaseAssignment(
+        defect_type=DefectType.HISS,
+        primary_phases=[
+            "phase_03_denoise",  # Breitbandrauschen entfernen
+            "phase_29_tape_hiss_reduction",  # Tape-Hiss-spezifisch
+        ],
+        secondary_phases=[
+            "phase_18_noise_gate",  # Rauschgating nach Denoise
+        ],
+        description=(
+            "Reduziert Tape-Hiss und Breitbandrauschen über adaptives Spektral-Gating plus "
+            "Tape-spezifische Hiss-Modellierung."
+        ),
+        config_delta={
+            "denoise_strength": 0.50,
+            "declip_strength": 0.0,
+            "preserve_analog_character": True,
+        },
+    ),
+    DefectType.DISTORTION: PhaseAssignment(
+        defect_type=DefectType.DISTORTION,
+        primary_phases=[
+            "phase_17_declip",  # Clipping/Verzerrung reparieren
+            "phase_23_spectral_repair",  # Spektrale Reparatur nach Declip
+        ],
+        secondary_phases=[
+            "phase_04_eq_correction",  # EQ-Korrektur nach Verzerrungsreparatur
+        ],
+        description=(
+            "Repariert generische Audio-Verzerrung (Clipping, Overdrive) über Declip-Algorithmen "
+            "und spektrale Inpainting."
+        ),
+        config_delta={
+            "declip_strength": 0.70,
+            "denoise_strength": 0.0,
+            "preserve_analog_character": True,
+            "spectral_repair_strength": 0.50,
+        },
+    ),
+    DefectType.DROPOUT: PhaseAssignment(
+        defect_type=DefectType.DROPOUT,
+        primary_phases=[
+            "phase_24_dropout_repair",  # Dropout-Reparatur (Spektral-Inpainting)
+        ],
+        secondary_phases=[
+            "phase_03_denoise",  # Rauschen nach Reparatur entfernen
+            "phase_18_noise_gate",  # Rauschgating
+        ],
+        description=(
+            "Repariert Tape-/Digital-Dropouts über spektrales Inpainting und Interpolation. "
+            "Bewahrt musikalische Kontinuität."
+        ),
+        config_delta={
+            "dropout_repair_mode": "spectral_inpainting",
+            "denoise_strength": 0.30,
+            "declip_strength": 0.0,
+            "preserve_analog_character": True,
+        },
+    ),
 }
 
 # ---------------------------------------------------------------------------

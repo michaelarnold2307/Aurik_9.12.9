@@ -19,7 +19,8 @@ from __future__ import annotations
 from typing import cast
 
 import numpy as np
-from scipy.signal import butter as _butter_phase, sosfiltfilt as _sosfiltfilt_phase
+from scipy.signal import butter as _butter_phase
+from scipy.signal import sosfiltfilt as _sosfiltfilt_phase
 
 
 def _design_allpass_2nd_order(freq_hz: float, sr: int, rotation_deg: float) -> np.ndarray:

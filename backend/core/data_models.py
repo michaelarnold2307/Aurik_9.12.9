@@ -53,17 +53,8 @@ class MediaType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class DefectType(str, Enum):
-    """Audio defect classifications (Spec 3.1.3)."""
-
-    BROADBAND_NOISE = "broadband_noise"
-    CRACKLE_POPS = "crackle_pops"
-    HUM = "hum"
-    DROPOUT = "dropout"
-    CLIPPING = "clipping"
-    COMPRESSION = "compression"
-    DISTORTION = "distortion"
-
+# §DefectType-Konsolidierung: kanonische Quelle ist defect_scanner.py (54+ Defekttypen)
+from backend.core.defect_scanner import DefectType  # type: ignore[import]
 
 # ============================================================================
 # Audio File Model

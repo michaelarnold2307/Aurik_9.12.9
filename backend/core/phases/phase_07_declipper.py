@@ -155,7 +155,7 @@ def _declip_pchip(audio: np.ndarray, threshold: float) -> np.ndarray:
     n_total = int(clipped.size)
 
     if n_clipped == 0:
-        return audio.copy()
+        return np.nan_to_num(audio.copy(), nan=0.0, posinf=0.0, neginf=0.0)
 
     clip_fraction = n_clipped / max(n_total, 1)
     crossfade_n = _adaptive_crossfade_width(clip_fraction)
@@ -171,9 +171,7 @@ def _declip_pchip(audio: np.ndarray, threshold: float) -> np.ndarray:
             n_unclipped,
             n_total,
         )
-        return audio.copy()
-
-    # PCHIP an ungeclippten Punkten
+        return np.nan_to_num(audio.copy(), nan=0.0, posinf=0.0, neginf=0.0)
     try:
         interp = PchipInterpolator(
             x[unclipped].astype(np.float64),

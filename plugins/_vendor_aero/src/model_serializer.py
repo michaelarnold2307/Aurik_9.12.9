@@ -1,9 +1,8 @@
+import logging
 import os
 from pathlib import Path
-import logging
 
 import torch
-
 from src.utils import copy_state
 
 logger = logging.getLogger(__name__)

@@ -85,24 +85,8 @@ except ImportError:
 # ============================================================
 
 
-class DefectType(Enum):
-    """Erkannte Defekt-Typen."""
-
-    CLICKS = "clicks"  # Clicks/Pops (Vinyl, digital)
-    POPS = "pops"  # Loud transients
-    CRACKLE = "crackle"  # Continuous noise (Vinyl)
-    HISS = "hiss"  # Tape hiss, broadband noise
-    HUM = "hum"  # 50/60Hz hum, ground loops
-    BUZZ = "buzz"  # Harmonic buzz
-    DISTORTION = "distortion"  # Clipping, overdrive, THD
-    DROPOUT = "dropout"  # Tape/digital dropouts
-    WOW = "wow"  # Speed variation (< 0.5 Hz)
-    FLUTTER = "flutter"  # Speed variation (0.5-200 Hz)
-    AZIMUTH_ERROR = "azimuth_error"  # Tape misalignment
-    PHASE_ISSUES = "phase_issues"  # Phase cancellation
-    DC_OFFSET = "dc_offset"  # DC bias
-    CLIPPING = "clipping"  # Hard clipping
-    COMPRESSION_ARTIFACTS = "compression_artifacts"  # MP3/AAC artifacts
+# §DefectType-Konsolidierung: kanonische Quelle ist defect_scanner.py (54+ Defekttypen)
+from backend.core.defect_scanner import DefectType  # type: ignore[import]
 
 
 class _AiMediaType(Enum):

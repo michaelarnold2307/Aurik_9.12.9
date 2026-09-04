@@ -346,7 +346,8 @@ class PatternMiner:
                 cwd=self.repo_root,
             )
             return [f.strip() for f in result.stdout.split("\n") if f.strip()][:10]
-        except Exception:
+        except Exception as exc:
+            logger.debug("§V6 grep -rl fehlgeschlagen — leere Liste zurückgegeben (Regex %s): %s", regex, exc)
             return []
 
     def _describe(self, entry: ClassifiedException) -> str:
@@ -538,3 +539,4 @@ __all__ = [
     "ContinuousAnalyzer",
     "get_forensics",
 ]
+logger = logging.getLogger(__name__)

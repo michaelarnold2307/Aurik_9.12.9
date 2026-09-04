@@ -574,6 +574,7 @@ class SignalFlowTracer:
             data = json.loads(_LATEST_SYMLINK.read_text(encoding="utf-8"))
             return _format_report(data)
         except Exception as exc:
+            logger.debug("§V6 report_latest: Trace-File lesen fehlgeschlagen — Fallback-Meldung zurückgegeben: %s", exc)
             return f"§SFT: Kein Trace-File vorhanden ({exc})"
 
     def latest_output_wav(self) -> str | None:

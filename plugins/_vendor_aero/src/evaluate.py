@@ -1,15 +1,15 @@
-import os
 import logging
+import os
+
 import PIL
 import torch
-
-from src.ddp import distrib
 from src.data.datasets import match_signal
-from src.enhance import save_wavs, save_specs
+from src.ddp import distrib
+from src.enhance import save_specs, save_wavs
 from src.metrics import run_metrics
+from src.models.spec import spectro
 from src.utils import LogProgress, bold
 from src.wandb_logger import log_data_to_wandb
-from src.models.spec import spectro
 
 logger = logging.getLogger(__name__)
 

@@ -1328,6 +1328,11 @@ class CumulativeInteractionGuard:
             try:
                 goal_weight = float(np.clip(state.goal_weights.get(guard_goal, 1.0), 0.30, 2.00))
             except Exception:
+                logger.warning(
+                    "§V6 CumulativeInteractionGuard: goal weight parse failed → default 1.0 for %s: %s",
+                    guard_goal,
+                    str(Exception),
+                )
                 goal_weight = 1.0
             # For negative thresholds, dividing by sqrt(weight) yields:
             # weight>1 => less negative (stricter), weight<1 => more negative (permissive).

@@ -943,7 +943,7 @@ class AzimuthCorrectionPhaseV2(PhaseInterface):
         """
         Recombine frequency bands (simple sum).
         """
-        return np.asarray(sum(bands))  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(sum(bands)), nan=0.0)  # type: ignore[no-any-return]
 
     def get_metadata(self) -> PhaseMetadata:
         """Gibt zurück: phase metadata."""

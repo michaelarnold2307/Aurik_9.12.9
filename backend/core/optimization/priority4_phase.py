@@ -111,3 +111,4 @@ class MultibandPhaseCoherenceEnhancer:
             filtered = x.copy()
 
         return filtered  # type: ignore[no-any-return]
+logger = logging.getLogger(__name__)

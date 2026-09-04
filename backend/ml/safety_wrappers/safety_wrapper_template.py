@@ -233,7 +233,7 @@ class BaseSafetyWrapper:
         try:
             processed_audio = self.processor_func(audio, sr, **adjusted_params)
         except Exception as e:
-            self.logger.error("Processing failed: %s", e)
+            logger.error("§V6 Processing fehlgeschlagen — Abort-Response zurückgegeben: %s", e)
             self.aborted_calls += 1
             pre_check.passed = False
             pre_check.reasons.append(f"Processing exception: {e!s}")

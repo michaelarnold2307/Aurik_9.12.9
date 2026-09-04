@@ -356,15 +356,19 @@ def _count_onsets(audio: np.ndarray, sr: int) -> int:
         _thresh = np.mean(_flux) + 0.5 * np.std(_flux)
         return int(np.sum(_flux > _thresh))
     except Exception:
+        logger.warning(
+            "§V6 ExcellenceOptimizer: onset count failed → 0 transients: %s",
+            str(Exception),
+        )
         return 0
 
 
 def _to_mono(audio: np.ndarray) -> np.ndarray:
     """Konvertiert zu Mono (Mittelkanal); gibt Originalform zurück wenn mono."""
     if audio.ndim == 1:
-        return np.asarray(audio)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(audio), nan=0.0)  # type: ignore[no-any-return]
     mono = np.mean(audio, axis=1) if audio.shape[1] <= audio.shape[0] else np.mean(audio, axis=0)
-    return np.asarray(mono)  # type: ignore[no-any-return]
+    return np.nan_to_num(np.asarray(mono), nan=0.0)  # type: ignore[no-any-return]
 
 
 def _stft(audio: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -382,17 +386,17 @@ def _istft(Zxx: np.ndarray, orig_len: int) -> np.ndarray:
 def _match_length(a: np.ndarray, target_len: int) -> np.ndarray:
     """Passt Array-Länge an target_len an (Pad oder Trim)."""
     if len(a) >= target_len:
-        return np.asarray(a[:target_len])  # type: ignore[no-any-return]
-    return np.asarray(np.pad(a, (0, target_len - len(a))))  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(a[:target_len]), nan=0.0)  # type: ignore[no-any-return]
+    return np.nan_to_num(np.asarray(np.pad(a, (0, target_len - len(a)))), nan=0.0)  # type: ignore[no-any-return]
 
 
 def _frame_rms(audio: np.ndarray, frame_size: int = 512) -> np.ndarray:
     """RMS-Verlauf als 1D-Array (ein Wert pro Frame)."""
     n_frames = len(audio) // frame_size
     if n_frames == 0:
-        return np.asarray([np.sqrt(np.mean(audio**2))])  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray([np.sqrt(np.mean(audio**2))]), nan=0.0)  # type: ignore[no-any-return]
     shaped = audio[: n_frames * frame_size].reshape(n_frames, frame_size)
-    return np.asarray(np.sqrt(np.mean(shaped**2, axis=1)) + 1e-10)  # type: ignore[no-any-return]
+    return np.nan_to_num(np.asarray(np.sqrt(np.mean(shaped**2, axis=1)) + 1e-10), nan=0.0)  # type: ignore[no-any-return]
 
 
 # ─── Kontext-Analyse ─────────────────────────────────────────────────────────
@@ -638,14 +642,14 @@ def _inject_micro_dynamics(
             modulation[_fs - _xf // 2 : _fs - _xf // 2 + _xf] = _fade
 
     if audio.ndim == 1:
-        return np.asarray((audio * modulation).astype(audio.dtype))  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray((audio * modulation).astype(audio.dtype)), nan=0.0)  # type: ignore[no-any-return]
 
     # Stereo: gleiche Modulation auf beide Kanäle
-    return np.asarray(  # type: ignore[no-any-return]
+    return np.nan_to_num(np.asarray(  # type: ignore[no-any-return]
         (
             audio * modulation[:, np.newaxis] if audio.shape[1] <= audio.shape[0] else audio * modulation[np.newaxis, :]
         ).astype(audio.dtype)
-    )
+    ), nan=0.0)
 
 
 def _reinforce_harmonics(

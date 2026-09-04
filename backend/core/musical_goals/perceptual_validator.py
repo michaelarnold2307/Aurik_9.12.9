@@ -51,7 +51,8 @@ def _load_torch_stack() -> bool:
         AutoFeatureExtractor = _AutoFeatureExtractor  # type: ignore[assignment]
         AutoModelForAudioClassification = _AutoModelForAudioClassification  # type: ignore[assignment]
         return True
-    except (ImportError, OSError, Warning):
+    except (ImportError, OSError, Warning) as exc:
+        logger.debug("§V6 AST-Perceptual-ONNX Import fehlgeschlagen — False zurückgegeben (torch/transformers): %s", exc)
         # Warning is included because pytest may escalate third-party deprecation
         # warnings to exceptions during optional dependency imports.
         return False

@@ -61,7 +61,8 @@ def _mos_payload(mos_result: Any) -> dict[str, Any]:
         return dict(payload) if isinstance(payload, dict) else {"mos": 0.0, "raw": payload}
     try:
         return {"mos": float(mos_result)}
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("§V6 MOS-Resultat nicht konvertierbar — Fallback auf 0.0: %s", exc)
         return {"mos": 0.0, "raw": str(mos_result)}
 
 
@@ -70,7 +71,8 @@ def _mos_score(mos_result: Any) -> float:
     payload = _mos_payload(mos_result)
     try:
         return float(payload.get("mos", 0.0) or 0.0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("§V6 MOS-Score-Extraktion fehlgeschlagen — Fallback auf 0.0: %s", exc)
         return 0.0
 
 

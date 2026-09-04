@@ -206,6 +206,10 @@ def _repair_channel(
                 mag_rep[:, _known_mask] = _mag_anchor
                 phase[:, _known_mask] = _ph_anchor
             except Exception:
+                logger.warning(
+                    "§V6 Phase-50 POCS consistency iteration failed → break (keep current estimate): %s",
+                    str(Exception),
+                )
                 break  # Consistency iteration failed; keep current estimate
 
     n_repaired = n_freq_repaired + n_time_repaired

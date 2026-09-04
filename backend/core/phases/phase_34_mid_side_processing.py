@@ -353,6 +353,7 @@ class MidSideProcessing(PhaseInterface):
             try:
                 material = MaterialType(str(material))
             except Exception:
+                logger.warning("§V6 MaterialType Konvertierung fehlgeschlagen — Fallback auf VINYL: %s", material)
                 material = MaterialType.VINYL
 
         _strength_ctx = resolve_phase_strength_contract(kwargs)
@@ -622,7 +623,7 @@ class MidSideProcessing(PhaseInterface):
 
     def _combine_bands(self, bands: list[np.ndarray]) -> np.ndarray:
         """Kombiniert frequency bands back together."""
-        return np.asarray(sum(bands), dtype=bands[0].dtype)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(sum(bands), dtype=bands[0].dtype), nan=0.0)  # type: ignore[no-any-return]
 
     def _ms_decode(self, audio: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Dekodiert L/R to Mid/Side."""
@@ -639,10 +640,10 @@ class MidSideProcessing(PhaseInterface):
         """Kodiert Mid/Side to L/R."""
         if template.ndim == 1:
             # Mono-Zielsignal: L/R-Encoder auf Mid kollabieren, keine Stereo-Template-Erwartung.
-            return np.asarray(mid, dtype=template.dtype)  # type: ignore[no-any-return]
+            return np.nan_to_num(np.asarray(mid, dtype=template.dtype), nan=0.0)  # type: ignore[no-any-return]
         left = mid + side
         right = mid - side
-        return np.asarray(stereo_like(left, right, template), dtype=template.dtype)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(stereo_like(left, right, template), dtype=template.dtype), nan=0.0)  # type: ignore[no-any-return]
 
     def _detect_transients(self, audio: np.ndarray) -> np.ndarray:
         """Erkennt transients using fast envelope follower."""

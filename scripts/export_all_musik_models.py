@@ -25,6 +25,7 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
+
 PYTHON = "python3"
 _PROJECT = Path(__file__).resolve().parent.parent
 MODELS_DIR = _PROJECT / "models"

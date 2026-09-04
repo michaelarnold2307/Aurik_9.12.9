@@ -628,17 +628,21 @@ class DynamicRangeExpansion(PhaseInterface):
         # sosfiltfilt (zero-phase) required: low is subtracted from audio to get rest_1;
         # causal sosfilt would introduce group delay → timing skew in complementary bands → Pegelexplosion (§2.51, V11)
         sos1 = signal.butter(2, self.CROSSOVER_FREQS[0], btype="low", fs=sample_rate, output="sos")
-        low = signal.sosfiltfilt(sos1, audio)  # LR4-equivalent zero-phase low-pass
+        from backend.core.audio_utils import (
+            safe_sosfiltfilt as _safe_sosfiltfilt26,  # pylint: disable=import-outside-toplevel
+        )
+
+        low = _safe_sosfiltfilt26(sos1, audio)  # LR4-equivalent zero-phase low-pass
         rest_1 = audio - low  # Complementary high (>150 Hz)
 
         # Crossover 2: 800 Hz (applied to rest_1)
         sos2 = signal.butter(2, self.CROSSOVER_FREQS[1], btype="low", fs=sample_rate, output="sos")
-        mid_low = signal.sosfiltfilt(sos2, rest_1)  # LR4-equivalent zero-phase
+        mid_low = _safe_sosfiltfilt26(sos2, rest_1)  # LR4-equivalent zero-phase
         rest_2 = rest_1 - mid_low  # >800 Hz
 
         # Crossover 3: 5000 Hz (applied to rest_2)
         sos3 = signal.butter(2, self.CROSSOVER_FREQS[2], btype="low", fs=sample_rate, output="sos")
-        mid_high = signal.sosfiltfilt(sos3, rest_2)  # LR4-equivalent zero-phase
+        mid_high = _safe_sosfiltfilt26(sos3, rest_2)  # LR4-equivalent zero-phase
         high = rest_2 - mid_high  # >5000 Hz
 
         return [low, mid_low, mid_high, high]
@@ -764,7 +768,7 @@ class DynamicRangeExpansion(PhaseInterface):
         gain_linear = 10.0 ** (gain_db_smooth / 20.0)
         expanded_band = band * gain_linear
 
-        return np.asarray(expanded_band, dtype=np.float32)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(expanded_band, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
     def _compute_rms_envelope(self, audio: np.ndarray, window_samples: int) -> np.ndarray:
         """Berechnet RMS envelope."""
@@ -773,7 +777,7 @@ class DynamicRangeExpansion(PhaseInterface):
         from scipy.ndimage import uniform_filter1d
 
         rms = np.sqrt(uniform_filter1d(audio_squared, window_samples, mode="nearest"))
-        return np.asarray(rms, dtype=np.float32)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(rms, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
     def _smooth_gain(self, gain_db: np.ndarray, sample_rate: int, attack_ms: float, release_ms: float) -> np.ndarray:
         """
@@ -833,7 +837,7 @@ class DynamicRangeExpansion(PhaseInterface):
         """Kombiniert frequency bands."""
         # Simple sum (Linkwitz-Riley crossovers maintain flat magnitude response)
         combined = sum(bands)
-        return np.asarray(combined, dtype=np.float32)  # type: ignore[no-any-return]
+        return np.nan_to_num(np.asarray(combined, dtype=np.float32), nan=0.0)  # type: ignore[no-any-return]
 
     def _measure_dynamic_range(self, audio: np.ndarray) -> float:
         """Misst dynamic range (dB)."""

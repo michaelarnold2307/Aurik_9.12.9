@@ -784,3 +784,4 @@ class GenericSpatialSafety(BaseSafetyWrapper):
         quality = 0.4 * mono_compat + 0.4 * center_pres + 0.2 * (1.0 - width_penalty)
 
         return float(np.clip(quality, 0.0, 1.0))
+logger = logging.getLogger(__name__)

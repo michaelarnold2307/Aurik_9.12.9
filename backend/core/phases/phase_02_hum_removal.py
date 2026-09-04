@@ -464,6 +464,10 @@ class HumRemovalPhase(PhaseInterface):
             _norm_r = np.sqrt(np.sum(_chroma_res**2)) + 1e-10
             _chroma_p = float(np.dot(_chroma_orig / _norm_o, _chroma_res / _norm_r))
         except Exception:
+            logger.warning(
+                "§V6 Phase-02 chroma preservation metric failed → assume perfect (chroma_p=1.0): %s",
+                str(Exception),
+            )
             _chroma_p = 1.0
 
         if _chroma_p < 0.95:
@@ -802,7 +806,7 @@ class HumRemovalPhase(PhaseInterface):
 
         # Clamp to valid range
         if w0 <= 0 or w0 >= 1:
-            return audio
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
 
         # Design notch filter
         b, a = signal.iirnotch(w0, q_factor, fs=self.sample_rate)
@@ -830,7 +834,11 @@ class HumRemovalPhase(PhaseInterface):
             else:
                 filtered = safe_filtfilt(b, a, audio)
         except Exception:
-            # Fallback to forward filter if filtfilt fails
+            # Fallback to forward filter if filtfilt fails (§V6)
+            logger.warning(
+                "§V6 Phase-02 safe_filtfilt failed → signal.lfilter fallback: %s",
+                str(Exception),
+            )
             if audio.ndim == 2:
                 if audio.shape[0] == 2 and audio.shape[1] > 2:
                     filtered = np.row_stack([signal.lfilter(b, a, audio[ch, :]) for ch in range(audio.shape[0])])

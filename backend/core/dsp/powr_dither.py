@@ -187,6 +187,8 @@ def _apply_powr_mono(
 def quantize_to_int(audio: np.ndarray, bit_depth: int = 16) -> np.ndarray:
     """Quantisiert float-Audio auf Integer (16-bit oder 24-bit).
 
+    §V5: Dither wird vor der Quantisierung angewendet (POW-r Type 3 primär, TPDF Fallback).
+
     Args:
         audio: Float32/64 Audio, Wertebereich [−1, +1]
         bit_depth: 16 oder 24
@@ -194,12 +196,22 @@ def quantize_to_int(audio: np.ndarray, bit_depth: int = 16) -> np.ndarray:
     Returns:
         np.int16 oder np.int32 (24-bit in 32-bit Container)
     """
+    # §V5: Dither vor Quantisierung anwenden
+    try:
+        dithered = apply_powr_dither(audio, bit_depth=bit_depth)
+    except Exception:
+        # TPDF-Fallback: zwei unabhängige U[−0.5,+0.5] summiert
+        rng = np.random.default_rng(42)
+        u1 = rng.uniform(-0.5, 0.5, size=len(audio))
+        u2 = rng.uniform(-0.5, 0.5, size=len(audio))
+        dithered = audio + (u1 + u2) * (1.0 / (2**bit_depth))
+
     if bit_depth == 16:
         max_val = 32767
-        return cast(np.ndarray, (np.clip(audio * max_val, -max_val, max_val).astype(np.int16)))
+        return cast(np.ndarray, (np.clip(dithered * max_val, -max_val, max_val).astype(np.int16)))
     elif bit_depth == 24:
         max_val = 8388607  # 2^23 - 1
-        return cast(np.ndarray, (np.clip(audio * max_val, -max_val, max_val).astype(np.int32)))
+        return cast(np.ndarray, (np.clip(dithered * max_val, -max_val, max_val).astype(np.int32)))
     else:
         raise ValueError("quantize_to_int: bit_depth muss 16 oder 24 sein")
 
