@@ -41,8 +41,10 @@ CHUNK_SEC = 2.0
 CHUNK_SAMPLES = int(CHUNK_SEC * SR)
 BATCH_SIZE = 1
 ACCUM_STEPS = 4  # Effective batch = 8
-EPOCHS = 25
+EPOCHS = 30
 LR = 5e-5
+EARLY_STOP_PATIENCE = 5  # Stop if val-loss doesn't improve for 5 epochs
+MIN_VAL_LOSS_IMPROVEMENT = 1e-6  # Minimum improvement to count as progress
 
 CHECKPOINT_DIR = _PROJECT / "models" / "harmonic_inpainting"
 BEST_PT = CHECKPOINT_DIR / "inpainting_best.pt"
@@ -174,7 +176,17 @@ class InpaintingDataset(Dataset):
 # ═════════════════════════════════════════════════════════════════════════════
 
 
-def train(epochs: int = EPOCHS, lr: float = LR, steps_per_epoch: int = 200):
+def train(
+    epochs: int = EPOCHS,
+    lr: float = LR,
+    steps_per_epoch: int = 200,
+    early_stop_patience: int = EARLY_STOP_PATIENCE,
+) -> dict[str, float]:
+    """Run fine-tuning with convergence gate.
+
+    Returns:
+        Training summary dict with epochs_run, best_val_loss, production_ready flag.
+    """
     device = torch.device("cuda")
 
     # Daten
@@ -237,8 +249,10 @@ def train(epochs: int = EPOCHS, lr: float = LR, steps_per_epoch: int = 200):
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 
     best_val = float("inf")
+    patience_counter = 0
+    production_ready = False
 
-    print(f"Epochs: {epochs} | LR: {lr} | Effective batch: {BATCH_SIZE * ACCUM_STEPS}")
+    print(f"Epochs: {epochs} | LR: {lr} | Effective batch: {BATCH_SIZE * ACCUM_STEPS} | Patience: {early_stop_patience}")
 
     for epoch in range(epochs):
         model.train()
@@ -335,25 +349,73 @@ def train(epochs: int = EPOCHS, lr: float = LR, steps_per_epoch: int = 200):
             LATEST_PT,
         )
 
-        if avg_val < best_val:
+        if avg_val < best_val - MIN_VAL_LOSS_IMPROVEMENT:
             best_val = avg_val
+            patience_counter = 0
             torch.save(
                 {
                     "model_state_dict": model.state_dict(),
                     "epoch": epoch + 1,
                     "val_loss": avg_val,
+                    "production_ready": False,  # Not yet — still training
                 },
                 BEST_PT,
             )
             print(f"  >> Best: {best_val:.6f}")
+        else:
+            patience_counter += 1
 
-    print(f"\nDone. Best val: {best_val:.6f} | {BEST_PT}")
+        # §v10.600: Production-Readiness Gate (Ep 30 + convergence)
+        if epoch >= 29 and best_val < 1e-4:
+            production_ready = True
+            torch.save(
+                {
+                    "model_state_dict": model.state_dict(),
+                    "epoch": epoch + 1,
+                    "val_loss": avg_val,
+                    "production_ready": True,
+                },
+                BEST_PT,
+            )
+            print(f"  >> PRODUCTION READY: Ep {epoch + 1}, val={best_val:.6f}")
+
+        # Early stopping
+        if patience_counter >= early_stop_patience and epoch >= 20:
+            print(f"\nEarly stop at epoch {epoch + 1} (patience exhausted, best={best_val:.6f})")
+            break
+
+    print(f"\nDone. Best val: {best_val:.6f} | Production ready: {production_ready} | {BEST_PT}")
+
+    return {
+        "epochs_run": epoch + 1,
+        "best_val_loss": best_val,
+        "production_ready": production_ready,
+    }
 
 
 if __name__ == "__main__":
+    import json
+
     p = argparse.ArgumentParser(description="Harmonic Inpainting Fine-Tuning (§v10.300)")
     p.add_argument("--epochs", type=int, default=EPOCHS)
     p.add_argument("--lr", type=float, default=LR)
     p.add_argument("--steps-per-epoch", type=int, default=200)
     args = p.parse_args()
-    train(args.epochs, args.lr, args.steps_per_epoch)
+
+    # Save config for reproducibility (§v10.600 SOTA)
+    CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+    config = {
+        "epochs": args.epochs,
+        "lr": args.lr,
+        "steps_per_epoch": args.steps_per_epoch,
+        "batch_size": BATCH_SIZE,
+        "accum_steps": ACCUM_STEPS,
+        "chunk_sec": CHUNK_SEC,
+        "sr": SR,
+        "pretrained_dit": str(PRETRAINED_DIT),
+    }
+    with open(CHECKPOINT_DIR / "training_config.json", "w") as f:
+        json.dump(config, f, indent=2)
+
+    summary = train(args.epochs, args.lr, args.steps_per_epoch)
+    print(f"\nSummary: {json.dumps(summary, indent=2)}")

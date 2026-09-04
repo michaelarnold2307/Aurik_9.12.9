@@ -498,6 +498,13 @@ def test_router_vocal_nr_skips_unloaded_miipher_for_sgmse(monkeypatch):
         def enhance(audio: np.ndarray, sr: int):  # pylint: disable=unused-argument
             return _FakeSgmseResult(audio)
 
+    # §v10.14: MIIPHER-DiT als Primärmodell mocken (nicht verfügbar → Fallback zu SGMSE+)
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "plugins.miipher_dit_plugin",
+        types.SimpleNamespace(get_miipher_dit=lambda: (_ for _ in ()).throw(ImportError("miipher_dit not available"))),
+    )
+
     monkeypatch.setitem(
         __import__("sys").modules,
         "plugins.miipher_plugin",
@@ -517,6 +524,8 @@ def test_router_vocal_nr_skips_unloaded_miipher_for_sgmse(monkeypatch):
     audio = _audio()
     result = SotaVocalModelRouter().enhance_vocal(audio, 48000, energy_bias_db=-6.0)
     assert result.success is True
+    # MIIPHER-DiT nicht verfügbar → Fallback zu MIIPHER (nicht geladen) → SGMSE+
+    assert "miipher_dit:import_error" in result.fallback_chain
     assert result.model_used == "sgmse_plus_torchscript"
     assert "miipher:not_loaded" in result.fallback_chain
     assert result.metadata["miipher_model_loaded"] is False
@@ -550,6 +559,13 @@ def test_router_vocal_nr_compensates_missing_miipher_with_dfn_and_hnr(monkeypatc
         def enhance(audio: np.ndarray, sr: int, energy_bias_db: float = -9.0):  # pylint: disable=unused-argument
             return (audio * 0.8).astype(np.float32)
 
+    # §v10.14: MIIPHER-DiT als Primärmodell mocken (nicht verfügbar → Fallback zu SGMSE+ + DFN)
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "plugins.miipher_dit_plugin",
+        types.SimpleNamespace(get_miipher_dit=lambda: (_ for _ in ()).throw(ImportError("miipher_dit not available"))),
+    )
+
     monkeypatch.setitem(
         __import__("sys").modules,
         "plugins.miipher_plugin",
@@ -574,6 +590,8 @@ def test_router_vocal_nr_compensates_missing_miipher_with_dfn_and_hnr(monkeypatc
     audio = _audio()
     result = SotaVocalModelRouter().enhance_vocal(audio, 48000, energy_bias_db=-6.0)
     assert result.success is True
+    # MIIPHER-DiT nicht verfügbar → Fallback zu MIIPHER (nicht geladen) → SGMSE+ + DFN + HNR
+    assert "miipher_dit:import_error" in result.fallback_chain
     assert result.model_used.endswith("+deepfilternet_v3_ii+hnr_blend")
     assert result.model_used.startswith("sgmse_plus")
     assert result.metadata["miipher_compensation_active"] is True
@@ -601,6 +619,13 @@ def test_router_accepts_productive_miipher_adapter_without_native_onnx(monkeypat
         def enhance(audio: np.ndarray, sr: int, noise_snr_db: float = 0.0) -> np.ndarray:  # pylint: disable=unused-argument
             return (audio * 0.25).astype(np.float32)
 
+    # §v10.14: MIIPHER-DiT als Primärmodell mocken (nicht verfügbar → Fallback zu MIIPHER Adapter)
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "plugins.miipher_dit_plugin",
+        types.SimpleNamespace(get_miipher_dit=lambda: (_ for _ in ()).throw(ImportError("miipher_dit not available"))),
+    )
+
     monkeypatch.setitem(
         __import__("sys").modules,
         "plugins.miipher_plugin",
@@ -610,6 +635,8 @@ def test_router_accepts_productive_miipher_adapter_without_native_onnx(monkeypat
     audio = _audio()
     result = SotaVocalModelRouter().enhance_vocal(audio, 48000, energy_bias_db=-6.0, noise_snr_db=4.0)
     assert result.success is True
+    # MIIPHER-DiT nicht verfügbar → Fallback zu MIIPHER Adapter (productive)
+    assert "miipher_dit:import_error" in result.fallback_chain
     assert result.model_used == "miipher_sgmse_plus"
     assert result.metadata["miipher_model_loaded"] is False
     assert result.metadata["miipher_adapter_productive"] is True

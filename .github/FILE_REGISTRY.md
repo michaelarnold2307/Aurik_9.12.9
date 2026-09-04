@@ -52,6 +52,10 @@
 | backend/core/phases/_denoise_algorithms.py | ACTIVE | backend/core/dsp | ja | — | Core Denoising-Algorithmen: IMCRA Noise Estimation (Cohen 2002), OMLSA Gain (Cohen 2003), Salience G_floor, Adaptive Guard Profile, Phase Correction (Prusa 2017), ERB-Bands (Glasberg 1990), Multi-/Masking-Gate, Musical Noise Suppression, Transient Preservation; stateless Funktionen (Split 2026-09) |
 | backend/api/bridge_cache.py | ACTIVE | api/bridge | ja | — | Thread-safe LRU caches für Analyse-Ergebnisse (Defect, Era/Genre, Medium, Restorability); content-addressed Keys verhindern redundante Re-Analyse bei Datei-Umbenennung; extrahiert aus bridge.py Zeilen 238-640 (Split 2026-09) |
 | backend/api/bridge_core.py | ACTIVE | api/bridge | ja | — | Lazy-import wrappers für Enums, Restorer-Klassen, Denker, DefectScanner, MediumClassifier, Era/Genre-Classifiers und RestorabilityEstimator; extrahiert aus bridge.py (Split 2026-09) |
+| tests/unit/test_ml_dsp_fallback_paths.py | ACTIVE | testing/unit | ja | — | §V6 ML→DSP-Fallback-Pfade: Pre-Echo-Detector, Noise-Texture-Guard, Vocal-Harmonic-Decomp (ZCPA), SOTA-Vocal-Pipeline, Phoneme-Boundary-Detector, Hallucination-Guard; 15 Tests für Fallback-Kette ohne ONNX/PyTorch (2026-09-04) |
+| tests/unit/test_mushra_corpus.py | ACTIVE | testing/unit | ja | — | Real-Audio-Korpus MUSHRA-Tests: Korpus-Integrität, MUSHRA-Score-Berechnung für damaged/clean-Paare, Regression-Detection, JSON-Bericht; 7 Tests (2026-09-04) |
+| tests/unit/test_gpu_detection_failsafe.py | ACTIVE | testing/unit | ja | — | GPU-Detection Failsafe: CPU-only Modus, Detection-Timeout-Fallback, ONNX-CPU-Provider, ML-Inferenz-auf-CPU, Memory-Budget; 7 Tests (2026-09-04) |
+| tests/unit/test_multimodal_restoration.py | ACTIVE | testing/unit | ja | — | Multi-Modal-Restaurierung: MultimodalDecisionEngine, Genre/Era-Ketten, Prompt-NLP, Fallback-Chains, Metadata; 10 Tests (2026-09-04) |
 
 ## Pflege-Regeln
 

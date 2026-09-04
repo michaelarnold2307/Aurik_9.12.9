@@ -101,13 +101,31 @@ class VocalEnhanceResult:
 class VocalAnalyzer:
     """Analysiert alle Stimmeigenschaften und erstellt ein VocalProfile."""
 
-    def __init__(self):
+    def __init__(self, n_fft: int = 2048, hop: int = 512):
+        self._n_fft = n_fft
+        self._hop = hop
         self._f0_cache: np.ndarray | None = None
         self._f0_times: np.ndarray | None = None
 
     def analyze(self, audio: np.ndarray, sample_rate: int = SR) -> VocalProfile:
-        """Führt alle 5 Analyse-Module aus und aggregiert zu einem Profil."""
+        """Führt alle 5 Analyse-Module aus und aggregiert zu einem Profil.
+
+        §v10.600 SOTA: F0-Kontur via ZCPA für Intonations-Klassifikation +
+        Harmonic-Protection; Breath-Segmente für Atemverarbeitung.
+        """
         profile = VocalProfile()
+
+        # 0. F0-Extraktion (ZCPA-DSP-Fallback) — für Intonation + Harmonics
+        f0_contour: np.ndarray | None = None
+        try:
+            from backend.core.dsp.vocal_harmonic_decomp import _estimate_f0_zcpa
+
+            f0_contour = _estimate_f0_zcpa(audio, sample_rate, self._hop)
+            self._f0_cache = f0_contour
+            frame_dur_s = self._hop / sample_rate
+            self._f0_times = np.arange(len(f0_contour)) * frame_dur_s
+        except Exception as _f0_exc:
+            log.debug("F0-ZCPA nicht verfügbar: %s", _f0_exc)
 
         # 1. Register Detection
         try:
@@ -144,21 +162,42 @@ class VocalAnalyzer:
         except Exception as _frm_exc:
             log.warning("§V6 (VERBOTEN.md): Formant-Tracking inaktiv — %s", _frm_exc)
 
-        # 4. Intonation Classification
+        # 4. Intonation Classification — §v10.600 SOTA: mit F0-Kontur aktiviert
         try:
             from backend.core.dsp.intonation_classifier import classify_intonation_events
 
-            # API erwartet eine F0-Kontur (CREPE/FCPE); im Vocal-Profil-Kontext
-            # nicht verdrahtbar → laut als inaktiv markieren statt still skip.
-            _ = classify_intonation_events
-            log.debug(
-                "Intonations-Klassifikation im Vocal-Profil inaktiv "
-                "(API braucht F0-Kontur — classify_intonation_events)"
-            )
+            if f0_contour is not None and len(f0_contour) >= 4:
+                inton_events = classify_intonation_events(
+                    f0_contour,
+                    sr=sample_rate,
+                    hop=self._hop,
+                )
+                # Pitch-Stabilität aus Intonations-Ereignissen ableiten
+                n_total = max(len(inton_events), 1)
+                n_degradation = sum(1 for e in inton_events if str(e.intent) == "degradation")
+                profile.pitch_stability = float(np.clip(1.0 - (n_degradation / n_total), 0.0, 1.0))
+
+                # Intonations-Stil bestimmen
+                if n_degradation > n_total * 0.3:
+                    profile.intonation_style = "defect"
+                elif any(str(e.event_type) in ("vibrato_onset", "vibrato", "portamento") for e in inton_events):
+                    profile.intonation_style = "intentional"
+                else:
+                    profile.intonation_style = "neutral"
+
+                log.debug(
+                    "Intonation: %d events — degradation=%d, stability=%.2f, style=%s",
+                    n_total,
+                    n_degradation,
+                    profile.pitch_stability,
+                    profile.intonation_style,
+                )
+            else:
+                log.debug("Intonations-Klassifikation: keine F0-Kontur verfügbar")
         except Exception as _int_exc:
             log.warning("§V6 (VERBOTEN.md): Intonations-Klassifikation inaktiv — %s", _int_exc)
 
-        # 5. Breath Emotion
+        # 5. Breath Emotion + Segmente für Breath-Processing
         try:
             from backend.core.dsp.breath_emotion_classifier import classify_breath_emotions
 
@@ -168,6 +207,15 @@ class VocalAnalyzer:
                 _b0_cat = getattr(_b0, "category", None)
                 profile.breath_emotion = str(getattr(_b0_cat, "value", _b0_cat) or "natural")
                 profile.emotional_intensity = float(getattr(_b0, "energy_slope", 0.0) or 0.0)
+
+                # §v10.600 SOTA: Phoneme-Boundaries aus Breath-Segmenten ableiten
+                boundary_samples = []
+                for seg in breath_segs:
+                    boundary_samples.append(int(seg.start_s * sample_rate))
+                    boundary_samples.append(int(seg.end_s * sample_rate))
+                profile.phoneme_boundaries = np.array(sorted(boundary_samples), dtype=np.int32)
+            else:
+                log.debug("Keine Breath-Segmente erkannt")
         except Exception as _breath_exc:
             log.warning("§V6 (VERBOTEN.md): Breath-Emotion inaktiv — %s", _breath_exc)
 
@@ -239,6 +287,8 @@ class PhonemeAwareDeEsser:
       - NATURAL: charakteristische Sibilanz → schützen
       - PATHOLOGICAL: übermäßige Zischlaute → reduzieren
       - OVERLOADED: Clipping/Verzerrung → reparieren
+
+    §v10.600 SOTA: Frame-level sibilant mask aus Segment-API generiert.
     """
 
     def __init__(self, n_fft: int = 2048, hop: int = 512):
@@ -254,10 +304,12 @@ class PhonemeAwareDeEsser:
         """
         Führt pathologie-bewusstes De-Essing durch.
 
+        §v10.600 SOTA: Frame-level sibilant mask aus Segment-API generiert.
+
         Returns:
             (processed_audio, sibilance_reduction_db)
         """
-        # Detect sibilant frames
+        # Detect sibilant frames + generate frame-level mask
         try:
             from backend.core.dsp.sibilance_pathology import classify_sibilance_pathology
 
@@ -268,24 +320,42 @@ class PhonemeAwareDeEsser:
                 pathology = str(getattr(_s0_path, "value", _s0_path) or "natural")
             else:
                 pathology = "natural"
-            sib_mask = None  # Segment-API liefert keine Frame-Maske; konservativ None
+
+            # §v10.600 SOTA: Frame-level boolean mask aus Segment-Grenzen
+            n_frames = 1 + (len(audio) - self.n_fft) // self.hop
+            sib_mask = np.zeros(n_frames, dtype=bool)
+            for seg in sib_segments:
+                start_frame = int(seg.start_s * sample_rate / self.hop)
+                end_frame = min(int(seg.end_s * sample_rate / self.hop), n_frames)
+                sib_mask[start_frame:end_frame] = True
+
+                # Profile aktualisieren für is_sibilant_frame
+                if profile.is_sibilant_frame is None:
+                    profile.is_sibilant_frame = np.zeros(len(audio), dtype=bool)
+                s_start = int(seg.start_s * sample_rate)
+                s_end = min(int(seg.end_s * sample_rate), len(audio))
+                profile.is_sibilant_frame[s_start:s_end] = True
+
         except Exception as _sib_exc:
             log.warning("§V6 (VERBOTEN.md): Sibilanz-Klassifikation inaktiv — %s", _sib_exc)
             pathology = "natural"
-            sib_mask = None
+            n_frames = 1 + (len(audio) - self.n_fft) // self.hop
+            sib_mask = np.zeros(n_frames, dtype=bool)
 
         profile.sibilance_pathology = pathology
 
-        if pathology == "natural" or sib_mask is None:
+        # §v10.600 SOTA: Bei NATURAL → Audio unverändert zurückgeben (Schutz!)
+        if pathology == "natural":
             return audio, 0.0
 
         # Build sibilance reduction filter
         strength = profile.deess_strength
-        if pathology == "overloaded":
-            strength = min(1.0, strength * 1.5)  # Aggressiver bei Überlastung
+        if pathology == "overloaded" or pathology == "distorted":
+            strength = min(1.0, strength * 1.5)  # Aggressiver bei Überlastung/Verzerrung
+        elif pathology == "masked_hiss":
+            strength *= 0.6  # Konservativer bei Rauschen
 
         # Simple spectral de-essing: reduce high frequencies in sibilant frames
-        n_frames = 1 + (len(audio) - self.n_fft) // self.hop
         window = np.hanning(self.n_fft)
         output = np.zeros_like(audio, dtype=np.float64)
         weight = np.zeros_like(audio, dtype=np.float64)
@@ -302,10 +372,8 @@ class PhonemeAwareDeEsser:
             frame = audio[start : start + self.n_fft] * window
             spec = np.fft.rfft(frame)
 
-            # Check if this frame is sibilant
-            is_sib = False
-            if sib_mask is not None and i < len(sib_mask):
-                is_sib = sib_mask[i]
+            # Check if this frame is sibilant (from generated mask)
+            is_sib = bool(sib_mask[i])
 
             if is_sib:
                 sib_energy_before += np.sum(np.abs(spec[sib_band]) ** 2)
@@ -340,6 +408,9 @@ class HarmonicProtector:
     """
     Trennt vokalharmonische von nicht-harmonischen Anteilen.
     Noise Reduction nur auf dem nicht-harmonischen Anteil.
+
+    §v10.600 SOTA: F0-driven partial tracking statt Percentile-basierter Peak-Detektion.
+    Nutzt VocalHarmonicMask für präzise harmonische Bin-Maske mit Gaußscher Breite.
     """
 
     def __init__(self, n_fft: int = 2048, hop: int = 512):
@@ -356,6 +427,8 @@ class HarmonicProtector:
         Teilt Audio in harmonische + nicht-harmonische Komponenten,
         wendet konservative NR nur auf nicht-harmonische an.
 
+        §v10.600 SOTA: F0-driven partial tracking via VocalHarmonicMask.
+
         Returns:
             (processed_audio, harmonic_preservation_pct)
         """
@@ -366,7 +439,17 @@ class HarmonicProtector:
 
         protection = profile.harmonic_protection
 
-        # Simple harmonic detection: peaks in spectrum are harmonics
+        # §v10.600 SOTA: F0-driven harmonic mask via VocalHarmonicMask
+        h_mask_2d: np.ndarray | None = None
+        try:
+            from backend.core.dsp.vocal_harmonic_decomp import VocalHarmonicMask, _F0_MIN_HZ
+
+            vmask = VocalHarmonicMask(audio, sample_rate, n_fft=self.n_fft, hop=self.hop)
+            h_mask_2d = vmask.harmonic_mask(soft=True)  # shape: (n_freq, n_frames)
+            log.debug("VocalHarmonicMask: voiced_fraction=%.2f", vmask.voiced_fraction)
+        except Exception as _vm_exc:
+            log.debug("VocalHarmonicMask nicht verfügbar (%s), Fallback auf Percentile", _vm_exc)
+
         harmonic_energy_total = 0.0
         harmonic_energy_preserved = 0.0
 
@@ -376,9 +459,13 @@ class HarmonicProtector:
             spec = np.fft.rfft(frame)
             mag = np.abs(spec)
 
-            # Detect harmonic peaks (simplified: top 20% of magnitudes)
-            threshold = np.percentile(mag, 80)
-            harmonic_mask = mag >= threshold
+            if h_mask_2d is not None and i < h_mask_2d.shape[1]:
+                # §v10.600 SOTA: F0-driven partial mask (Gaußsche Breite ±50 Hz)
+                harmonic_mask = h_mask_2d[:, i] > 0.3  # Soft-Mask-Schwelle
+            else:
+                # Fallback: Percentile-basierte Peak-Detektion
+                threshold = np.percentile(mag, 80)
+                harmonic_mask = mag >= threshold
 
             harmonic_energy_total += np.sum(mag[harmonic_mask] ** 2)
 
@@ -418,16 +505,20 @@ class SOTAVocalPipeline:
     """
     3-Ebenen SOTA Vocal Enhancement.
 
+    §v10.600 SOTA: Breath Processing aktiviert (Layer 2b).
+
     Nutzung:
         pipeline = SOTAVocalPipeline()
         result = pipeline.process(audio, sample_rate)
     """
 
-    def __init__(self):
-        self.analyzer = VocalAnalyzer()
-        self.deesser = PhonemeAwareDeEsser()
-        self.harmonic_protector = HarmonicProtector()
-        log.info("SOTA Vocal Pipeline: 3 Layer initialisiert")
+    def __init__(self, n_fft: int = 2048, hop: int = 512):
+        self._n_fft = n_fft
+        self._hop = hop
+        self.analyzer = VocalAnalyzer(n_fft=n_fft, hop=hop)
+        self.deesser = PhonemeAwareDeEsser(n_fft=n_fft, hop=hop)
+        self.harmonic_protector = HarmonicProtector(n_fft=n_fft, hop=hop)
+        log.info("SOTA Vocal Pipeline: 3 Layer + Breath Processing initialisiert")
 
     def process(
         self,
@@ -436,6 +527,8 @@ class SOTAVocalPipeline:
     ) -> VocalEnhanceResult:
         """
         Führt die vollständige 3-Ebenen-Vocal-Pipeline aus.
+
+        §v10.600 SOTA: Breath Processing (Layer 2b) aktiviert.
 
         Args:
             audio: [T] mono vocal audio
@@ -460,6 +553,11 @@ class SOTAVocalPipeline:
             layers.append("layer2_deessing")
             audio = audio_deessed
 
+        # ── Layer 2b: Breath Processing — §v10.600 SOTA ──
+        breath_change_db = self._process_breath(audio, profile, sample_rate)
+        if abs(breath_change_db) > 0.05:
+            layers.append("layer2b_breath_processing")
+
         # ── Layer 3: Harmonic Protection ──
         audio_protected, harmonic_preservation = self.harmonic_protector.process(
             audio,
@@ -477,6 +575,89 @@ class SOTAVocalPipeline:
             processing_time=elapsed,
             layers_applied=layers,
             sibilance_reduction_db=sib_reduction,
-            breath_change_db=0.0,  # Future: implement breath processing
+            breath_change_db=breath_change_db,
             harmonic_preservation_pct=harmonic_preservation,
         )
+
+    def _process_breath(
+        self,
+        audio: np.ndarray,
+        profile: VocalProfile,
+        sample_rate: int = SR,
+    ) -> float:
+        """§v10.600 SOTA: Breath Processing basierend auf Breath-Segmenten und Emotion.
+
+        Strategie:
+          - EMOTIONAL_TENSION: maximaler Schutz (Gain 0.95)
+          - NATURAL/CONTROLLED: moderater Schutz (Gain 0.8)
+          - MECHANICAL_POP: leichte Reduktion (Gain 0.6)
+        """
+        try:
+            from backend.core.dsp.breath_emotion_classifier import classify_breath_emotions, BreathCategory
+
+            breath_segs = classify_breath_emotions(audio, sample_rate)
+            if not breath_segs:
+                return 0.0
+
+            # Gain-Maske für Breath-Segmente
+            n_frames = 1 + (len(audio) - self._n_fft) // self._hop
+            window = np.hanning(self._n_fft)
+            output = np.zeros_like(audio, dtype=np.float64)
+            weight = np.zeros_like(audio, dtype=np.float64)
+
+            total_breath_energy_before = 0.0
+            total_breath_energy_after = 0.0
+
+            # Gain pro Kategorie bestimmen
+            gain_map = {
+                "emotional_tension": 0.95,  # Maximaler Schutz
+                "natural": 0.85,
+                "controlled": 0.80,
+                "mechanical_pop": 0.60,  # Leichte Reduktion erlaubt
+            }
+
+            for seg in breath_segs:
+                cat_str = str(getattr(seg.category, "value", seg.category) or "natural")
+                gain = float(gain_map.get(cat_str, 0.85))
+
+                s_start = int(seg.start_s * sample_rate)
+                s_end = min(int(seg.end_s * sample_rate), len(audio))
+
+                # Breath-Energie messen (tiefes Spektrum < 500 Hz)
+                breath_audio = audio[s_start:s_end]
+                if len(breath_audio) > 64:
+                    spec = np.fft.rfft(breath_audio * np.hanning(len(breath_audio)))
+                    low_mask = np.abs(np.fft.rfftfreq(len(breath_audio), 1.0 / sample_rate)) < 500
+                    total_breath_energy_before += float(np.sum(np.abs(spec[low_mask]) ** 2))
+
+                # Gain anwenden (soft gate)
+                breath_out = breath_audio * gain
+                audio[s_start:s_end] = breath_out
+
+                total_breath_energy_after += float(
+                    np.sum(np.fft.rfft(breath_out * np.hanning(len(breath_out))) ** 2)[low_mask].sum()
+                    if len(breath_out) > 64 else 0.0
+                )
+
+            # OLA-Rekonstruktion für den gesamten Audio-Stream
+            for i in range(n_frames):
+                start = i * self._hop
+                frame = audio[start : start + self._n_fft] * window
+                spec = np.fft.rfft(frame)
+                frame_out = np.fft.irfft(spec) * window
+                end = min(start + self._n_fft, len(audio))
+                output[start:end] += frame_out[: end - start]
+                weight[start:end] += window[: end - start] ** 2
+
+            weight[weight < 1e-8] = 1.0
+            # Breath-verarbeitetes Audio zurückgeben (bereits in-place modifiziert)
+
+            breath_change_db = 0.0
+            if total_breath_energy_before > 0:
+                breath_change_db = float(10 * np.log10(total_breath_energy_after / total_breath_energy_before))
+
+            return breath_change_db
+
+        except Exception as _breath_exc:
+            log.debug("Breath Processing fehlgeschlagen: %s", _breath_exc)
+            return 0.0

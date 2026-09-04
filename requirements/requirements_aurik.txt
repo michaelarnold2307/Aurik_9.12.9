@@ -92,9 +92,9 @@ bigvgan
 # ZWINGEND nach s3prl: librosa 0.11.0 wiederherstellen (s3prl downgradet auf 0.10)
 # s3prl zieht via descript-audiotools / torchlibrosa librosa 0.10.0 → CQT-Segfault
 librosa==0.11.0
-# Security/compatibility balance: transformers 4.43.4 is the last line compatible with torch 2.2.x
-# and the bundled Wav2Vec2/MERT/AST loaders used by the existing ML models on Python 3.10.
-transformers==4.43.4
+# transformers>=4.46 required for MIIPHER-DiT, SGMSE+ and modern Wav2Vec2/MERT/AST loaders
+# (torch 2.7.0+cpu compatible; CVE-2025-32434 fix via torch>=2.6.0)
+transformers>=4.46,<4.52
 
 # --- Scientific Computing ---
 numba==0.64.0
@@ -181,9 +181,9 @@ annotated-types>=0.6.0
 # demucs>=4.0.0           # ~200 MB Modellgewichte, nur wenn kein ONNX vorhanden
 
 # --- LAION-CLAP / Transformers (§2.14 EraClassifier + §4.4 Audio-Tagging) ---
-# HINWEIS: transformers==4.43.4 ist die letzte Version, die hier mit torch 2.2.x
-# und den bestehenden Modell-Loadern in Aurik 9 stabil zusammenarbeitet.
-# transformers==4.43.4
+# HINWEIS: transformers>=4.46,<4.52 kompatibel mit torch 2.7.0+cpu und modernen Modell-Loadern
+# (MIIPHER-DiT, SGMSE+, Wav2Vec2/MERT/AST); CVE-2025-32434 fix via torch>=2.6.0
+# transformers>=4.46,<4.52
 # tokenizers>=0.19.0
 # sentencepiece>=0.1.99
 # laion_clap wird als lokale Quelle unter models/clap/src/ geladen (kein PyPI-Paket)

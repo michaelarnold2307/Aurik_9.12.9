@@ -385,10 +385,14 @@ class ParallelDefectScanner:
     Führt alle verfügbaren Defekt-Detektoren aus und sammelt Hypothesen.
     Jedes Modul wird in einem try/except gewrappt — ein fehlerhaftes Modul
     blockiert nicht die gesamte Pipeline.
+
+    §v10.600 SOTA: 3-Stufen-Ausführung mit Kontext-Passing für deferred Detektoren.
     """
 
     def __init__(self):
         self._detectors: list[tuple[str, Callable]] = []
+        self._stage2_detectors: list[tuple[str, Callable]] = []
+        self._stage3_detectors: list[tuple[str, Callable]] = []
         self._register_detectors()
 
     def _register_detectors(self):
@@ -409,7 +413,12 @@ class ParallelDefectScanner:
             try:
                 fn = loader()
                 if fn is not None:
-                    self._detectors.append((name, fn))
+                    if stage == "deferred_stage2":
+                        self._stage2_detectors.append((name, fn))
+                    elif stage == "deferred_stage3":
+                        self._stage3_detectors.append((name, fn))
+                    else:
+                        self._detectors.append((name, fn))
                     self._registration_report.append({"name": name, "status": "registered"})
                 elif stage is not None:
                     self._registration_report.append({"name": name, "status": stage})
@@ -470,23 +479,136 @@ class ParallelDefectScanner:
 
         # 6. Precision Locator — refine_edges(audio, sr, defects): braucht Defekte als Input
         def _load_precision():
-            from backend.core.precision_defect_locator import PrecisionDefectLocator
+            try:
+                from backend.core.precision_defect_locator import PrecisionDefectLocator
 
-            return None  # refine_edges braucht Defects-Liste → Stufe 2
+                locator = PrecisionDefectLocator()
+                return locator.refine_edges
+            except Exception as exc:
+                log.debug("PrecisionDefectLocator nicht verfügbar: %s", exc)
+                return None
 
         _reg("precision_defect_locator", _load_precision, stage="deferred_stage2")
 
         # 7. Attack Type — classify(audio, sr, onset_sample): braucht Onset-Positionen
-        _reg("attack_type_classifier", lambda: None, stage="deferred_stage2")
+        def _load_attack():
+            try:
+                from backend.core.attack_type_classifier import classify_attack_type
+
+                return classify_attack_type
+            except Exception as exc:
+                log.debug("AttackTypeClassifier nicht verfügbar: %s", exc)
+                return None
+
+        _reg("attack_type_classifier", _load_attack, stage="deferred_stage2")
 
         # 8. Intentional Artifact — classify(material, era, freedom): braucht Material-Kontext
-        _reg("intentional_artifact_classifier", lambda: None, stage="deferred_stage3")
+        def _load_intentional():
+            try:
+                from backend.core.intentional_artifact_classifier import classify_intentional_artifacts
+
+                return classify_intentional_artifacts
+            except Exception as exc:
+                log.debug("IntentionalArtifactClassifier nicht verfügbar: %s", exc)
+                return None
+
+        _reg("intentional_artifact_classifier", _load_intentional, stage="deferred_stage3")
 
         # 9. Dolby NR — detect_dolby_encoding(audio, sr, material, era): braucht Material/Ära
-        _reg("dolby_nr_detector", lambda: None, stage="deferred_stage3")
+        def _load_dolby():
+            try:
+                from backend.core.dolby_nr_detector import detect_dolby_encoding
+
+                return detect_dolby_encoding
+            except Exception as exc:
+                log.debug("DolbyNRDetector nicht verfügbar: %s", exc)
+                return None
+
+        _reg("dolby_nr_detector", _load_dolby, stage="deferred_stage3")
 
         # 10. Cassette Verifier — verify(original, repaired): braucht Vorher/Nachher
-        _reg("cassette_defect_verifier", lambda: None, stage="deferred_stage3")
+        def _load_cassette():
+            try:
+                from backend.core.cassette_defect_verifier import verify_cassette_defects
+
+                return verify_cassette_defects
+            except Exception as exc:
+                log.debug("CassetteDefectVerifier nicht verfügbar: %s", exc)
+                return None
+
+        _reg("cassette_defect_verifier", _load_cassette, stage="deferred_stage3")
+
+        # 11. Surgical Defect Analyzer — analyze(audio, sr): kausale Analyse
+        def _load_surgical():
+            try:
+                from backend.core.surgical_defect_analyzer import SurgicalDefectAnalyzer
+
+                return SurgicalDefectAnalyzer().analyze
+            except Exception as exc:
+                log.debug("SurgicalDefectAnalyzer nicht verfügbar: %s", exc)
+                return None
+
+        _reg("surgical_defect_analyzer", _load_surgical)
+
+        # 12. Vocal Overprocessing Detector — detect(audio, sr): ML-Überkorrektur
+        def _load_vocal_over():
+            try:
+                from backend.core.vocal_overprocessing_detector import detect_vocal_overprocessing
+
+                return detect_vocal_overprocessing
+            except Exception as exc:
+                log.debug("VocalOverprocessingDetector nicht verfügbar: %s", exc)
+                return None
+
+        _reg("vocal_overprocessing_detector", _load_vocal_over)
+
+        # 13. Introduced Artifact Detector — scan(audio, sr): eingeführte Artefakte
+        def _load_introduced():
+            try:
+                from backend.core.introduced_artifact_detector import IntroducedArtifactDetector
+
+                return IntroducedArtifactDetector().scan
+            except Exception as exc:
+                log.debug("IntroducedArtifactDetector nicht verfügbar: %s", exc)
+                return None
+
+        _reg("introduced_artifact_detector", _load_introduced)
+
+        # 14. Quality Regression Detector — detect(audio_before, audio_after, sr)
+        def _load_quality_regression():
+            try:
+                from backend.core.quality_regression_detector import detect_quality_regression
+
+                return detect_quality_regression
+            except Exception as exc:
+                log.debug("QualityRegressionDetector nicht verfügbar: %s", exc)
+                return None
+
+        _reg("quality_regression_detector", _load_quality_regression, stage="deferred_stage3")
+
+        # 15. Defect Re-Scanner — rescan(audio, sr): sekundärer Scan
+        def _load_re_scanner():
+            try:
+                from backend.core.defect_re_scanner import get_defect_re_scanner
+
+                return get_defect_re_scanner().scan
+            except Exception as exc:
+                log.debug("DefectReScanner nicht verfügbar: %s", exc)
+                return None
+
+        _reg("defect_re_scanner", _load_re_scanner)
+
+        # 16. Defect Detection Quality Gate — validate(audio, sr, defects)
+        def _load_quality_gate():
+            try:
+                from backend.core.defect_detection_quality_gate import validate_defect_detection
+
+                return validate_defect_detection
+            except Exception as exc:
+                log.debug("DefectDetectionQualityGate nicht verfügbar: %s", exc)
+                return None
+
+        _reg("defect_detection_quality_gate", _load_quality_gate, stage="deferred_stage2")
 
         _registered = sum(1 for r in self._registration_report if r["status"] == "registered")
         _deferred = sum(1 for r in self._registration_report if r["status"].startswith("deferred"))
@@ -510,8 +632,10 @@ class ParallelDefectScanner:
         Führt ALLE registrierten Detektoren parallel aus (konzeptionell —
         tatsächlich sequentiell, aber mit Timeout pro Detektor).
 
+        §v10.600 SOTA: 3-Stufen-Ausführung mit Kontext-Passing für deferred Detektoren.
+
         Returns:
-            Liste aller DefectHypothesis von allen Modulen.
+            Liste aller DefectHypothesis von allen Modulen (Stufe 1 + 2 + 3).
         """
         all_hypotheses: list[DefectHypothesis] = []
 
@@ -521,11 +645,11 @@ class ParallelDefectScanner:
         )
 
         precomputed = precomputed or {}
+
+        # ── Stage 1: Primary Detectors ──
         for name, detector_fn in self._detectors:
             try:
                 if name in precomputed:
-                    # §v10.220-Seed: bereits vorhandenes Ergebnis (z. B. gecachter
-                    # DefectScan aus dem Denker) statt erneutem Voll-Scan verwenden.
                     result = precomputed[name]
                     dt = 0.0
                 else:
@@ -535,23 +659,68 @@ class ParallelDefectScanner:
 
                 hypotheses = self._normalize_result(name, result, sample_rate)
 
-                # §v10.840: Material-Aware-Filter — Analog-Detektoren sind
-                # auf digitalem Material physikalisch unmöglich und würden
-                # die echten Defekte (Klicks/Knackser) übertönen.
                 if is_digital:
                     hypotheses = [h for h in hypotheses if h.category.value not in _ANALOG_ONLY_NAMES]
 
                 all_hypotheses.extend(hypotheses)
-
-                log.debug(f"  {name}: {len(hypotheses)} hypotheses in {dt:.2f}s")
+                log.debug(f"  Stage1 {name}: {len(hypotheses)} hypotheses in {dt:.2f}s")
             except Exception as e:
-                log.debug(f"  {name}: SKIPPED — {e}")
+                log.debug(f"  Stage1 {name}: SKIPPED — {e}")
+
+        # ── Stage 2: Context-Dependent Detectors (need Stage 1 results) ──
+        stage2_hypotheses = list(all_hypotheses)  # Copy for context passing
+        for name, detector_fn in self._stage2_detectors:
+            try:
+                if name == "precision_defect_locator":
+                    result = detector_fn(audio, sample_rate, stage2_hypotheses)
+                elif name == "attack_type_classifier":
+                    # Extract onset positions from click/crackle hypotheses
+                    onsets = [h.start_sample for h in stage2_hypotheses if h.category in (DefectCategory.CLICK, DefectCategory.POP)]
+                    result = detector_fn(audio, sample_rate, onsets)
+                elif name == "defect_detection_quality_gate":
+                    result = detector_fn(audio, sample_rate, stage2_hypotheses)
+                else:
+                    result = detector_fn(audio, sample_rate, stage2_hypotheses)
+
+                hypotheses = self._normalize_result(name, result, sample_rate)
+                all_hypotheses.extend(hypotheses)
+                log.debug(f"  Stage2 {name}: {len(hypotheses)} hypotheses")
+            except Exception as e:
+                log.debug(f"  Stage2 {name}: SKIPPED — {e}")
+
+        # ── Stage 3: Material/Context-Dependent Detectors ──
+        material = str((metadata or {}).get("material", "")).lower()
+        era = str((metadata or {}).get("era", ""))
+        for name, detector_fn in self._stage3_detectors:
+            try:
+                if name == "intentional_artifact_classifier":
+                    result = detector_fn(material, era, (metadata or {}).get("freedom", {}))
+                elif name == "dolby_nr_detector":
+                    result = detector_fn(audio, sample_rate, material, era)
+                elif name == "cassette_defect_verifier":
+                    # Needs original + repaired audio — skip if not available
+                    repaired = (precomputed or {}).get("repaired_audio")
+                    if repaired is None:
+                        log.debug(f"  Stage3 {name}: SKIPPED (no repaired audio)")
+                        continue
+                    result = detector_fn(audio, repaired)
+                elif name == "quality_regression_detector":
+                    repaired = (precomputed or {}).get("repaired_audio")
+                    if repaired is None:
+                        log.debug(f"  Stage3 {name}: SKIPPED (no repaired audio)")
+                        continue
+                    result = detector_fn(audio, repaired, sample_rate)
+                else:
+                    result = detector_fn(audio, sample_rate, material, era)
+
+                hypotheses = self._normalize_result(name, result, sample_rate)
+                all_hypotheses.extend(hypotheses)
+                log.debug(f"  Stage3 {name}: {len(hypotheses)} hypotheses")
+            except Exception as e:
+                log.debug(f"  Stage3 {name}: SKIPPED — {e}")
 
         # §v10.998: Severity-Fallback — mehrere Detektoren melden severity ≈ 0.0
         # trotz positiver Erkennung (selbst auf echtem Vinyl-Knistern gemessen).
-        # Ein selbst-widersprüchlicher Befund (detektiert, aber Schwere 0) wird
-        # aus der Confidence abgeleitet, damit der Planner-Gate (sev < 0.05)
-        # echte Befunde nicht systematisch verwerfen muss.
         for _h in all_hypotheses:
             if _h.severity < 0.01:
                 _h.severity = float(np.clip(max(0.05, _h.confidence * 0.5), 0.0, 1.0))
@@ -651,7 +820,7 @@ class ParallelDefectScanner:
                 causes=d.get("causes", []),
             )
         except Exception as exc:
-            logger.debug("§V6 _dict_to_hypothesis fehlgeschlagen — None zurückgegeben (Dict %s): %s", module, exc)
+            log.debug("§V6 _dict_to_hypothesis fehlgeschlagen — None zurückgegeben (Dict %s): %s", module, exc)
             return None
 
     def _object_to_hypothesis(
@@ -680,7 +849,7 @@ class ParallelDefectScanner:
                 causes=getattr(d, "causes", []),
             )
         except Exception as exc:
-            logger.debug("§V6 _object_to_hypothesis fehlgeschlagen — None zurückgegeben (Objekt %s): %s", module, exc)
+            log.debug("§V6 _object_to_hypothesis fehlgeschlagen — None zurückgegeben (Objekt %s): %s", module, exc)
             return None
 
     @staticmethod

@@ -39,7 +39,7 @@ def _find_files(paths: list[str]) -> list[Path]:
 
 
 def check_torch_zeros_cuda(filepath: Path) -> None:
-    """§SC-G79: torch.zeros(..., device=\"cuda\") nur in warmup_rocm erlaubt."""
+    """§G181 (GEBOTE.md): torch.zeros(..., device=\"cuda\") nur in warmup_rocm erlaubt."""
     content = filepath.read_text()
     if "torch.zeros" not in content and "torch.ones" not in content and "torch.empty" not in content:
         return
@@ -56,12 +56,12 @@ def check_torch_zeros_cuda(filepath: Path) -> None:
         ):
             if not in_warmup and "_ROCM_WARMUP" not in line:
                 VIOLATIONS.append(
-                    f'{filepath}:{i}: torch.zeros/ones/empty("cuda") ausserhalb warmup_rocm() VERBOTEN (§SC-G79)'
+                    f'{filepath}:{i}: torch.zeros/ones/empty("cuda") ausserhalb warmup_rocm() VERBOTEN (§G181)'
                 )
 
 
 def check_hardcoded_strings(filepath: Path) -> None:
-    """§SC-G84: setText/setToolTip MUSS t() verwenden, keine Hardcoded-Strings."""
+    """§G178 (GEBOTE.md): setText/setToolTip MUSS t() verwenden, keine Hardcoded-Strings."""
     if "modern_window.py" not in str(filepath):
         return
     content = filepath.read_text()
@@ -80,11 +80,11 @@ def check_hardcoded_strings(filepath: Path) -> None:
                 if j < len(lines):
                     after += " " + lines[j - 1]
             if "t(" not in after and 'setText(""' not in after:
-                VIOLATIONS.append(f"{filepath}:{i}: self.xxx.setText() ohne t() — MUSS t() verwenden (§SC-G84)")
+                VIOLATIONS.append(f"{filepath}:{i}: self.xxx.setText() ohne t() — MUSS t() verwenden (§G178)")
 
 
 def check_lock_during_import(filepath: Path) -> None:
-    """§SC-G72: Kein import innerhalb with _lock: / with self._lock:."""
+    """§G174 (GEBOTE.md): Kein import innerhalb with _lock: / with self._lock:."""
     content = filepath.read_text()
     lines = content.split("\n")
     lock_indent: int | None = None
@@ -108,11 +108,11 @@ def check_lock_during_import(filepath: Path) -> None:
                     r"(onnxruntime|torch|subprocess|sys|os|logging|threading|collections|json|pathlib|typing|dataclasses)",
                     line,
                 ):
-                    VIOLATIONS.append(f"{filepath}:{i}: import innerhalb with _lock: VERBOTEN (§SC-G72)")
+                    VIOLATIONS.append(f"{filepath}:{i}: import innerhalb with _lock: VERBOTEN (§G174)")
 
 
 def check_os_environ_import(filepath: Path) -> None:
-    """§SC-G78: os.environ.get() nur wenn import os vorhanden."""
+    """§G180 (GEBOTE.md): os.environ.get() nur wenn import os vorhanden."""
     content = filepath.read_text()
     if "os.environ" not in content and "os.getenv" not in content:
         return
@@ -128,11 +128,11 @@ def check_os_environ_import(filepath: Path) -> None:
             if node.module == "os":
                 has_os_import = True
     if not has_os_import and "import os as" not in content:
-        VIOLATIONS.append(f"{filepath}: os.environ/os.getenv verwendet aber 'import os' fehlt (§SC-G78)")
+        VIOLATIONS.append(f"{filepath}: os.environ/os.getenv verwendet aber 'import os' fehlt (§G180)")
 
 
 def check_warmup_accessors(filepath: Path) -> None:
-    """§SC-G73: Warmup-Plugin-Zugriffsnamen via statischer Datei-Analyse validieren."""
+    """§G175 (GEBOTE.md): Warmup-Plugin-Zugriffsnamen via statischer Datei-Analyse validieren."""
     if "bridge.py" not in str(filepath):
         return
     content = filepath.read_text()
@@ -161,12 +161,12 @@ def check_warmup_accessors(filepath: Path) -> None:
             # Versuche direkten Pfad
             candidate = ROOT / mod_path
         if not candidate.exists():
-            VIOLATIONS.append(f"{filepath}: Warmup-Modul-Datei für '{mod_name}' nicht gefunden (§SC-G73)")
+            VIOLATIONS.append(f"{filepath}: Warmup-Modul-Datei für '{mod_name}' nicht gefunden (§G175)")
             continue
         try:
             mod_content = candidate.read_text()
             if f"def {accessor}" not in mod_content:
-                VIOLATIONS.append(f"{filepath}: Warmup-Accessor '{accessor}' nicht in {candidate.name} (§SC-G73)")
+                VIOLATIONS.append(f"{filepath}: Warmup-Accessor '{accessor}' nicht in {candidate.name} (§G175)")
         except Exception:
             logger.debug("Stiller optionaler Ausnahmefall ignoriert", exc_info=True)
 
