@@ -289,7 +289,9 @@ def _apply_era_spectral_shaping(audio: np.ndarray, sr: int, *, max_target_hz: fl
 
         return result.astype(np.float32)  # type: ignore[no-any-return]
     except ImportError as exc:
-        logger.debug("§V6 scipy.signal.sosfiltfilt nicht verfügbar — Audio unverändert zurückgegeben (ImportError): %s", exc)
+        logger.debug(
+            "§V6 scipy.signal.sosfiltfilt nicht verfügbar — Audio unverändert zurückgegeben (ImportError): %s", exc
+        )
         return audio
     except Exception as exc:
         logger.warning("EraAuthenticPerceptualCompletion: Spectral shaping fehlgeschlagen: %s", exc)

@@ -56,6 +56,10 @@
 | tests/unit/test_mushra_corpus.py | ACTIVE | testing/unit | ja | — | Real-Audio-Korpus MUSHRA-Tests: Korpus-Integrität, MUSHRA-Score-Berechnung für damaged/clean-Paare, Regression-Detection, JSON-Bericht; 7 Tests (2026-09-04) |
 | tests/unit/test_gpu_detection_failsafe.py | ACTIVE | testing/unit | ja | — | GPU-Detection Failsafe: CPU-only Modus, Detection-Timeout-Fallback, ONNX-CPU-Provider, ML-Inferenz-auf-CPU, Memory-Budget; 7 Tests (2026-09-04) |
 | tests/unit/test_multimodal_restoration.py | ACTIVE | testing/unit | ja | — | Multi-Modal-Restaurierung: MultimodalDecisionEngine, Genre/Era-Ketten, Prompt-NLP, Fallback-Chains, Metadata; 10 Tests (2026-09-04) |
+| backend/core/presence_embedding.py | ACTIVE | backend/core | ja | — | §G90 PresenceEmbedding: perzeptuelle Metrik für menschliche Präsenz (VFC/TI/RTC/MDL/SAA); löst 43→43-Paradox; Singleton get_presence_embedding() (2026-09-04) |
+| tests/unit/test_presence_embedding.py | ACTIVE | testing/unit | ja | — | PresenceEmbedding Unit-Tests: clean Audio Score, delta-Vergleich, Threshold-Passing, Sub-Score-Bounds, Mono/Stereo; 8 Tests (2026-09-04) |
+| backend/core/era_authentic_completion.py | ACTIVE | backend/core | ja | — | §G90 EraAuthenticPerceptualCompletion: Ära-authentische HF-Ergänzung bei BW < 10 kHz; era-spezifische Parameter (1890–1990); BandwidthExtender + spectral shaping + validation; Singleton get_era_completion() (2026-09-04) |
+| tests/unit/test_era_authentic_perceptual_completion.py | ACTIVE | testing/unit | ja | — | EraAuthenticCompletion Unit-Tests: BrillanzCeiling, Activation, EraCeiling, NaN-Safety, Stereo, AnchorGuidance, Singleton; 36 Tests (2026-09-04) |
 
 ## Pflege-Regeln
 
