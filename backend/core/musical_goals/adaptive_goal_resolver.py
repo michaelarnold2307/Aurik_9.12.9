@@ -15,6 +15,7 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import Any
 
@@ -112,4 +113,5 @@ def resolve_adaptive_goal_thresholds(adaptive_goals_payload: Any) -> dict[str, f
                 break
 
     return resolved
+
 logger = logging.getLogger(__name__)
