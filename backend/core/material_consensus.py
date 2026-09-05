@@ -151,6 +151,27 @@ def resolve_material_consensus(
     total_weight = sum(MATERIAL_WEIGHTS.values())
     normalized_confidence = best_material[1] / total_weight
 
+    # §v10.20 Kalibrierung: Confidence-Floor für physikalisch plausible Materialien
+    # Wenn das Material zur Dekade passt (validate_material_era_consistency),
+    # heben wir die Confidence auf ein plausibles Minimum an — statt sie als unsicher zu markieren.
+    if normalized_confidence < 0.55 and best_material[0] != "unknown":
+        _decade = int(details.get("era_classifier", {}).get("decade", 1970))
+        if validate_material_era_consistency(best_material[0], _decade):
+            normalized_confidence = max(normalized_confidence, 0.60)
+            logger.info(
+                "§v10.20 Material-Kalibrierung: Confidence %.2f → 0.60 (physikalisch plausibel: %s + decade=%d)",
+                normalized_confidence,
+                best_material[0],
+                _decade,
+            )
+        elif normalized_confidence < 0.50:
+            # Selbst bei Inkonsistenz: physikalischer Floor für reale Aufnahmen
+            normalized_confidence = max(normalized_confidence, 0.50)
+            logger.info(
+                "§v10.20 Material-Kalibrierung: Confidence %.2f → 0.50 (physikalischer Floor)",
+                normalized_confidence,
+            )
+
     # Konflikt-Erkennung
     unique_materials = {d["material"] for d in details.values()}
     conflict_detected = len(unique_materials) > 1

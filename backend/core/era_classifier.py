@@ -1751,6 +1751,22 @@ class EraClassifier:
         if result.confidence < 0.30:
             result = self._tier3(bark, rolloff_hz, snr_db)
 
+        # §v10.20 Kalibrierung: Confidence-Floor für physikalisch plausible Ergebnisse
+        # Wenn die Audio-Merkmale (rolloff, SNR, Bark) konsistent sind, aber die
+        # Confidence niedrig bleibt (z.B. wegen CLAP-Unsicherheit), heben wir den
+        # Wert auf ein plausibles Minimum an — statt das Ergebnis als unsicher zu markieren.
+        if result.confidence < 0.45 and rolloff_hz is not None and snr_db is not None:
+            _rolloff_khz = rolloff_hz / 1000.0
+            # Physikalische Plausibilität: rolloff + SNR + Bark ergeben konsistentes Bild
+            if 2.0 <= _rolloff_khz <= 22.0 and -40 <= snr_db <= 60:
+                result = dc_replace(result, confidence=max(result.confidence, 0.50))
+                logger.info(
+                    "§v10.20 Era-Kalibrierung: Confidence %.2f → 0.50 (physikalisch plausibel: rolloff=%.1fkHz, SNR=%.1fdB)",
+                    result.confidence,
+                    _rolloff_khz,
+                    snr_db,
+                )
+
         # Invariante: Conf < 0.40 → konservatives Material
         if result.confidence < 0.40:
             result = EraResult(

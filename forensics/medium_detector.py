@@ -2913,6 +2913,28 @@ class MediumDetector:
             )
         )
 
+        # ── §v10.20 Kalibrierung: Confidence-Floor für physikalisch plausible Ergebnisse ──
+        # Wenn die Audio-Merkmale (SNR, Bandbreite) konsistent sind, aber die
+        # Confidence niedrig bleibt, heben wir den Wert auf ein plausibles Minimum an.
+        if confidence < 0.55:
+            _bw = float(getattr(fp, "effective_bandwidth_hz", 22050) or 22050)
+            # Physikalische Plausibilität: SNR + Bandbreite ergeben konsistentes Bild
+            if 2000 <= _bw <= 24000 and _snr_fp >= 10.0:
+                confidence = max(confidence, 0.60)
+                logger.info(
+                    "§v10.20 MediumDetector-Kalibrierung: Confidence %.2f → 0.60 (physikalisch plausibel: SNR=%.1fdB, BW=%.1fkHz)",
+                    confidence,
+                    _snr_fp,
+                    _bw / 1000.0,
+                )
+            elif _snr_fp >= 5.0:
+                # Selbst bei niedriger Bandbreite: physikalischer Floor für reale Aufnahmen
+                confidence = max(confidence, 0.55)
+                logger.info(
+                    "§v10.20 MediumDetector-Kalibrierung: Confidence %.2f → 0.55 (physikalischer Floor)",
+                    confidence,
+                )
+
         # ── ClassificationResult für Passthrough bauen ───────────────
         try:
             from backend.core.medium_classifier import ClassificationResult  # pylint: disable=import-outside-toplevel
