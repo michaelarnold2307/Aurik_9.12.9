@@ -92,6 +92,9 @@ class CumulativeHallucinationTracker:
         self._records: list[PhaseNoveltyRecord] = []
         # Index into _records where novelty first exceeded WARN
         self._warn_checkpoint_idx: int | None = None
+        # §3 Hard-Limit nach Phase 5: alle folgenden ML-Phasen bypassen
+        self._phase_count: int = 0
+        self._hard_limit_reached: bool = False
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -108,6 +111,8 @@ class CumulativeHallucinationTracker:
             self._cumulative = 0.0
             self._records = []
             self._warn_checkpoint_idx = None
+            self._phase_count = 0
+            self._hard_limit_reached = False
             logger.debug("§CHT-1 CumulativeHallucinationTracker zurueckgesetzt: Betriebsart=%s", self._mode)
 
     # ------------------------------------------------------------------
@@ -133,9 +138,21 @@ class CumulativeHallucinationTracker:
             Current alarm level after this phase: "ok" | "warn" | "critical"
         """
         with self._lock:
+            self._phase_count += 1
             delta = self._compute_novelty(pre_audio, post_audio, sr)
             self._cumulative = float(np.clip(self._cumulative + delta, 0.0, 1.0))
             level = self._alarm_level(self._cumulative)
+
+            # §3 Hard-Limit nach Phase 5: wenn cumulative > CRITICAL → alle folgenden ML-Phasen bypassen
+            warn_t, crit_t = _THRESHOLDS[self._mode]
+            if self._phase_count >= 5 and self._cumulative > crit_t and not self._hard_limit_reached:
+                self._hard_limit_reached = True
+                logger.warning(
+                    "§CHT-1 Hard-Limit nach Phase %d: cumulative=%.4f > CRITICAL=%.2f — ML-Phasen bypassen",
+                    self._phase_count,
+                    self._cumulative,
+                    crit_t,
+                )
 
             # Record first WARN crossing (rollback checkpoint)
             if level in ("warn", "critical") and self._warn_checkpoint_idx is None:
@@ -159,6 +176,28 @@ class CumulativeHallucinationTracker:
                     level,
                 )
             return level
+
+    # ------------------------------------------------------------------
+    # Hard-Limit für ML-Phasen (nach Phase 5)
+    # ------------------------------------------------------------------
+
+    def should_bypass_ml_phase(self) -> bool:
+        """Prüft, ob nach Phase 5 alle folgenden ML-Phasen bypassed werden sollen.
+
+        §3: Wenn cumulative_novelty > CRITICAL nach Phase 5 → Hard-Limit erreicht.
+        Verhindert kumulative „AI-Glaze" durch mehrere ML-Phasen.
+
+        Returns:
+            True wenn ML-Phase übersprungen werden soll.
+        """
+        with self._lock:
+            return self._hard_limit_reached
+
+    @property
+    def phase_count(self) -> int:
+        """Anzahl der bisher aufgerufenen Phasen."""
+        with self._lock:
+            return self._phase_count
 
     # ------------------------------------------------------------------
     # Query
@@ -193,6 +232,8 @@ class CumulativeHallucinationTracker:
                 "cumulative_novelty": float(self._cumulative),
                 "alarm_level": self._alarm_level(self._cumulative),
                 "warn_checkpoint_idx": self._warn_checkpoint_idx,
+                "phase_count": self._phase_count,
+                "hard_limit_reached": self._hard_limit_reached,
                 "phases": [
                     {
                         "phase_id": r.phase_id,

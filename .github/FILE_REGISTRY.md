@@ -60,6 +60,21 @@
 | tests/unit/test_presence_embedding.py | ACTIVE | testing/unit | ja | — | PresenceEmbedding Unit-Tests: clean Audio Score, delta-Vergleich, Threshold-Passing, Sub-Score-Bounds, Mono/Stereo; 8 Tests (2026-09-04) |
 | backend/core/era_authentic_completion.py | ACTIVE | backend/core | ja | — | §G90 EraAuthenticPerceptualCompletion: Ära-authentische HF-Ergänzung bei BW < 10 kHz; era-spezifische Parameter (1890–1990); BandwidthExtender + spectral shaping + validation; Singleton get_era_completion() (2026-09-04) |
 | tests/unit/test_era_authentic_perceptual_completion.py | ACTIVE | testing/unit | ja | — | EraAuthenticCompletion Unit-Tests: BrillanzCeiling, Activation, EraCeiling, NaN-Safety, Stereo, AnchorGuidance, Singleton; 36 Tests (2026-09-04) |
+| backend/core/dynamic_preservation_guard.py | ACTIVE | backend/core | ja | — | §0p Dynamik-Erhaltungs-Guard: verhindert Überkompression (> 3 dB RMS/Peak-Reduktion → Rollback); strength_scalar ∈ [0,1]; Singleton get_dynamic_preservation_guard() (2026-09-05) |
+| backend/core/seed_manager.py | ACTIVE | backend/core | ja | — | §G5 Deterministischer Seed-Manager: Master-Seed pro Session + phasenspezifische Seeds; kein time.time(); reproduzierbar für A/B-Vergleiche; Singleton get_seed_manager() (2026-09-05) |
+| backend/core/segment_quality_scorer.py | ACTIVE | backend/core | ja | — | §v10.101 Segment-weise Qualitätsbewertung: 5s gleitende Fenster, OQS/HPI Proxy; Segmente < Threshold isoliert neu restaurieren; Singleton get_segment_quality_scorer() (2026-09-05) |
+| backend/core/vibrato_detector.py | ACTIVE | backend/core | ja | — | Adaptiver Vibrato-Detektor: Era-spezifische Raten (3–7 Hz); F0-temporal Autokorrelation + spektrale Analyse; stateless detect_vibrato_rate() (2026-09-05) |
+| backend/core/phase_interaction_denker.py | ACTIVE | backend/core | ja | — | §11 Cross-Phase Consensus: detektiert Interferenzen zwischen aufeinanderfolgenden Phasen; neue Peaks > -60 dBFS → Interferenz-Flag; Singleton get_phase_interaction_denker() (2026-09-05) |
+| backend/core/listener_feedback_loop.py | ACTIVE | backend/core | ja | — | Listener-in-the-Loop: segmentweise A/B-Bewertung durch Hörer (< 6 → neu restaurieren); ReviewSegment + FeedbackResult; Singleton get_listener_feedback_loop() (2026-09-05) |
+| backend/core/logging_utils.py | ACTIVE | backend/core | ja | — | Logging-Hilfsfunktionen: standardisierte Logger-Konfiguration, Formatvorlagen für DSP/ML-Phasen (2026-09-05) |
+| backend/core/material_bandwidth_ceiling.py | ACTIVE | backend/core | ja | — | Material-spezifische Bandbreiten-Obergrenze: Medium/Era-adaptive HF-Ceiling; verhindert Überextrapolation (2026-09-05) |
+| backend/core/perceptual_phase_gate.py | ACTIVE | backend/core | ja | — | Perzeptuelles Gate für Phasen-Entscheidungen: Roughness/Sharpness-Fenster + Ermüdungs-Abbruch; nutzt zwicker_metrics (2026-09-05) |
+| backend/core/reconstruction_context.py | ACTIVE | backend/core | ja | — | Rekonstruktions-Kontext-Management: Song-isolierte Stateful-Module, Circuit-Breaker + Caches pro Song (§V8/§G1) (2026-09-05) |
+| backend/core/vocal_supremacy_gate.py | ACTIVE | backend/core | ja | — | Vokal-Suprematie-Gate: Vokal hat Priorität über alle anderen Spuren; verhindert Überkompression von Gesang (2026-09-05) |
+| backend/core/logging_utils.py | ACTIVE | backend/core | ja | — | Logging-Hilfsfunktionen: standardisierte Logger-Konfiguration, Formatvorlagen für DSP/ML-Phasen (2026-09-05) |
+| backend/core/material_bandwidth_ceiling.py | ACTIVE | backend/core | ja | — | Material-spezifische Bandbreiten-Obergrenze: Medium/Era-adaptive HF-Ceiling; verhindert Überextrapolation (2026-09-05) |
+| backend/core/perceptual_phase_gate.py | ACTIVE | backend/core | ja | — | Perzeptuelles Gate für Phasen-Entscheidungen: Roughness/Sharpness-Fenster + Ermüdungs-Abbruch; nutzt zwicker_metrics (2026-09-05) |
+| backend/core/reconstruction_context.py | ACTIVE | backend/core | ja | — | Rekonstruktions-Kontext-Management: Song-isolierte Stateful-Module, Circuit-Breaker + Caches pro Song (§V8/§G1) (2026-09-05) |
 
 ## Pflege-Regeln
 

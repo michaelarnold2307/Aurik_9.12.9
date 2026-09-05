@@ -34,3 +34,12 @@ class AurikPipeline:
             {"status": "erfolgreich", "zones": zones, "conduct": conduct_results, "regulation": regulation}
         )
         return regulation
+
+
+# ── Alias-Klassen (für Dead-Import-Reparatur) ───────────────────────
+
+class RestorationPipeline(AurikPipeline):
+    """Alias für AurikPipeline — für Dead-Import-Kompatibilität."""
+
+    def __init__(self) -> None:
+        super().__init__()

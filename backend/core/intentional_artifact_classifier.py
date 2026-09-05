@@ -510,3 +510,26 @@ def get_intentional_artifact_classifier() -> IntentionalArtifactClassifier:
             if _instance is None:
                 _instance = IntentionalArtifactClassifier()
     return _instance
+
+
+# ── Convenience-Funktionen (für Dead-Import-Reparatur) ───────────────
+
+def classify_intentional_artifacts(
+    audio: np.ndarray,
+    sr: int = 48000,
+    material: str = "unknown",
+    era_decade: int | None = None,
+) -> IntentionalArtifactResult:
+    """Convenience-Funktion für intentional artifact classification.
+
+    Args:
+        audio: Audio-Signal (float32)
+        sr: Sample-Rate in Hz
+        material: Material-Typ (shellac, vinyl, tape, etc.)
+        era_decade: Ära-Dekade (z.B. 1950 für 1950er Jahre)
+
+    Returns:
+        IntentionalArtifactResult mit Klassifizierung-Ergebnissen
+    """
+    classifier = get_intentional_artifact_classifier()
+    return classifier.classify(audio, sr, material=material, era_decade=era_decade)

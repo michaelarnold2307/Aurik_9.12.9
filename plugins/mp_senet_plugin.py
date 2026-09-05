@@ -541,3 +541,10 @@ def get_mp_senet_plugin() -> MpSenetPlugin:
 def enhance_audio(audio: np.ndarray, sr: int) -> MpSenetResult:
     """Convenience-Wrapper für get_mp_senet_plugin().enhance()."""
     return get_mp_senet_plugin().enhance(audio, sr)
+
+
+# ── Alias-Funktionen (für Dead-Import-Reparatur) ─────────────────────
+
+def get_mp_senet() -> MpSenetPlugin:
+    """Alias für get_mp_senet_plugin() — für Dead-Import-Kompatibilität."""
+    return get_mp_senet_plugin()

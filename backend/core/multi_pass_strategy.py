@@ -625,8 +625,10 @@ class ObjectiveScorer:
         # === 6. Composite Score (weighted) ===
         score.composite_score = self._calculate_composite(score)
 
-        # === 7. Confidence (placeholder - wird später von ConfidenceCalculator gesetzt) ===
-        score.confidence = 0.8  # Default medium confidence
+        # === 7. Confidence (ConfidenceCalculator, §v10 Multi-Pass Selection) ===
+        # Hinweis: Dieser Score ist ein Einzel-Ergebnis; Confidence wird später
+        # in MultiPassEngine.calculate_confidence() berechnet (Vergleich aller Varianten).
+        score.confidence = 0.5  # Neutraler Startwert; wird durch MultiPassEngine überschrieben
 
         return score
 

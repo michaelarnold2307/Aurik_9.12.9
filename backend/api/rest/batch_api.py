@@ -19,7 +19,7 @@ from backend.api.bridge import export_guard
 from backend.file_import import load_audio_file
 
 try:
-    from backend.core.dsp_decision_logic import DSPDecisionLogic  # type: ignore[import]
+    from dsp.dsp_decision_logic import DSPDecisionLogic  # type: ignore[import]
 
     _DSP_DECISION_AVAILABLE = True
 except ImportError:

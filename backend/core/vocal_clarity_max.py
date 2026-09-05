@@ -154,7 +154,7 @@ class VocalClarityMax:
 
         # ── 5. VQI Naturalness Check ──
         try:
-            from backend.core.vocal_quality_index import compute_vqi
+            from backend.core.musical_goals.vocal_quality_index import compute_vqi
 
             report.vqi_before = compute_vqi(mono, sr)
             report.vqi_after = compute_vqi(np.mean(result, axis=0) if result.ndim == 2 else result, sr)

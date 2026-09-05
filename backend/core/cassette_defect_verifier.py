@@ -1513,3 +1513,25 @@ _CATEGORY_PROXY_FUNCTIONS.update(
         "phase_alignment": _proxy_category_passthrough,
     }
 )
+
+
+# ── Convenience-Funktionen (für Dead-Import-Reparatur) ───────────────
+
+def verify_cassette_defects(
+    audio_before: np.ndarray,
+    audio_after: np.ndarray,
+    sr: int = 48000,
+    phase_id: str = "phase_24",
+) -> DefectVerificationResult:
+    """Convenience-Funktion für cassette defect verification.
+
+    Args:
+        audio_before: Audio vor der Phase (float32)
+        audio_after: Audio nach der Phase (float32)
+        sr: Sample-Rate in Hz
+        phase_id: Phase-ID für Reporting
+
+    Returns:
+        DefectVerificationResult mit Verifikation-Ergebnissen
+    """
+    return verify_defect_segment(audio_before, audio_after, sr, phase_id=phase_id)

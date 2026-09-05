@@ -176,3 +176,10 @@ class DefectReScanner:
     def _get_checks_for_phase(phase_id: str) -> list[tuple[str, tuple[float, float]]]:
         """Phase-spezifische Defekt-Checks (für Tests)."""
         return _PHASE_DEFECT_CHECKS.get(phase_id, [])
+
+
+# ── Singleton-Funktion (für Dead-Import-Reparatur) ───────────────────
+
+def get_defect_re_scanner() -> DefectReScanner:
+    """Gibt eine DefectReScanner-Instanz zurück."""
+    return DefectReScanner()
