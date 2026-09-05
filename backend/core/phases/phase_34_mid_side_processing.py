@@ -346,7 +346,7 @@ class MidSideProcessing(PhaseInterface):
         """Verarbeitet audio with professional multi-band M/S dynamics."""
         sample_rate = kwargs.get("sample_rate", 48000)
         assert sample_rate == 48000, f"SR muss 48000 Hz sein, erhalten: {sample_rate}"
-        start_time = time.time()
+        start_time = time.monotonic()
         self.validate_input(audio)
         material = kwargs.get("material", material_type)
         if not isinstance(material, MaterialType):
@@ -372,7 +372,7 @@ class MidSideProcessing(PhaseInterface):
             return PhaseResult(
                 success=True,
                 audio=audio.astype(audio.dtype),
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "phase": "34_mid_side_processing_v2_professional",
                     "material": material.value,
@@ -419,7 +419,7 @@ class MidSideProcessing(PhaseInterface):
             return PhaseResult(
                 success=True,
                 audio=audio,  # identical reference — §2.58 passthrough detection
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "phase": "34_mid_side_processing_v2_professional",
                     "material": material.value,
@@ -440,7 +440,7 @@ class MidSideProcessing(PhaseInterface):
             return PhaseResult(
                 success=True,
                 audio=mono_audio.astype(audio.dtype),
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "phase": "34_mid_side_processing_v2_professional",
                     "material": material.value,
@@ -553,7 +553,7 @@ class MidSideProcessing(PhaseInterface):
         # Mono compatibility check
         mono_compat = self._check_mono_compatibility(audio_processed)
 
-        elapsed = time.time() - start_time
+        elapsed = time.monotonic() - start_time
         duration = audio_sample_count(audio) / sample_rate
         realtime_factor = elapsed / duration if duration > 0 else 0
 
@@ -799,10 +799,10 @@ if __name__ == "__main__":
             demo_audio = demo_audio * 0.9 / _peak_norm
 
         # Process
-        start = time.time()
+        start = time.monotonic()
         result = processor.process(demo_audio, demo_sr, demo_material.value)
         meta = result.metadata or {}
-        _elapsed_demo = time.time() - start
+        _elapsed_demo = time.monotonic() - start
 
         logger.debug("  Multi-band M/S dynamics:")
         logger.debug("    Overall Mid change: %.2f dB", meta["mid_change_db"])

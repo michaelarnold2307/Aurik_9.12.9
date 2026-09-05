@@ -373,7 +373,7 @@ def optimize_pipeline(
         is_enhance = family in enhance
         is_risky = family in risky
 
-        t0 = time.time()
+        t0 = time.monotonic()
         result = optimize_phase_strength(
             phase_id=pid,
             audio_input=current_audio,
@@ -386,7 +386,7 @@ def optimize_pipeline(
             is_enhancement_phase=is_enhance,
             is_risky_phase=is_risky,
         )
-        elapsed = time.time() - t0
+        elapsed = time.monotonic() - t0
         results.append(result)
 
         if result.was_executed and not result.was_skipped:

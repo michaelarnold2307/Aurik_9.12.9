@@ -104,3 +104,14 @@ Stand: 94 Specs.
 | v10.706_denker_iq_material_awareness.md | §v10.706 — Denker-IQ & Material-Awareness: Vollständige Tonträger-Intelligenz |
 | v10.900_sota_pipeline_architecture.md | §v10.900 — SOTA-Pipeline-Architektur: Vollständige Rekonstruktions-Spezifikation |
 | v10.99x_stimmiges_gesamtsystem.md | §v10.990–§v10.999: Das stimmige Gesamtsystem — Frontend, Bridge, Evaluation |
+
+---
+
+## Unreferenzierte Specs (deferred)
+
+> **Hinweis:** Die folgenden Specs sind im Index verankert, aber noch nicht
+> durch Code- oder Test-Referenzen aktiviert. Sie gelten als Architektur-Dokumentation
+> und Roadmap für zukünftige Implementierungen (§G1 copilot-instructions.md).
+> Bei Release: entweder referenzieren oder als obsolet markieren.
+
+Stand: 46 Specs (INFO-Level, kein Blocker). Vollständige Liste in `audit/spec_integration_report.md`.

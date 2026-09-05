@@ -427,13 +427,13 @@ class WowFlutterFix(PhaseInterface):
         )
         self.validate_input(audio)
         assert sample_rate == 48000, f"Interne SR muss 48000 Hz sein, erhalten: {sample_rate}"
-        start_time = time.time()
+        start_time = time.monotonic()
         _progress_cb = kwargs.get("progress_sub_callback")
 
         def _report_progress(pct: float, label: str) -> None:
             if callable(_progress_cb):
                 try:
-                    _progress_cb(float(np.clip(pct, 0.0, 100.0)), label, time.time() - start_time)
+                    _progress_cb(float(np.clip(pct, 0.0, 100.0)), label, time.monotonic() - start_time)
                 except Exception:
                     logger.debug("_report_progress: silent except suppressed", exc_info=True)
 
@@ -578,7 +578,7 @@ class WowFlutterFix(PhaseInterface):
                     "quality_mode": kwargs.get("quality_mode", "balanced"),
                     "tape_level_dips_repaired": _n_dips_z,
                 },
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "algorithm": "skipped_zero_strength",
                     "version": "4.1_locality",
@@ -950,7 +950,7 @@ class WowFlutterFix(PhaseInterface):
                         "skipped_reason": "low_confidence_fallback",
                         "tape_level_dips_repaired": n_level_dips_repaired,
                     },
-                    execution_time_seconds=time.time() - start_time,
+                    execution_time_seconds=time.monotonic() - start_time,
                     metadata={
                         "algorithm": "confidence_guard_conservative_fallback",
                         "version": "4.2_confidence_guard_fallback",
@@ -1048,7 +1048,7 @@ class WowFlutterFix(PhaseInterface):
                     "quality_mode": quality_mode,
                     "tape_level_dips_repaired": n_level_dips_repaired,
                 },
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     **metadata,
                     "phase_locality_factor": phase_locality_factor,
@@ -1077,7 +1077,7 @@ class WowFlutterFix(PhaseInterface):
         ):
             restored = np.nan_to_num(audio.copy(), nan=0.0, posinf=0.0, neginf=0.0)
             restored = np.clip(restored, -1.0, 1.0)
-            processing_time = time.time() - start_time
+            processing_time = time.monotonic() - start_time
             return PhaseResult(
                 success=True,
                 audio=restore_layout(restored, _was_channels_first),
@@ -1442,7 +1442,7 @@ class WowFlutterFix(PhaseInterface):
             restored = audio.copy()
             residual_deviation = max_deviation  # unchanged
 
-        processing_time = time.time() - start_time
+        processing_time = time.monotonic() - start_time
 
         # Calculate wow/flutter statistics
         wow_magnitude = np.std(wow_component[wow_component != 0])

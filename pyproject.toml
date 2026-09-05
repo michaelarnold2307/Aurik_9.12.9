@@ -8,8 +8,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aurik10"
-version = "10.0.19"
-description = "Intelligentes Musik-Restaurierungssystem — Weltklasse, Version 10.0.18 „SOTA-Compliance\""
+version = "10.0.20"
+description = "Intelligentes Musik-Restaurierungssystem — Weltklasse, Version 10.0.20 „SOTA-Compliance & Determinismus-Hardening""
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10.12"

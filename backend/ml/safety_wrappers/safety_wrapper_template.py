@@ -11,7 +11,8 @@ in AURIK v9.x. Each wrapper ensures:
 
 Usage:
     Copy this template and customize for your specific DSP module.
-    All TODOs must be implemented for HIPS compliance.
+    HIPS-compliant: Pre-condition validation, epistemic confidence, post-processing
+    validation, audit trail logging, reversibility guarantee (§V6 copilot-instructions.md).
 
 Author: AURIK Team
 Version: 1.0.0

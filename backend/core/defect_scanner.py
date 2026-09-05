@@ -1942,7 +1942,7 @@ class DefectScanner:
                 logger.debug("DefectScanner Zwischenspeicher-Hit: %s", _cache_key)
                 return _scan_cache[_cache_key]  # type: ignore[return-value]
 
-        start_time = time.time()
+        start_time = time.monotonic()
 
         # Sample rate verwenden (Parameter > Instance > Default)
         sr = sample_rate if sample_rate is not None else self.sample_rate
@@ -2906,7 +2906,7 @@ class DefectScanner:
 
         _prog(99)
 
-        analysis_time = time.time() - start_time
+        analysis_time = time.monotonic() - start_time
         duration = len(audio_mono) / sr
 
         logger.info(

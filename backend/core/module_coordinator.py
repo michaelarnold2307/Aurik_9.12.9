@@ -542,7 +542,7 @@ class ModuleCoordinator:
         Returns:
             Dictionary with processed audio and execution report
         """
-        start_time = time.time()
+        start_time = time.monotonic()
 
         # Build execution plan
         plan = self.build_execution_plan(selected_modules, forensic_analysis)
@@ -685,7 +685,7 @@ class ModuleCoordinator:
             if stage_result and not stage_result[-1].success and "CRITICAL" in str(stage_result[-1].error):
                 break
 
-        total_time = time.time() - start_time
+        total_time = time.monotonic() - start_time
 
         # === MUSICAL QUALITY ASSURANCE: Final Validation ===
         mqa_report = None
@@ -812,7 +812,7 @@ class ModuleCoordinator:
         """
         Führt aus: a single module with error handling.
         """
-        start_time = time.time()
+        start_time = time.monotonic()
 
         try:
             # Get or create module instance
@@ -844,7 +844,7 @@ class ModuleCoordinator:
             else:
                 raise AttributeError(f"Module {descriptor.name} has no 'process' or 'analyze' method")
 
-            execution_time = time.time() - start_time
+            execution_time = time.monotonic() - start_time
 
             # Update metrics
             descriptor.avg_execution_time = (
@@ -853,7 +853,7 @@ class ModuleCoordinator:
                 else execution_time
             )
             descriptor.success_rate = 0.95 * descriptor.success_rate + 0.05
-            descriptor.last_executed = time.time()
+            descriptor.last_executed = time.monotonic()
 
             # Get module metrics
             metrics = module.get_metrics() if hasattr(module, "get_metrics") else {}
@@ -876,7 +876,7 @@ class ModuleCoordinator:
             return result
 
         except Exception as e:
-            execution_time = time.time() - start_time
+            execution_time = time.monotonic() - start_time
 
             logger.error("❌ %s fehlgeschlagen: %s", descriptor.name, e)
 

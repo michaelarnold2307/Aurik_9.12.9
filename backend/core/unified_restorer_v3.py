@@ -7743,7 +7743,7 @@ class UnifiedRestorerV3:
             logger.info("🎵 Chunked-Streaming: %.1fs Audio → RAM O(1)", _n_total / sample_rate)
             return self._restore_chunked(audio, sample_rate, progress_callback, **kwargs)
 
-        start_time = time.time()
+        start_time = time.monotonic()
         # §0c: Reset graceful-stop for new song — previous watchdog signal must not bleed over.
         self._graceful_stop_event.clear()
         # §C3: Reset Phase-12 polyphonic circuit breaker for new song
@@ -7860,7 +7860,7 @@ class UnifiedRestorerV3:
                         "hpi": float(getattr(self, "_phase_deltas", {}).get(phase, {}).get("hpi_live", 0.0) or 0.0),
                         "vqi": float(getattr(self, "_panns_singing", 0.0) or 0.0),
                     }
-                    progress_callback(pct, _display, time.time() - start_time, _live_metrics)
+                    progress_callback(pct, _display, time.monotonic() - start_time, _live_metrics)
                 except Exception as _cb_exc:
                     logger.debug(
                         "Progress-Callback fehlgeschlagen (Ursache: %s). "
@@ -9876,6 +9876,50 @@ class UnifiedRestorerV3:
         except Exception as _cht_exc:
             logger.debug("§CHT-1 CumulativeHallucinationTracker nicht blockierend: %s", _cht_exc)
             self._restoration_context.setdefault("_cht_instance", None)
+
+        # §G5 Deterministischer Seed-Manager — Session starten für reproduzierbare Ergebnisse
+        try:
+            from backend.core.seed_manager import get_seed_manager
+
+            _sm = get_seed_manager()
+            _song_id_for_seed = (
+                self._restoration_context.get("song_id")
+                or self._restoration_context.get("input_path", "")
+                or "uv3_session"
+            )
+            _master_seed = _sm.start_session(song_id=_song_id_for_seed)
+            self._restoration_context["_seed_manager"] = _sm
+            logger.debug(
+                "§G5 Seed-Manager: Session=%s Master-Seed=%d — deterministische Reproduzierbarkeit aktiv",
+                _song_id_for_seed,
+                _master_seed,
+            )
+        except Exception as _sm_exc:
+            logger.debug("§G5 Seed-Manager nicht blockierend: %s", _sm_exc)
+            self._restoration_context.setdefault("_seed_manager", None)
+
+        # §0p Vibrato-Detektor — era-spezifische Vibrato-Rate für Vocal-Guards
+        try:
+            from backend.core.vibrato_detector import detect_vibrato_rate
+
+            _era_decade = self._restoration_context.get("decade")
+            _vib_result = detect_vibrato_rate(audio, sample_rate, era_decade=_era_decade)
+            if _vib_result.is_vibrato:
+                self._restoration_context["vibrato_rate_hz"] = _vib_result.rate_hz
+                self._restoration_context["vibrato_depth_hz"] = _vib_result.depth_hz
+                logger.info(
+                    "§0p Vibrato-Detektor: Rate=%.1f Hz Tiefe=%.2f Hz Konfidenz=%.3f (era=%s)",
+                    _vib_result.rate_hz,
+                    _vib_result.depth_hz,
+                    _vib_result.confidence,
+                    _era_decade or "unknown",
+                )
+            else:
+                self._restoration_context["vibrato_rate_hz"] = 0.0
+                logger.debug("§0p Vibrato-Detektor: kein Vibrato erkannt (Konfidenz=%.3f)", _vib_result.confidence)
+        except Exception as _vib_exc:
+            logger.debug("§0p Vibrato-Detektor nicht blockierend: %s", _vib_exc)
+            self._restoration_context.setdefault("vibrato_rate_hz", 0.0)
 
         logger.info(
             "📋 RestorationContext: decade=%s genre=%s bpm=%.0f subgenre=%s effective_chain=%s",
@@ -12166,7 +12210,7 @@ class UnifiedRestorerV3:
         try:
             from backend.core.predictive_preflight import compute_preflight
 
-            _pf_start = time.time()
+            _pf_start = time.monotonic()
             _pf_result = compute_preflight(
                 np.asarray(audio, dtype=np.float32),
                 sample_rate,
@@ -12180,7 +12224,7 @@ class UnifiedRestorerV3:
                     "§v10.97 PredictivePreflight: %d/%d Phasen übersprungen (%.0f ms) → %s",
                     _before - len(selected_phases),
                     _before,
-                    (time.time() - _pf_start) * 1000,
+                    (time.monotonic() - _pf_start) * 1000,
                     sorted(_pf_skipped),
                 )
                 if isinstance(getattr(self, "_restoration_context", None), dict):
@@ -15432,14 +15476,14 @@ class UnifiedRestorerV3:
                                     right=float(_fg[-1]),
                                 )
                                 # sample_mult = 1 − strength×(1−gain) ∈ [1−0.35, 1.0]
-                                _sm = _tqc_np.clip(1.0 - _TQC_STRENGTH * (1.0 - _gi), 0.0, 1.0)
+                                _sample_mult = _tqc_np.clip(1.0 - _TQC_STRENGTH * (1.0 - _gi), 0.0, 1.0)
                                 # Crossfade envelope: 0 at edges → 1 at interior.
                                 _xe = _tqc_np.ones(_blen)
                                 if _bs > 0:
                                     _xe[:_tqc_xf_n] = _tqc_np.linspace(0.0, 1.0, _tqc_xf_n)
                                 if _be < _n_samp:
                                     _xe[_blen - _tqc_xf_n :] = _tqc_np.linspace(1.0, 0.0, _tqc_xf_n)
-                                _fm = 1.0 - _xe * (1.0 - _sm)  # type: ignore[assignment]
+                                _fm = 1.0 - _xe * (1.0 - _sample_mult)  # type: ignore[assignment]
                                 # Apply identical gain to every channel (§2.51).
                                 for _ch in range(_n_ch):
                                     _ra_out[_ch, _bs:_be] = (_ra_out[_ch, _bs:_be] * _fm).astype(_tqc_np.float32)
@@ -18376,7 +18420,7 @@ class UnifiedRestorerV3:
         quality_estimate = self._estimate_quality(defect_result, perf_report, executed_phases, restored_audio, 48_000)
 
         # Build Result
-        total_time = time.time() - start_time
+        total_time = time.monotonic() - start_time
         rt_factor = total_time / audio_duration
         # Absolutes 30-Minuten-Budget (1800 s) statt relativem 8×RT-Faktor —
         # kurze Clips erzeugen naturgemäß hohe rt_factors, die kein echtes Problem sind.
@@ -21994,7 +22038,7 @@ class UnifiedRestorerV3:
                                 progress_callback(
                                     99.0,
                                     "⚠️ Qualitätswächter: Bearbeitung verworfen",
-                                    time.time() - start_time,
+                                    time.monotonic() - start_time,
                                     {"guardian_reverted": True, "guardian_reason": str(_dnh_result.reason)},
                                 )
                             except Exception as _rev_exc:
@@ -42172,6 +42216,42 @@ class UnifiedRestorerV3:
                     except Exception as _cond_exc:
                         logger.debug("§Hebel-3 PhaseConductor Fehler (unkritisch): %s", _cond_exc)
 
+                # §CHT-2 Hard-Limit nach Glue Stage — vor Phase 65/66
+                # Wenn CumulativeHallucinationTracker die Harte-Grenze überschritten hat,
+                # wird das Audio auf den besten artefaktfreien Checkpoint zurückgesetzt.
+                if phase_id == "phase_glue_stage" and phase_id in executed:
+                    try:
+                        _cht_instance = self._restoration_context.get("_cht_instance")
+                        if _cht_instance is not None:
+                            _cht_score = float(_cht_instance.cumulative_novelty)
+                            # Hard-Limit: CRITICAL threshold aus CHT-Mode (restoration/studio)
+                            _mode = getattr(_cht_instance, "_mode", "restoration")
+                            _warn_t, _crit_t = (0.20, 0.35) if _mode == "restoration" else (0.30, 0.50)
+                            if _cht_score > _crit_t:
+                                logger.warning(
+                                    "§CHT-2 Hard-Limit nach Glue Stage: Score=%.3f > CRITICAL=%.2f — "
+                                    "rollback to best artifact-free checkpoint",
+                                    _cht_score,
+                                    _crit_t,
+                                )
+                                if _afg_best_clean_checkpoint is not None:
+                                    current_audio = np.clip(_afg_best_clean_checkpoint.copy(), -1.0, 1.0)
+                                    logger.info(
+                                        "§CHT-2 Rollback erfolgreich: Audio auf artefaktfreien Checkpoint (%s)",
+                                        _afg_best_clean_phase or "unknown",
+                                    )
+                                else:
+                                    current_audio = np.clip(_pre_phase_audio_2_61.copy(), -1.0, 1.0)
+                                    logger.info("§CHT-2 Rollback Fallback: Audio auf pre-phase audio")
+                            else:
+                                logger.debug(
+                                    "§CHT-2 nach Glue Stage: Score=%.3f <= CRITICAL=%.2f — OK",
+                                    _cht_score,
+                                    _crit_t,
+                                )
+                    except Exception as _cht_hard_exc:
+                        logger.debug("§CHT-2 Hard-Limit nicht blockierend: %s", _cht_hard_exc)
+
                 if phase_id in executed:
                     try:
                         _accepted_net_gain = self._accepted_phase_net_gain(_pdv_pre_phase, current_audio, sample_rate)
@@ -42933,7 +43013,7 @@ class UnifiedRestorerV3:
         genre = str(kwargs.get("genre", "unknown"))
 
         opt = get_perceptual_optimizer(self)
-        t0 = time.time()
+        t0 = time.monotonic()
 
         opt_result = opt.optimize(
             audio,
@@ -43045,7 +43125,7 @@ class UnifiedRestorerV3:
         return RestorationResult(  # type: ignore[call-arg]
             audio=opt_result.audio,
             config=self.config,
-            total_time_seconds=time.time() - t0,
+            total_time_seconds=time.monotonic() - t0,
             metadata={
                 "optimization": "closed_loop",
                 "initial_score": opt_result.initial_score,

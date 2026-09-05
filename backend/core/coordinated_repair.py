@@ -607,7 +607,7 @@ class CoordinatedRepair:
         Returns:
             (repaired_audio, RepairReport)
         """
-        t0 = time.time()
+        t0 = time.monotonic()
 
         was_mono = audio.ndim == 1
         if was_mono:
@@ -784,7 +784,7 @@ class CoordinatedRepair:
                 failed.append((step.phase_id, str(e)))
                 log.warning("Repair: %s FAILED — %s", step.phase_id, e)
 
-        elapsed = time.time() - t0
+        elapsed = time.monotonic() - t0
         output_peak = float(np.abs(current_audio).max())
 
         # §v10.998: Kumulativer Spektral-Guard — finale Prüfung gegen den

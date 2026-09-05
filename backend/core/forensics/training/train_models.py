@@ -127,7 +127,7 @@ class ForensicsTrainingPipeline:
         logger.info("   Training Medium Detector")
         logger.info("=" * 60)
 
-        start_time = time.time()
+        start_time = time.monotonic()
 
         # Generate training data
         logger.info("Generating training data...")
@@ -152,7 +152,7 @@ class ForensicsTrainingPipeline:
         logger.info("Evaluating on test set...")
         test_accuracy = detector.evaluate(X_test, y_test)
 
-        training_time = time.time() - start_time
+        training_time = time.monotonic() - start_time
 
         # Save model
         model_path = ""
@@ -203,7 +203,7 @@ class ForensicsTrainingPipeline:
         logger.info("   Training Era Detector")
         logger.info("=" * 60)
 
-        start_time = time.time()
+        start_time = time.monotonic()
 
         # Generate training data
         logger.info("Generating training data...")
@@ -228,7 +228,7 @@ class ForensicsTrainingPipeline:
         logger.info("Evaluating on test set...")
         test_accuracy = detector.evaluate(X_test, y_test)
 
-        training_time = time.time() - start_time
+        training_time = time.monotonic() - start_time
 
         # Save model
         model_path = ""
@@ -279,7 +279,7 @@ class ForensicsTrainingPipeline:
         logger.info("   Training Defect Detector")
         logger.info("=" * 60)
 
-        start_time = time.time()
+        start_time = time.monotonic()
 
         # Generate training data
         logger.info("Generating training data...")
@@ -303,7 +303,7 @@ class ForensicsTrainingPipeline:
         logger.info("Evaluating on test set...")
         test_recall = detector.evaluate(X_test, y_test)  # type: ignore[attr-defined]
 
-        training_time = time.time() - start_time
+        training_time = time.monotonic() - start_time
 
         # Save model
         model_path = ""
@@ -356,14 +356,14 @@ class ForensicsTrainingPipeline:
         logger.info("   Verarbeitungsschritt 2: ML Model Training")
         logger.info("=" * 60 + "\n")
 
-        start_time = time.time()
+        start_time = time.monotonic()
 
         # Train models
         medium_detector, _medium_report = self.train_medium_detector(save_models)
         era_detector, _era_report = self.train_era_detector(save_models)
         defect_detector, _defect_report = self.train_defect_detector(save_models)
 
-        total_time = time.time() - start_time
+        total_time = time.monotonic() - start_time
 
         # Generate summary report
         self._generate_summary_report(total_time)
@@ -447,7 +447,7 @@ class ForensicsTrainingPipeline:
 
     def _generate_summary_report(self, total_time: float) -> None:
         """Generiert comprehensive training summary report."""
-        report_path = self.config.reports_dir / f"training_summary_{int(time.time())}.json"
+        report_path = self.config.reports_dir / f"training_summary_{int(time.monotonic())}.json"
 
         summary = {
             "pipeline_version": self.VERSION,

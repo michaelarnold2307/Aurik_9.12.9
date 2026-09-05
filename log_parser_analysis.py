@@ -5,6 +5,7 @@ Processes stderr/stdout to identify real issues, not test artifacts
 """
 
 import json
+import logging
 import re
 import sys
 from collections import defaultdict
@@ -13,6 +14,8 @@ from pathlib import Path
 
 WORKSPACE_ROOT = Path(__file__).parent
 sys.path.insert(0, str(WORKSPACE_ROOT))
+
+logger = logging.getLogger(__name__)
 
 def run_sample_and_capture_logs(sample_path: str, sample_label: str, max_duration: float = 30.0):
     """Run one sample with extensive log capture and analysis."""
@@ -96,10 +99,10 @@ def main():
     for sample_path, label in samples:
         full_path = WORKSPACE_ROOT / sample_path
         if not full_path.exists():
-            print(f"⏭️  Skipping {label} — file not found")
+            logger.info("§V01 Skipping %s — file not found", label)
             continue
 
-        print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━ {label} ━━━━━━━━━━━━━━━━━━━━━━━━━")
+        logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━ %s ━━━━━━━━━━━━━━━━━━━━━━━━━", label)
         result = run_sample_and_capture_logs(str(full_path), label)
         all_results[label] = result
 
@@ -107,23 +110,23 @@ def main():
         for issue in result["severity_issues"]:
             all_issues[issue] += 1
 
-        # Print summary
-        print(f"✓ Warnings: {len(result['warnings'])}")
-        print(f"✓ Errors: {len(result['errors'])}")
-        print(f"✓ Severity Issues: {len(result['severity_issues'])}")
+        # Summary (§V01: Logger statt print)
+        logger.info("§V01 %s — Warnings: %d", label, len(result["warnings"]))
+        logger.info("§V01 %s — Errors: %d", label, len(result["errors"]))
+        logger.info("§V01 %s — Severity Issues: %d", label, len(result["severity_issues"]))
 
         if result["severity_issues"]:
-            print("  Top issues:")
+            logger.warning("§V01 %s — Top issues:", label)
             for issue in result["severity_issues"][:3]:
-                print(f"    - {issue[:80]}")
+                logger.warning("  - %s", issue[:80])
 
-    # Final summary
-    print("\n" + "=" * 80)
-    print("🎯 AGGREGATED ISSUES ACROSS SAMPLES")
-    print("=" * 80)
+    # Final summary (§V01: Logger statt print)
+    logger.info("§V01 " + "=" * 80)
+    logger.info("🎯 AGGREGATED ISSUES ACROSS SAMPLES")
+    logger.info("=" * 80)
 
     for issue, count in sorted(all_issues.items(), key=lambda x: -x[1])[:15]:
-        print(f"  [{count:2d}x] {issue[:70]}")
+        logger.warning("§V01 [%2dx] %s", count, issue[:70])
 
     # Save report
     output_path = WORKSPACE_ROOT / "reports/log_parser_analysis.json"
@@ -142,7 +145,7 @@ def main():
     with open(output_path, "w") as f:
         json.dump(report, f, indent=2)
 
-    print(f"\n✅ Report saved: {output_path}")
+    logger.info("§V01 Report saved: %s", output_path)
 
 if __name__ == "__main__":
     main()

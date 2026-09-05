@@ -395,7 +395,7 @@ def _write_hoerordnung_todo(all_issues: list[str], todo_path: str) -> None:
     _dest = Path(todo_path)
     _dest.parent.mkdir(parents=True, exist_ok=True)
     _dest.write_text("\n".join(_out_lines), encoding="utf-8")
-    print(f"📋 Hörordnungs-To-Do geschrieben: {_dest} ({len(_entries)} Einträge, {len(_done)} bereits erledigt)")
+    logger.info("§V01 Hörordnungs-To-Do geschrieben: %s (%d Einträge, %d bereits erledigt)", _dest, len(_entries), len(_done))
 
 
 def _load_discovered_patterns() -> list[str]:
@@ -519,26 +519,27 @@ def main() -> int:
     if _args.write_todo:
         _write_hoerordnung_todo(all_issues, _args.todo_path)
 
-    # Ausgabe
+    # Ausgabe (§V01: Logger statt print)
     if all_issues:
-        print(
-            f"\n🔍 Aurik SOTA Bug-Scan: {len(all_issues)} potentielle Bugs gefunden "
-            f"({files_scanned} Dateien gescannt)\n"
+        logger.warning(
+            "§V01 Aurik SOTA Bug-Scan: %d potentielle Bugs gefunden (%d Dateien gescannt)",
+            len(all_issues),
+            files_scanned,
         )
         for issue in sorted(all_issues):
-            print(f"  {issue}")
+            logger.info("  %s", issue)
 
         if MIN_SEVERITY == "error":
-            print(f"\n❌ {len(all_issues)} Fehler — Commit blockiert.")
-            print(
-                "   Behebe die oben genannten Anti-Patterns oder füge    begründete Ausnahmen in EXCLUDE_FILES hinzu."
+            logger.error(
+                "§V01 %d Fehler — Commit blockiert. Behebe Anti-Patterns oder füge begründete Ausnahmen hinzu.",
+                len(all_issues),
             )
             return 1
         else:
-            print(f"\n⚠️  {len(all_issues)} Warnungen — bitte vor Commit prüfen.")
+            logger.warning("§V01 %d Warnungen — bitte vor Commit prüfen.", len(all_issues))
             return 0
     else:
-        print(f"✅ Aurik SOTA Bug-Scan: Keine Anti-Patterns gefunden ({files_scanned} Dateien gescannt)")
+        logger.info("§V01 Aurik SOTA Bug-Scan: Keine Anti-Patterns gefunden (%d Dateien gescannt)", files_scanned)
         return 0
 
 

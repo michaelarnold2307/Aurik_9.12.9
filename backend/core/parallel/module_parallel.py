@@ -131,7 +131,7 @@ class ModuleParallelProcessor:
         """
         import time
 
-        start_time = time.time()
+        start_time = time.monotonic()
 
         # Build dependency graph and execution phases
         phases = self._build_execution_phases(modules)
@@ -143,7 +143,7 @@ class ModuleParallelProcessor:
         module_outputs: dict[str, np.ndarray] = {}  # Store outputs for dependent modules
 
         for phase_idx, phase_modules in enumerate(phases):
-            phase_start = time.time()
+            phase_start = time.monotonic()
 
             if len(phase_modules) == 1 or not self.enable_parallel:
                 # Sequential execution
@@ -154,7 +154,7 @@ class ModuleParallelProcessor:
                 phase_results = self._process_parallel(current_audio, sr, phase_modules, module_outputs)
                 self._processing_stats["parallel_phases"] += 1  # type: ignore[operator]
 
-            phase_time = time.time() - phase_start
+            phase_time = time.monotonic() - phase_start
 
             # Check for errors
             failed_modules = [r for r in phase_results if not r.success]
@@ -175,7 +175,7 @@ class ModuleParallelProcessor:
                 "Verarbeitungsschritt %s vollstaendig: %s modules, %.3fs", phase_idx, len(phase_modules), phase_time
             )
 
-        processing_time = time.time() - start_time
+        processing_time = time.monotonic() - start_time
         self._processing_stats["total_processed"] += 1  # type: ignore[operator]
 
         logger.debug(
@@ -311,7 +311,7 @@ class ModuleParallelProcessor:
         """
         import time
 
-        start_time = time.time()
+        start_time = time.monotonic()
 
         try:
             # Make a copy to avoid threading issues
@@ -327,7 +327,7 @@ class ModuleParallelProcessor:
             if processed.shape[0] != audio.shape[0]:
                 raise ValueError(f"Module {module.name} changed audio length: {audio.shape[0]} -> {processed.shape[0]}")
 
-            processing_time = time.time() - start_time
+            processing_time = time.monotonic() - start_time
 
             return ModuleResult(
                 module_name=module.name,
@@ -338,7 +338,7 @@ class ModuleParallelProcessor:
             )
 
         except Exception as e:
-            processing_time = time.time() - start_time
+            processing_time = time.monotonic() - start_time
             logger.error("Module %s fehlgeschlagen: %s", module.name, e)
 
             return ModuleResult(

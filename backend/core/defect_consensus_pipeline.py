@@ -653,9 +653,9 @@ class ParallelDefectScanner:
                     result = precomputed[name]
                     dt = 0.0
                 else:
-                    t0 = time.time()
+                    t0 = time.monotonic()
                     result = detector_fn(audio, sample_rate)
-                    dt = time.time() - t0
+                    dt = time.monotonic() - t0
 
                 hypotheses = self._normalize_result(name, result, sample_rate)
 
@@ -1151,7 +1151,7 @@ class DefectConsensusPipeline:
         Returns:
             DefectManifest mit widerspruchsfreiem Defekt-Set
         """
-        t0 = time.time()
+        t0 = time.monotonic()
 
         if audio.ndim > 1:
             # §Spec 24-Ergänzung (Befund 2026-08-22): Kanal-Mix über die KANAL-
@@ -1179,7 +1179,7 @@ class DefectConsensusPipeline:
             return DefectManifest(
                 defects=[],
                 total_hypotheses=0,
-                processing_time=time.time() - t0,
+                processing_time=time.monotonic() - t0,
                 module_count=0,
             )
 
@@ -1192,7 +1192,7 @@ class DefectConsensusPipeline:
             return DefectManifest(
                 defects=[],
                 total_hypotheses=0,
-                processing_time=time.time() - t0,
+                processing_time=time.monotonic() - t0,
                 module_count=0,
             )
 
@@ -1205,7 +1205,7 @@ class DefectConsensusPipeline:
         if downgrades > 0:
             log.info(f"Stage 3: {downgrades} kausale Downgrades")
 
-        elapsed = time.time() - t0
+        elapsed = time.monotonic() - t0
 
         return DefectManifest(
             defects=validated,

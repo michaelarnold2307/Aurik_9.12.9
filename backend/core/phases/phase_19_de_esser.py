@@ -613,7 +613,7 @@ class DeEsserPhase(PhaseInterface):
         except Exception as e:
             logger.warning("Verarbeitungsschritt_19_de_esser.py::verarbeiten Ersatzpfad: %s", e)
         material = material_type  # alias: method body uses 'material' throughout
-        start_time = time.time()
+        start_time = time.monotonic()
         self.validate_input(audio)
         audio, _p19_transposed = to_channels_last(audio)
         quality_mode = str(kwargs.get("quality_mode", "quality")).strip().lower()
@@ -654,7 +654,7 @@ class DeEsserPhase(PhaseInterface):
             return _phase_result(
                 success=True,
                 audio=passthrough,
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "material": material.name,
                     "gender": self.gender,
@@ -1030,7 +1030,7 @@ class DeEsserPhase(PhaseInterface):
                 return _phase_result(
                     success=True,
                     audio=enhanced_audio,
-                    execution_time_seconds=time.time() - start_time,
+                    execution_time_seconds=time.monotonic() - start_time,
                     metadata={
                         "material": material.name,
                         "de_essing_applied": False,
@@ -1076,7 +1076,7 @@ class DeEsserPhase(PhaseInterface):
                 return _phase_result(
                     success=True,
                     audio=enhanced_audio,
-                    execution_time_seconds=time.time() - start_time,
+                    execution_time_seconds=time.monotonic() - start_time,
                     metadata={
                         "material": material.name,
                         "de_essing_applied": False,
@@ -1146,7 +1146,7 @@ class DeEsserPhase(PhaseInterface):
             return _phase_result(
                 success=True,
                 audio=enhanced_audio,
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "material": material.name,
                     "de_essing_applied": False,
@@ -1491,7 +1491,7 @@ class DeEsserPhase(PhaseInterface):
             return _phase_result(
                 success=True,
                 audio=enhanced_audio,
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "material": material.name,
                     "gender": self.gender,
@@ -1836,7 +1836,7 @@ class DeEsserPhase(PhaseInterface):
         # (More accurate than frequency-based measurement which is problematic)
         sibilance_reduction_db = self.stats["max_gain_reduction_db"]  # Already negative!
 
-        execution_time = time.time() - start_time
+        execution_time = time.monotonic() - start_time
 
         logger.info(
             "🏆 Verarbeitungsschritt 19 v4.0 vollstaendig: %.1f dB reduction, %s sibilant types, "
@@ -4137,9 +4137,9 @@ def _run_test() -> None:
 
         audio = np.column_stack([signal_test, signal_test])
 
-        start_time = time.time()
+        start_time = time.monotonic()
         result = processor.process(audio, sr, MaterialType.VINYL, gender=gender)
-        elapsed = time.time() - start_time
+        elapsed = time.monotonic() - start_time
 
         if result.success:
             logger.debug("\n✅ Processing erfolgreich!")

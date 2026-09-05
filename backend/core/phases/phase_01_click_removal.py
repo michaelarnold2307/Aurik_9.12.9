@@ -415,7 +415,7 @@ class ClickRemovalPhase(PhaseInterface):
         except Exception:
             logger.debug("verarbeiten: silent except suppressed", exc_info=True)
         assert sample_rate == 48000, f"SR muss 48000 Hz sein, erhalten: {sample_rate}"
-        start_time = time.time()
+        start_time = time.monotonic()
         progress_sub_callback = kwargs.get("progress_sub_callback")
         silence_mask = self._resolve_silence_mask(kwargs, audio)
         self._emit_progress(progress_sub_callback, 3.0, "Knackser-Schutzbereiche werden geprüft", 0.0)
@@ -536,7 +536,7 @@ class ClickRemovalPhase(PhaseInterface):
                 "ml_repaired": ml_repaired_count,
             }
 
-        execution_time = time.time() - start_time
+        execution_time = time.monotonic() - start_time
 
         # Generate warnings
         warnings = []
@@ -582,7 +582,7 @@ class ClickRemovalPhase(PhaseInterface):
                     "algorithm": "skipped_zero_strength",
                     "phase_locality_factor": phase_locality_factor,
                     "effective_strength": 0.0,
-                    "execution_time_seconds": time.time() - start_time,
+                    "execution_time_seconds": time.monotonic() - start_time,
                 },
             )
         if 0.0 < _effective_strength < 1.0:
@@ -596,7 +596,7 @@ class ClickRemovalPhase(PhaseInterface):
             sample_rate,
             material_type,
         )
-        self._emit_progress(progress_sub_callback, 98.0, "Knackser-Reparatur gesichert", time.time() - start_time)
+        self._emit_progress(progress_sub_callback, 98.0, "Knackser-Reparatur gesichert", time.monotonic() - start_time)
 
         return create_phase_result(
             audio=result_audio,
@@ -973,13 +973,13 @@ class ClickRemovalPhase(PhaseInterface):
             progress_callback,
             18.0,
             "Knackser werden lokalisiert",
-            time.time() - (start_time or time.time()),
+            time.monotonic() - (start_time or time.monotonic()),
         )
         self._emit_progress(
             progress_callback,
             32.0,
             "Knackser werden klassifiziert",
-            time.time() - (start_time or time.time()),
+            time.monotonic() - (start_time or time.monotonic()),
         )
 
         repaired = stereo_audio.copy()
@@ -991,7 +991,7 @@ class ClickRemovalPhase(PhaseInterface):
                     progress_callback,
                     45.0,
                     "Knackser werden kanal-lokal repariert",
-                    time.time() - (start_time or time.time()),
+                    time.monotonic() - (start_time or time.monotonic()),
                 )
             # §V38: per-event local strength via mono_mix als Kontext-Referenz
             channel_repaired, channel_ml = self._apply_click_plan_to_channel(
@@ -1059,13 +1059,13 @@ class ClickRemovalPhase(PhaseInterface):
             progress_callback,
             18.0,
             "Knackser werden lokalisiert",
-            time.time() - (start_time or time.time()),
+            time.monotonic() - (start_time or time.monotonic()),
         )
         self._emit_progress(
             progress_callback,
             32.0,
             "Knackser werden klassifiziert",
-            time.time() - (start_time or time.time()),
+            time.monotonic() - (start_time or time.monotonic()),
         )
 
         # Step 4: Process severe clicks with ML (if available and enabled)
@@ -1074,7 +1074,7 @@ class ClickRemovalPhase(PhaseInterface):
                 progress_callback,
                 45.0,
                 "Starke Knackser werden repariert",
-                time.time() - (start_time or time.time()),
+                time.monotonic() - (start_time or time.monotonic()),
             )
             ml_success = self._repair_clicks_ml(audio_cleaned, sample_rate, severe_clicks, panns_singing=panns_singing)
             if ml_success:
@@ -1112,7 +1112,7 @@ class ClickRemovalPhase(PhaseInterface):
                     progress_callback,
                     45.0 + 45.0 * (idx / total_normal),
                     "Knackser werden repariert",
-                    time.time() - (start_time or time.time()),
+                    time.monotonic() - (start_time or time.monotonic()),
                 )
 
             start_idx = click["start"]

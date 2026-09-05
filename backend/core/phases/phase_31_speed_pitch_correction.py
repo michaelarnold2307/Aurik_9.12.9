@@ -356,7 +356,7 @@ class SpeedPitchCorrectionPhase(PhaseInterface):
         """
         reference_pitch: float | None = float(kwargs["reference_pitch"]) if "reference_pitch" in kwargs else None
         assert sample_rate == 48000, f"SR muss 48000 Hz sein, erhalten: {sample_rate}"
-        start_time = time.time()
+        start_time = time.monotonic()
 
         phase_locality_factor = float(kwargs.get("phase_locality_factor", 1.0))
         phase_locality_factor = float(np.clip(phase_locality_factor, 0.35, 1.0))
@@ -376,7 +376,7 @@ class SpeedPitchCorrectionPhase(PhaseInterface):
                     "material_type": material_key,
                     "phase_locality_factor": phase_locality_factor,
                     "effective_strength": _effective_strength,
-                    "execution_time_seconds": time.time() - start_time,
+                    "execution_time_seconds": time.monotonic() - start_time,
                     "rms_drop_db": 0.0,
                     "loudness_makeup_db": 0.0,
                 },
@@ -403,7 +403,7 @@ class SpeedPitchCorrectionPhase(PhaseInterface):
                     "material_type": material_key,
                     "phase_locality_factor": phase_locality_factor,
                     "effective_strength": _effective_strength,
-                    "execution_time_seconds": time.time() - start_time,
+                    "execution_time_seconds": time.monotonic() - start_time,
                     "rms_drop_db": 0.0,
                     "loudness_makeup_db": 0.0,
                 },
@@ -469,7 +469,7 @@ class SpeedPitchCorrectionPhase(PhaseInterface):
                     "phase_locality_factor": phase_locality_factor,
                     "effective_strength": _effective_strength,
                     **ml_metadata,
-                    "execution_time_seconds": time.time() - start_time,
+                    "execution_time_seconds": time.monotonic() - start_time,
                     "rms_drop_db": 0.0,
                     "loudness_makeup_db": 0.0,
                 },
@@ -507,7 +507,7 @@ class SpeedPitchCorrectionPhase(PhaseInterface):
                     "phase_locality_factor": phase_locality_factor,
                     "effective_strength": _effective_strength,
                     **ml_metadata,
-                    "execution_time_seconds": time.time() - start_time,
+                    "execution_time_seconds": time.monotonic() - start_time,
                     "rms_drop_db": 0.0,
                     "loudness_makeup_db": 0.0,
                 },
@@ -612,7 +612,7 @@ class SpeedPitchCorrectionPhase(PhaseInterface):
                 material_type=material_key,
             )
 
-            execution_time = time.time() - start_time
+            execution_time = time.monotonic() - start_time
 
             result_audio = np.nan_to_num(result_audio, nan=0.0, posinf=0.0, neginf=0.0)
             result_audio = np.clip(result_audio, -1.0, 1.0)
@@ -724,7 +724,7 @@ class SpeedPitchCorrectionPhase(PhaseInterface):
                 "effective_strength": _effective_strength,
                 **ml_metadata,
                 "material_type": material_key,
-                "execution_time_seconds": time.time() - start_time,
+                "execution_time_seconds": time.monotonic() - start_time,
                 "rms_drop_db": 0.0,
                 "loudness_makeup_db": 0.0,
             },

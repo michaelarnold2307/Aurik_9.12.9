@@ -482,7 +482,7 @@ class TapeHissReductionPhase(PhaseInterface):
         except Exception as e:
             logger.warning("Verarbeitungsschritt_29_tape_hiss_reduction.py::verarbeiten Ersatzpfad: %s", e)
         assert sample_rate == 48000, f"SR muss 48000 Hz sein, erhalten: {sample_rate}"
-        start_time = time.time()
+        start_time = time.monotonic()
         self.sample_rate = sample_rate
         self.validate_input(audio)
         audio, _p29_transposed = to_channels_last(audio)
@@ -543,7 +543,7 @@ class TapeHissReductionPhase(PhaseInterface):
             return PhaseResult(
                 success=True,
                 audio=restore_layout(audio.copy(), _p29_transposed),
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "material": material.name,
                     "processing": "skipped",
@@ -588,7 +588,7 @@ class TapeHissReductionPhase(PhaseInterface):
             return PhaseResult(
                 success=True,
                 audio=restore_layout(audio.copy(), _p29_transposed),
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "material": material_key,
                     "processing": "skipped_digital",
@@ -678,7 +678,7 @@ class TapeHissReductionPhase(PhaseInterface):
             return PhaseResult(
                 success=True,
                 audio=restore_layout(_pass, _p29_transposed),
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "material": material.name,
                     "processing": "snr_bypass",
@@ -804,7 +804,7 @@ class TapeHissReductionPhase(PhaseInterface):
             return PhaseResult(
                 success=True,
                 audio=restore_layout(passthrough, _p29_transposed),
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "material": material.name,
                     "processing": "skipped_zero_strength",
@@ -989,7 +989,7 @@ class TapeHissReductionPhase(PhaseInterface):
                 sample_rate,
             )
 
-        execution_time = time.time() - start_time
+        execution_time = time.monotonic() - start_time
         rt_factor = execution_time / (len(audio) / sample_rate)
 
         audio_processed = np.nan_to_num(audio_processed, nan=0.0, posinf=0.0, neginf=0.0)
@@ -2584,11 +2584,11 @@ if __name__ == "__main__":
         _test_audio = np.column_stack([noisy, noisy])
 
         # Process
-        _test_start = time.time()
+        _test_start = time.monotonic()
         result = processor.process(_test_audio, sr, _test_material)
         _test_processed = result.audio
         meta = result.metadata or {}
-        elapsed = time.time() - _test_start
+        elapsed = time.monotonic() - _test_start
 
         # Calculate HF noise reduction
         sos_hf = signal.butter(4, 8000, "high", fs=sr, output="sos")

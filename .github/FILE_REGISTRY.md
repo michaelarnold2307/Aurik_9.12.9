@@ -78,6 +78,12 @@
 
 ## Pflege-Regeln
 
+| backend/core/cassette_defect_verifier.py | ACTIVE | backend/core | ja | — | Kassetten-Defekt-Verifizierung: validiert Defekt-Erkennung für Kassetten-Material; verhindert False-Negatives bei Bandgeräuschen (2026-09-05) |
+| backend/core/defect_detection_quality_gate.py | ACTIVE | backend/core | ja | — | Qualitätsgate für Defekt-Detection: prüft Erkennungsrate, False-Positive-Rate, Timing-Limits; blockt Pipeline bei Degradation (2026-09-05) |
+| backend/core/defect_re_scanner.py | ACTIVE | backend/core | ja | — | Sekundärer Defekt-Scanner: validiert primäre Erkennung; multi-pass Konsens für kritische Segmente (2026-09-05) |
+| backend/core/dsp/cumulative_hallucination_tracker.py | ACTIVE | backend/core/dsp | ja | — | Kumulativer Halluzinations-Tracker: misst kumulative Artefaktbildung über Phasen; Abort bei Threshold-Überschreitung (2026-09-05) |
+| backend/core/intentional_artifact_classifier.py | ACTIVE | backend/core | ja | — | Klassifiziert intentionale vs. unbeabsichtigte Artefakte; schützt musikalisch gewollte Effekte vor Überkorrektur (2026-09-05) |
+
 - **Neue Datei anlegen:** zuerst `scripts/repo_search.py --before-create <pfad>`
   (kanonische Alternative? Namens-/Symbol-Ähnlichkeit?), dann hier eintragen
   (Status, Domain, Canonical, Ersetzt, Grund). Ohne Eintrag blockt

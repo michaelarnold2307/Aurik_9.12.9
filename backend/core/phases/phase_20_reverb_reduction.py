@@ -305,7 +305,7 @@ class ReverbReduction(PhaseInterface):
         sample_rate = kwargs.get("sample_rate", 48000)
         assert sample_rate == 48000, f"SR muss 48000 Hz sein, erhalten: {sample_rate}"
         audio, _p20_transposed = to_channels_last(audio)
-        start_time = time.time()
+        start_time = time.monotonic()
 
         # §2.46f Natural-Performance-Artifacts-Guard — detect protected zones before reverb reduction
         _npa_result_20 = None
@@ -381,7 +381,7 @@ class ReverbReduction(PhaseInterface):
                     "tail_damping": damping,
                     "material": material.value,
                 },
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "algorithm": "skipped_zero_strength",
                     "phase_locality_factor": phase_locality_factor,
@@ -530,7 +530,7 @@ class ReverbReduction(PhaseInterface):
                     "reverb_estimate": _reverb_severity_ph20,
                     "material": material.value,
                 },
-                execution_time_seconds=time.time() - start_time,
+                execution_time_seconds=time.monotonic() - start_time,
                 metadata={
                     "algorithm": "passthrough_primum_non_nocere_v10_14",
                     "reverb_severity": _reverb_severity_ph20,
@@ -561,7 +561,7 @@ class ReverbReduction(PhaseInterface):
                         "reverb_estimate": _reverb_severity_ph20,
                         "material": material.value,
                     },
-                    execution_time_seconds=time.time() - start_time,
+                    execution_time_seconds=time.monotonic() - start_time,
                     metadata={
                         "algorithm": "digital_passthrough_no_reverb_fix11c",
                         "reverb_severity": _reverb_severity_ph20,
@@ -613,7 +613,7 @@ class ReverbReduction(PhaseInterface):
                 )
 
                 ml_result = dereverb.dereverb(audio, sample_rate=sample_rate)
-                processing_time = time.time() - start_time
+                processing_time = time.monotonic() - start_time
 
                 # Estimate RMS change from reverb reduction
                 # §2.45a-I: gated RMS — silence frames (fadeout, intro) excluded
@@ -764,7 +764,7 @@ class ReverbReduction(PhaseInterface):
                         )
                         audio_wpe = audio_wpe[:min_len] if audio_wpe.ndim == 1 else audio_wpe[:, :min_len]
                 reduced = audio_wpe
-                processing_time = time.time() - start_time
+                processing_time = time.monotonic() - start_time
                 rms_before = np.sqrt(np.mean(audio**2))
                 rms_after = np.sqrt(np.mean(reduced**2))
                 rms_change_db = 20 * np.log10(np.maximum(rms_after / (rms_before + 1e-10), 1e-30))
@@ -830,7 +830,7 @@ class ReverbReduction(PhaseInterface):
         else:
             reduced = self._reduce_reverb(audio, sample_rate, strength, damping)
 
-        processing_time = time.time() - start_time
+        processing_time = time.monotonic() - start_time
 
         # Measure reverb reduction (RT60-like estimate)
         rms_before = np.sqrt(np.mean(audio**2))

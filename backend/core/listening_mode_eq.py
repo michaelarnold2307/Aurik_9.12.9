@@ -158,7 +158,7 @@ class AdaptiveListeningEQ:
         """
         import time
 
-        t0 = time.time()
+        t0 = time.monotonic()
 
         if mode not in _TARGET_CURVES:
             logger.debug("AdaptiveEQ: unbekannter Modus '%s' — kein EQ", mode)
@@ -229,7 +229,7 @@ class AdaptiveListeningEQ:
                 for i, sos in enumerate(sos_list):
                     sos_list[i][:, :3] *= 0.70
             total_corr = sum(abs(c[2]) for c in corrections)
-            dur_ms = (time.time() - t0) * 1000.0
+            dur_ms = (time.monotonic() - t0) * 1000.0
 
             logger.info(
                 "AdaptiveEQ [%s]: %d Bänder korrigiert, %d übersprungen, Σ|corr|=%.1f dB (%.0f ms)",

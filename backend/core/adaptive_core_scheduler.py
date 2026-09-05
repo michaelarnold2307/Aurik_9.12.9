@@ -217,7 +217,7 @@ class AdaptiveCoreScheduler:
         Returns:
             (processed_audio, execution_time)
         """
-        start_time = time.time()
+        start_time = time.monotonic()
 
         try:
             phase = self.phases[phase_id]
@@ -226,13 +226,13 @@ class AdaptiveCoreScheduler:
             # Rufe Phase-Funktion auf
             result_audio = phase.function(audio, **kwargs)
 
-            execution_time = time.time() - start_time
+            execution_time = time.monotonic() - start_time
             logger.debug("✅ %s abgeschlossen in %.2fs", phase_id, execution_time)
 
             return result_audio, execution_time
 
         except Exception as e:
-            execution_time = time.time() - start_time
+            execution_time = time.monotonic() - start_time
             logger.error("❌ %s fehlgeschlagen after %.2fs: %s", phase_id, execution_time, e)
             raise
 
@@ -247,7 +247,7 @@ class AdaptiveCoreScheduler:
         Returns:
             Processed Audio
         """
-        start_time = time.time()
+        start_time = time.monotonic()
 
         logger.info("Starte execution of %s phases on %s cores", len(self.phases), self.num_cores)
 
@@ -334,7 +334,7 @@ class AdaptiveCoreScheduler:
                             raise
 
         # Compute Statistics
-        total_time = time.time() - start_time
+        total_time = time.monotonic() - start_time
         self._compute_statistics(total_time)
 
         logger.info("✅ Pipeline abgeschlossen in %.2fs", total_time)

@@ -1,9 +1,9 @@
 # Spec-Integrations-Fehlerprotokoll
 
-- Erzeugt: 2026-08-31T09:20:24.493755
+- Erzeugt: 2026-09-05T10:41:09.077060
 - Fehler: **0** · Warnungen: 0
 
-## INFO (47)
+## INFO (46)
 
 - **[spec_references]** `10_lag_integrity_architecture.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
   - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
@@ -18,8 +18,6 @@
 - **[spec_references]** `16_phantom_rollout.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
   - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
 - **[spec_references]** `18_depth_threshold_calibration_shift.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
-  - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
-- **[spec_references]** `18_non_plus_ultra_perceptual_fidelity.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
   - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
 - **[spec_references]** `18_verification_plan.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
   - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
@@ -99,3 +97,4 @@
   - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
 - **[spec_references]** `v10.99x_stimmiges_gesamtsystem.md` — Spec ist nur im Index verankert, sonst nirgendwo referenziert
   - Behebung: Spec in der normativen Kette oder im Code verlinken, sonst als obsolet markieren.
+
