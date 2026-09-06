@@ -156,8 +156,12 @@ class VocalClarityMax:
         try:
             from backend.core.musical_goals.vocal_quality_index import compute_vqi
 
-            report.vqi_before = compute_vqi(mono, sr)
-            report.vqi_after = compute_vqi(np.mean(result, axis=0) if result.ndim == 2 else result, sr)
+            # §VQI-Signatur-Fix (2026-09-06): Selbstreferenz-VQI braucht beide
+            # Signal-Argumente — der 2-Arg-Aufruf warf TypeError (missing 'sr')
+            # und setzte naturalness_ok still auf True (§V6-Silent-Failure).
+            report.vqi_before = compute_vqi(mono, mono, sr)
+            _vqi_after_mono = np.mean(result, axis=0) if result.ndim == 2 else result
+            report.vqi_after = compute_vqi(_vqi_after_mono, _vqi_after_mono, sr)
             report.naturalness_ok = report.vqi_after >= report.vqi_before - 0.02
         except Exception:
             report.naturalness_ok = True

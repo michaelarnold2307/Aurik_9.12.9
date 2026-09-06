@@ -54,6 +54,12 @@
   Jetzt: `_is_singmos_source_capped` (Quelle < 2.5 und Output ≥ Quelle − 0.10 →
   INFO statt WARNUNG, keine futile phase_65-Schleife, kein fail_reasons-Eintrag);
   echter Drop/Quelle-über-Schwelle bleibt Warnung + Recovery. +4 Unit-Tests.
+- **VQI-Signatur-Fix:** `compute_vqi()` braucht `(audio_orig, audio_restored, sr)` —
+  zwei Aufrufstellen riefen 2-arg und warfen „missing 1 required positional
+  argument: 'sr'“: (a) `einladungs_gate.check_vqi_recovery` → VQI-Recovery-Check
+  lief nie, stiller konservativer Default 0.72/0.72, (b) `vocal_clarity_max`
+  VQI-Naturalness-Check → `naturalness_ok` wurde still auf True gesetzt (§V6).
+  Beide auf Selbstreferenz-VQI `(x, x, sr)` korrigiert (Repo-Konvention phase_65/66).
 - **Anti-Fatigue (Hörordnung §6):** „BEST-EFFORT (no corrections possible)“
   behoben — OneTakeExport korrigierte Fatigue nur per blindem High-Shelf,
   während die eigene Korrekturkette (Gain → Limiter → Kompression) die

@@ -477,7 +477,10 @@ def check_vqi_recovery(
     try:
         from backend.core.musical_goals.vocal_quality_index import compute_vqi, get_vqi_material_floor
 
-        vqi = float(compute_vqi(audio, sr))
+        # §VQI-Signatur-Fix (2026-09-06): compute_vqi(audio_orig, audio_restored, sr) —
+        # der 2-Arg-Aufruf warf TypeError (missing 'sr') und lief still in den
+        # konservativen Default. Selbstreferenz-VQI wie in phase_66/phase_65.
+        vqi = float(compute_vqi(audio, audio, sr))
         floor = float(get_vqi_material_floor(material_type))
 
         return vqi, floor
