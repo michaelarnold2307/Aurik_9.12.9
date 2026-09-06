@@ -1357,6 +1357,52 @@ _ANALOG_ERA_CEILING: dict[str, int] = {
 }
 
 
+def _apply_analog_era_ceiling(
+    result: EraResult, transfer_chain: list[str] | None
+) -> tuple[EraResult, int | None, str | None]:
+    """§2.13 Multi-Generation Era Ceiling — Analog-Träger begrenzt die Ära.
+
+    Enthält die Transfer-Kette einen analogen Ursprungsträger, darf die
+    erkannte Ära nicht jünger sein als das Produktionsende dieses Trägers
+    (Beispiel: vinyl→mp3 — CLAP/DSP sagt 2000er, Ceiling klemmt auf 1989).
+
+    Die Korrektur nutzt ``dataclasses.replace`` statt Hand-Rekonstruktion:
+    alle Felder (noise_profile, hf_rolloff_hz, is_remaster_suspected, …)
+    bleiben erhalten und Pflichtfelder wie ``era_label`` können nicht
+    verloren gehen (Watchdog-Bug „Pre-Analyse degradiert" 2026-09-06).
+
+    Args:
+        result: Vorläufiges Era-Ergebnis (darf None sein → unverändert zurück).
+        transfer_chain: Effektive Transfer-Kette (z. B. ["vinyl", "mp3_low"]).
+
+    Returns:
+        (korrigiertes Ergebnis, ceiling, ceiling_source) — bei keiner
+        Korrektur (result, None, None).
+    """
+    if not transfer_chain or result is None:
+        return result, None, None
+    _ceiling = 9999
+    _ceiling_source = None
+    for _mat in transfer_chain:
+        _mat_lower = str(_mat).lower().replace(" ", "_").replace("-", "_")
+        _c = _ANALOG_ERA_CEILING.get(_mat_lower)
+        if _c is not None and _c < _ceiling:
+            _ceiling = _c
+            _ceiling_source = _mat_lower
+    if _ceiling >= 9999 or result.decade <= _ceiling:
+        return result, None, None
+    return (
+        dc_replace(
+            result,
+            decade=_ceiling,
+            era_label=f"{_ceiling}er",
+            confidence=result.confidence * 0.85,  # leichte Unsicherheit
+        ),
+        _ceiling,
+        _ceiling_source,
+    )
+
+
 class EraClassifier:
     """Erkennt Aufnahme-Ära (1890–2025) und leitet epochenspezifische Priors ab.
 
@@ -1722,26 +1768,9 @@ class EraClassifier:
         # Beispiel: vinyl→cassette→mp3 → vinyl ceiling=1989. Auch wenn CLAP/DSP
         # 1990er erkennen (wegen mp3-Artefakten), wird auf 1989 geklemmt.
         if transfer_chain and result is not None:
-            _ceiling = 9999
-            _ceiling_source = None
-            for _mat in transfer_chain:
-                _mat_lower = str(_mat).lower().replace(" ", "_").replace("-", "_")
-                _c = _ANALOG_ERA_CEILING.get(_mat_lower)
-                if _c is not None and _c < _ceiling:
-                    _ceiling = _c
-                    _ceiling_source = _mat_lower
-            if _ceiling < 9999 and result.decade > _ceiling:
-                _original_decade = result.decade
-                result = EraResult(  # type: ignore[call-arg]
-                    decade=_ceiling,
-                    confidence=result.confidence * 0.85,  # leichte Unsicherheit
-                    material_prior=result.material_prior,
-                    noise_profile=result.noise_profile,
-                    tier_used=result.tier_used,
-                    tier1_used=result.tier1_used,
-                    regression_snr=result.regression_snr,
-                    regression_mos=result.regression_mos,
-                )
+            _original_decade = result.decade
+            result, _ceiling, _ceiling_source = _apply_analog_era_ceiling(result, transfer_chain)
+            if _ceiling is not None:
                 logger.info(
                     "🕰️ §2.13 Era-Ceiling: chain=%s → %s ceiling=%d → "
                     "decade %d→%d (CLAP/DSP said %d, corrected for analog source)",

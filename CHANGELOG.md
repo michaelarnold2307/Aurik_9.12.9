@@ -16,6 +16,12 @@
   Export bleibt null) + `AURIK_MASTER_SEED`-Override im Seed-Manager.
 - **Wiederholungen:** `--repeats N` mit deterministischer Seed-Folge (42+i, §G5)
   — echte Stichproben für Bootstrap-CI; Budget-Prüfung je Wiederholung.
+- **Fix (Era):** §2.13-Ceiling-Rekonstruktion ließ das Pflichtfeld `era_label`
+  weg (`type: ignore[call-arg]` maskierte das) → TypeError „EraResult.__init__()
+  missing 1 required positional argument: 'era_label'" → Watchdog „Pre-Analyse
+  degradiert" bei Songs mit analogem Träger in der Kette. Behoben via
+  `dc_replace`-Helper `_apply_analog_era_ceiling` (Felder bleiben erhalten,
+  Ignore entfernt) + 6 Regressionstests (unit + classify-Pfad).
 - **Fix:** `pyproject.toml` TOML-Syntax (Trailing-Quotes in `description`),
   Versions-Kommentar 10.0.20.
 

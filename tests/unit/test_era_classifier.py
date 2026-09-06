@@ -13,6 +13,8 @@ from backend.core.era_classifier import (
     MEDIUM_DECADE_FLOOR,
     EraClassifier,
     EraResult,
+    _ANALOG_ERA_CEILING,
+    _apply_analog_era_ceiling,
     _dsp_fingerprint_decade,
     _estimate_highband_presence,
     _estimate_lf_presence,
@@ -1111,3 +1113,100 @@ class TestMaterialFloorViolationV10:
         # Wichtig: kein Crash, valides Ergebnis
         assert result.decade in VALID_DECADES
         assert result.tier_used in (1, 2, 3)
+
+
+class TestAnalogEraCeiling:
+    """§2.13 Analog-Ceiling: Regression für Watchdog-Bug 2026-09-06.
+
+    Die Ceiling-Korrektur rekonstruierte das EraResult per Hand und ließ das
+    Pflichtfeld ``era_label`` weg (maskiert durch ``type: ignore[call-arg]``)
+    → TypeError „EraResult.__init__() missing 1 required positional argument:
+    'era_label'" → Watchdog „Pre-Analyse degradiert" bei allen Songs mit
+    analogem Träger in der Kette und neuer erkannter Ära.
+    """
+
+    @staticmethod
+    def _mk_result(decade: int) -> EraResult:
+        return EraResult(
+            decade=decade,
+            era_label=f"{decade}er",
+            confidence=0.90,
+            material_prior="mp3_high",
+            noise_profile=np.zeros(24, dtype=np.float32),
+            tier_used=2,
+            hf_rolloff_hz=16000.0,
+            is_remaster_suspected=True,
+        )
+
+    def test_ceiling_sets_era_label_and_preserves_fields(self):
+        result = self._mk_result(2000)
+        corrected, ceiling, source = _apply_analog_era_ceiling(result, ["vinyl"])
+        assert ceiling == _ANALOG_ERA_CEILING["vinyl"] == 1989
+        assert source == "vinyl"
+        # __post_init__ schnappt 1989 aufs Raster → 1990 (Label konsistent).
+        assert corrected.decade == 1990
+        # Der eigentliche Bug: era_label muss gesetzt sein — kein TypeError.
+        assert corrected.era_label == f"{corrected.decade}er"
+        assert corrected.confidence == pytest.approx(0.90 * 0.85)
+        # dc_replace erhält alle übrigen Felder (vorher gingen verloren).
+        assert corrected.material_prior == "mp3_high"
+        assert corrected.hf_rolloff_hz == 16000.0
+        assert corrected.is_remaster_suspected is True
+        assert corrected.tier_used == 2
+
+    def test_ceiling_min_over_chain(self):
+        # shellac (1955) ist enger als vinyl (1989) → Minimum gewinnt.
+        result = self._mk_result(2000)
+        corrected, ceiling, source = _apply_analog_era_ceiling(result, ["vinyl", "shellac", "mp3_low"])
+        assert ceiling == _ANALOG_ERA_CEILING["shellac"] == 1955
+        assert source == "shellac"
+        # __post_init__ schnappt 1955 aufs Raster → 1950 (Label konsistent).
+        assert corrected.decade == 1950
+        assert corrected.era_label == "1950er"
+
+    def test_ceiling_noop_when_below_ceiling(self):
+        result = self._mk_result(1970)
+        corrected, ceiling, source = _apply_analog_era_ceiling(result, ["vinyl"])
+        assert ceiling is None and source is None
+        assert corrected is result
+
+    def test_ceiling_noop_without_chain(self):
+        result = self._mk_result(2000)
+        corrected, ceiling, source = _apply_analog_era_ceiling(result, None)
+        assert ceiling is None and source is None
+        assert corrected is result
+
+    def test_ceiling_noop_for_digital_only_chain(self):
+        # Digitale Kette (cd_digital/mp3_high) hat keinen Analog-Ceiling-Eintrag.
+        result = self._mk_result(2000)
+        corrected, ceiling, source = _apply_analog_era_ceiling(result, ["cd_digital", "mp3_high"])
+        assert ceiling is None and source is None
+        assert corrected is result
+
+    def test_classify_with_analog_chain_does_not_crash(self, monkeypatch, clf):
+        """End-to-End-Regression: classify() mit Analog-Kette + junger Ära.
+
+        Vor dem Fix: TypeError „EraResult.__init__() missing 1 required
+        positional argument: 'era_label'" im §2.13-Ceiling-Pfad → Watchdog
+        „Pre-Analyse degradiert". Reproduziert den Produktionspfad.
+        """
+
+        def fake_tier1(*args, **kwargs):
+            return EraResult(
+                decade=2000, era_label="2000er", confidence=0.60, material_prior="mp3_high", tier_used=1
+            )
+
+        def fake_tier2(*args, **kwargs):
+            return EraResult(
+                decade=2000, era_label="2000er", confidence=0.60, material_prior="mp3_high", tier_used=2
+            )
+
+        monkeypatch.setattr(clf, "_try_tier1", fake_tier1)
+        monkeypatch.setattr(clf, "_tier2", fake_tier2)
+
+        audio = np.random.randn(int(SR * 15)).astype(np.float32) * 0.1
+        result = clf.classify(audio, SR, transfer_chain=["vinyl", "mp3_low"])
+        # Ceiling-Korrektur: era_label ist gesetzt und konsistent zum Jahrzehnt.
+        assert result.decade in VALID_DECADES
+        assert result.decade <= 1990  # Ceiling 1989 → Raster-Snap 1990
+        assert result.era_label == f"{result.decade}er"
