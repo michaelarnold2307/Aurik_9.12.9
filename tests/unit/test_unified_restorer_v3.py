@@ -4638,3 +4638,20 @@ class TestResolveHighRestorabilityCap:
             high_restorability_gate=True,
         )
         assert cap is not None and 0.05 <= cap <= 1.0
+
+
+class TestSingMosSourceCeiling:
+    """§G4-SOTA: SingMOS-Quell-Relativierung (Watchdog-Warnung 2026-09-06)."""
+
+    def test_source_below_threshold_no_loss_is_ceiling(self):
+        # Quelle 2.42 (historische mp3-Quelle) + Output 2.42 → Material-Ceiling.
+        assert _uv3_mod._is_singmos_source_capped(2.42, 2.42) is True
+
+    def test_source_below_threshold_real_drop_is_not_ceiling(self):
+        assert _uv3_mod._is_singmos_source_capped(2.42, 2.30) is False
+
+    def test_source_above_threshold_loss_is_not_ceiling(self):
+        assert _uv3_mod._is_singmos_source_capped(2.60, 2.42) is False
+
+    def test_unknown_source_keeps_gate(self):
+        assert _uv3_mod._is_singmos_source_capped(None, 2.42) is False

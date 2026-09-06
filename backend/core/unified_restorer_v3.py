@@ -135,6 +135,18 @@ class RestorationConfig:
             self.mode = QualityMode.MAXIMUM
 
 
+def _is_singmos_source_capped(source_singmos: float | None, current_singmos: float) -> bool:
+    """§G4-SOTA: Quelle limitiert den SingMOS-Ceiling — kein Warn-/Recovery-Fall.
+
+    Liegt schon die QUELLE unter 2.5 und hat die Restauration nichts verloren
+    (≤ 0.10 Drop), ist der Wert Material-Ceiling, keine Aurik-Verschlechterung
+    (§V7 Ursache statt Symptom; §G4-Intent = Schutz vor Naturalness-Verlust).
+    """
+    return bool(
+        source_singmos is not None and source_singmos < 2.5 and current_singmos >= (source_singmos - 0.10)
+    )
+
+
 @dataclass
 class RestorationResult:
     """Ergebnis der Restoration (Spec §2.1 / §2.2)."""
@@ -19865,9 +19877,34 @@ class UnifiedRestorerV3:
                 _singmos_val = float(_smp_g4.predict(_smp_in.astype(np.float32), sample_rate))
                 self._phase_metadata_accumulator["singmos"] = _singmos_val
                 logger.info("§G4 (GEBOTE.md) SingMOS=%.2f (panns_singing=%.2f)", _singmos_val, _singmos_panns)
+                # §SingMOS-Quell-Relativierung (SOTA 2026-09-06): SingMOS der QUELLE
+                # bestimmen — liegt schon die Quelle unter 2.5 und haben wir nichts
+                # verloren, ist der Wert Material-Ceiling (keine Warnung, keine futile
+                # phase_65-Schleife).
+                _smp_src_singmos: float | None = None
+                try:
+                    _smp_src_ref = getattr(self, "_pre_pipeline_ref", None)
+                    if _smp_src_ref is not None:
+                        _smp_src_arr = np.asarray(_smp_src_ref)
+                        if _smp_src_arr.ndim == 2:
+                            _smp_src_mono = (
+                                _smp_src_arr.mean(axis=0) if _smp_src_arr.shape[0] <= 2 else _smp_src_arr.mean(axis=1)
+                            )
+                        else:
+                            _smp_src_mono = _smp_src_arr
+                        _smp_src_singmos = float(_smp_g4.predict(_smp_src_mono.astype(np.float32), sample_rate))
+                except Exception:
+                    _smp_src_singmos = None
+                _singmos_source_capped = _is_singmos_source_capped(_smp_src_singmos, _singmos_val)
+                if _singmos_source_capped:
+                    logger.info(
+                        "§G4 (GEBOTE.md) SingMOS-Quell-Ceiling: Quelle=%.2f Output=%.2f — kein Warnfall",
+                        _smp_src_singmos,
+                        _singmos_val,
+                    )
                 # §G4 (GEBOTE.md) SingMOS Phase_65-Recovery: fixe Schwelle 2.5 (normativer
                 # Vocal-Excellence-Contract) — keine Carrier-Adaption.
-                _singmos_needs_phase65 = _singmos_val < 2.5
+                _singmos_needs_phase65 = _singmos_val < 2.5 and not _singmos_source_capped
                 if self.is_studio_mode():
                     _singmos_needs_phase65 = False
                 singmos_phase65_recovery = bool(_singmos_needs_phase65)
@@ -19955,8 +19992,17 @@ class UnifiedRestorerV3:
                         )
                 # §v10.0.4 Restorability-adaptives Log-Level (Recovery läuft immer bei <2.5)
                 if _singmos_val < 2.5:
-                    _smo_rest = float(getattr(self, "_last_restorability_score", 70.0))
-                    if _smo_rest >= 70.0:
+                    # §SingMOS-SOTA: echten Restorability-Wert nutzen (vorher Default 70
+                    # → falsche WARNUNG statt „erwartet“ bei Restorability < 70).
+                    _smo_rest = float(getattr(self, "_last_restorability_score", None) or _pmgg_restorability_score)
+                    if _singmos_source_capped:
+                        logger.info(
+                            "§G4 (GEBOTE.md) SingMOS=%.2f < 2.5 → Material-Ceiling (Quelle=%.2f, restorability=%.0f)",
+                            _singmos_val,
+                            _smp_src_singmos,
+                            _smo_rest,
+                        )
+                    elif _smo_rest >= 70.0:
                         logger.warning(
                             "§G4 (GEBOTE.md) SingMOS=%.2f < 2.5 → Verarbeitungsschritt_65-Wiederherstellung (Naturalness niedrig)",
                             _singmos_val,
@@ -19967,14 +20013,15 @@ class UnifiedRestorerV3:
                             _singmos_val,
                             _smo_rest,
                         )
-                    _fail_reasons.append(
-                        {
-                            "component": "SingMOSGate",
-                            "error_code": "SINGMOS_BELOW_2_5",
-                            "severity": "warning",
-                            "singmos": _singmos_val,
-                        }
-                    )
+                    if not _singmos_source_capped:
+                        _fail_reasons.append(
+                            {
+                                "component": "SingMOSGate",
+                                "error_code": "SINGMOS_BELOW_2_5",
+                                "severity": "warning",
+                                "singmos": _singmos_val,
+                            }
+                        )
         except Exception as _smp_exc:
             logger.debug("§G4 (GEBOTE.md) SingMOS Gate nicht blockierend: %s", _smp_exc)
 

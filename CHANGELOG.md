@@ -47,6 +47,13 @@
   Warmth/Naturalness/Brightness hatten diesen Quell-Guard längst. Jetzt:
   Gate nur bei echtem Verlust (> 0.05 Drop), Medium- UND Mode-Gate; der echte
   Charakter-Verlust bleibt über den Drop-Limit-Check abgedeckt. +2 Regressionstests.
+- **SingMOS-Quell-Relativierung (§G4-SOTA):** „SingMOS=2.42 < 2.5 → phase_65“
+  feuerte als WARNUNG, obwohl (a) die Restorability 64 war — das Log-Level griff
+  auf einen nicht gesetzten Attr-Default 70 zurück statt auf den echten Wert — und
+  (b) die QUELLE selbst unter 2.5 lag (Material-Ceiling, kein Aurik-Verlust).
+  Jetzt: `_is_singmos_source_capped` (Quelle < 2.5 und Output ≥ Quelle − 0.10 →
+  INFO statt WARNUNG, keine futile phase_65-Schleife, kein fail_reasons-Eintrag);
+  echter Drop/Quelle-über-Schwelle bleibt Warnung + Recovery. +4 Unit-Tests.
 - **Anti-Fatigue (Hörordnung §6):** „BEST-EFFORT (no corrections possible)“
   behoben — OneTakeExport korrigierte Fatigue nur per blindem High-Shelf,
   während die eigene Korrekturkette (Gain → Limiter → Kompression) die
