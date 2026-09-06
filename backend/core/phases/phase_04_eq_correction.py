@@ -1270,6 +1270,13 @@ class EQCorrectionPhase(PhaseInterface):
 
         Uses proper biquad design for peaking/shelving filters.
         """
+        # §NameError-Fix (2026-09-06): _safe_sosfiltfilt04 war nur im
+        # Spectral-OT-Pfad lokal importiert — hier fehlte der Import,
+        # d.h. jeder Peaking-EQ-Einsatz warf NameError (Smoke-Test-Bruch).
+        from backend.core.audio_utils import (
+            safe_sosfiltfilt as _safe_sosfiltfilt04,  # pylint: disable=import-outside-toplevel
+        )
+
         # Design peaking filter via biquad
         w0 = 2 * np.pi * freq / self.sample_rate
         A = 10 ** (gain_db / 40)  # Amplitude

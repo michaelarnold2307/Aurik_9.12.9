@@ -94,6 +94,9 @@ class Level1InvariantsGuard:
 
             self._resemblyzer_available = True
         except ImportError:
+            # §V74 (VERBOTEN.md): kein stilles except:pass — Resemblyzer ist optional,
+            # der fehlende Import wird bewusst toleriert.
+            logger.debug("Resemblyzer nicht verfügbar — optionale Stimmen-Parameter deaktiviert")
             pass
 
     def check(
@@ -131,9 +134,7 @@ class Level1InvariantsGuard:
             consonant_clarity = self._measure_consonant_clarity(pre, post, sr)
 
             # ── Invariante 3: Vibrato-Erhalt ───────────────────────────────
-            vibrato_rate_error, vibrato_depth = self._measure_vibrato_preservation(
-                pre, post, sr, context
-            )
+            vibrato_rate_error, vibrato_depth = self._measure_vibrato_preservation(pre, post, sr, context)
 
             # ── Invariante 4: Dynamikbogen ─────────────────────────────────
             emotional_arc_corr = self._measure_emotional_arc(pre, post, sr)
@@ -163,7 +164,9 @@ class Level1InvariantsGuard:
 
             if emotional_arc_corr < _EMOTIONAL_ARC_CORRELATION_THRESHOLD:
                 violated.append("emotional_arc")
-                blend = min(blend, float(np.clip(emotional_arc_corr / _EMOTIONAL_ARC_CORRELATION_THRESHOLD * 0.5, 0.1, 0.8)))
+                blend = min(
+                    blend, float(np.clip(emotional_arc_corr / _EMOTIONAL_ARC_CORRELATION_THRESHOLD * 0.5, 0.1, 0.8))
+                )
 
             if breath_change > _BREATH_CHANGE_PERCENT:
                 violated.append("breath_structure")
@@ -299,37 +302,13 @@ class Level1InvariantsGuard:
     def _measure_emotional_arc(self, pre: np.ndarray, post: np.ndarray, sr: int) -> float:
         """Misst Dynamikbogen (EmotionalArc-Korrelation)."""
         try:
-            from backend.core.aura_preserver import compute_emotional_arc
+            # §Dead-Import-Fix (2026-09-06): aura_preserver.compute_emotional_arc
+            # existiert nicht — der Import warf ImportError und landete still im
+            # konservativen Default (§V6, copilot-instructions.md). Kanonisch ist §G54:
+            # preservation_metrics.compute_emotional_arc_score (Rückgabe [0,1]).
+            from backend.core.preservation_metrics import compute_emotional_arc_score
 
-            arc_pre = compute_emotional_arc(pre, sr)
-            arc_post = compute_emotional_arc(post, sr)
-
-            if hasattr(arc_pre, "correlation") and hasattr(arc_post, "correlation"):
-                return float(arc_pre.correlation * arc_post.correlation + 1e-8)
-
-            # Fallback: Energie-Korrelation über Zeitfenster
-            mono_pre = pre.mean(axis=0) if pre.ndim == 2 else pre
-            mono_post = post.mean(axis=0) if post.ndim == 2 else post
-
-            window_size = int(5.0 * sr)  # 5-Sekunden-Fenster
-            energy_pre = []
-            energy_post = []
-
-            for i in range(0, len(mono_pre), window_size):
-                chunk = mono_pre[i : i + window_size]
-                energy_pre.append(float(np.sqrt(np.mean(chunk**2) + 1e-12)))
-
-            for i in range(0, len(mono_post), window_size):
-                chunk = mono_post[i : i + window_size]
-                energy_post.append(float(np.sqrt(np.mean(chunk**2) + 1e-12)))
-
-            if len(energy_pre) > 2 and len(energy_post) > 2:
-                # Länge angleichen
-                min_len = min(len(energy_pre), len(energy_post))
-                corr = float(np.corrcoef(energy_pre[:min_len], energy_post[:min_len])[0, 1])
-                return max(corr, 0.0)
-
-            return 0.5  # Default bei zu kurzem Audio
+            return float(compute_emotional_arc_score(pre, post, sr))
 
         except Exception as e:
             logger.warning("§Ebene-1 emotional_arc Messung fehlgeschlagen: %s", e)

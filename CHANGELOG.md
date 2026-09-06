@@ -60,6 +60,18 @@
   lief nie, stiller konservativer Default 0.72/0.72, (b) `vocal_clarity_max`
   VQI-Naturalness-Check → `naturalness_ok` wurde still auf True gesetzt (§V6).
   Beide auf Selbstreferenz-VQI `(x, x, sr)` korrigiert (Repo-Konvention phase_65/66).
+- **Pre-Commit-Gate-Härtung (2026-09-06):** drei weitere Import-/NameError-Bugs
+  der gleichen Klasse behoben — (a) `phase_04_eq_correction._apply_peaking_filter`
+  nutzte `_safe_sosfiltfilt04` ohne lokalen Import (NameError bei jedem
+  Peaking-EQ-Einsatz, Smoke-Test-Bruch), (b) `bark_lufs_util` nutzte
+  `logging.getLogger` ohne `import logging` (ImportError bei erstem Import),
+  (c) `level_1_invariants_guard._measure_emotional_arc` importierte das
+  nicht-existente `aura_preserver.compute_emotional_arc` (stiller Default, §V6)
+  → jetzt kanonisch `preservation_metrics.compute_emotional_arc_score` (§G54).
+  Dazu: FILE_REGISTRY-Duplikate entfernt (4), Sprache-Guard-Log eingedeutscht,
+  Calibration-Linter-Baseline nachgezogen (13 bekannte Defaults), 2 Test-Mocks
+  an Produktions-Signaturen angepasst (librosa center-Kwarg, Medium-Ketten-Tiefe
+  ≤ _MAX_ANALOG_CHAIN_DEPTH+2).
 - **Anti-Fatigue (Hörordnung §6):** „BEST-EFFORT (no corrections possible)“
   behoben — OneTakeExport korrigierte Fatigue nur per blindem High-Shelf,
   während die eigene Korrekturkette (Gain → Limiter → Kompression) die

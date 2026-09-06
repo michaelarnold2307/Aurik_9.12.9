@@ -1,12 +1,12 @@
 backend/api/bridge_calibration_data.py:32
-backend/core/adaptive_strength_optimizer.py:170,344
+backend/core/adaptive_strength_optimizer.py:171,345
 backend/core/artifact_freedom_gate.py:353
 backend/core/era_authentic_perceptual_completion.py:113
 backend/core/joint_calibrator.py:60
 backend/core/perceptual_tuning.py:195,225
 backend/core/pipeline_calibration.py:114,180
-backend/core/signal_flow_tracer.py:1076
+backend/core/signal_flow_tracer.py:1077
 backend/core/song_calibration.py:30
 backend/core/song_calibration_profile.py:35
-# Baseline Hash: 0030ea6da7643769
+# Baseline Hash: afc0914e19c94117
 # 13 Verstöße in 10 Dateien

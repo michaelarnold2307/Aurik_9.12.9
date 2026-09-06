@@ -89,10 +89,6 @@
 | backend/core/perceptual_phase_gate.py | ACTIVE | backend/core | ja | — | Perzeptuelles Gate für Phasen-Entscheidungen: Roughness/Sharpness-Fenster + Ermüdungs-Abbruch; nutzt zwicker_metrics (2026-09-05) |
 | backend/core/reconstruction_context.py | ACTIVE | backend/core | ja | — | Rekonstruktions-Kontext-Management: Song-isolierte Stateful-Module, Circuit-Breaker + Caches pro Song (§V8/§G1) (2026-09-05) |
 | backend/core/vocal_supremacy_gate.py | ACTIVE | backend/core | ja | — | Vokal-Suprematie-Gate: Vokal hat Priorität über alle anderen Spuren; verhindert Überkompression von Gesang (2026-09-05) |
-| backend/core/logging_utils.py | ACTIVE | backend/core | ja | — | Logging-Hilfsfunktionen: standardisierte Logger-Konfiguration, Formatvorlagen für DSP/ML-Phasen (2026-09-05) |
-| backend/core/material_bandwidth_ceiling.py | ACTIVE | backend/core | ja | — | Material-spezifische Bandbreiten-Obergrenze: Medium/Era-adaptive HF-Ceiling; verhindert Überextrapolation (2026-09-05) |
-| backend/core/perceptual_phase_gate.py | ACTIVE | backend/core | ja | — | Perzeptuelles Gate für Phasen-Entscheidungen: Roughness/Sharpness-Fenster + Ermüdungs-Abbruch; nutzt zwicker_metrics (2026-09-05) |
-| backend/core/reconstruction_context.py | ACTIVE | backend/core | ja | — | Rekonstruktions-Kontext-Management: Song-isolierte Stateful-Module, Circuit-Breaker + Caches pro Song (§V8/§G1) (2026-09-05) |
 
 ## Pflege-Regeln
 

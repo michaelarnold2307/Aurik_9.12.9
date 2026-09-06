@@ -565,7 +565,11 @@ class TestMediumDetector:
         result = detector.detect(audio, sr=48000, file_ext=".mp3")
 
         order = detector._MEDIUM_ORDER
-        assert len(result.transfer_chain) <= 5
+        # §Tiefen-Cap-Fix (2026-09-06): Die GESAMT-Kette darf 6 Stufen erreichen —
+        # der Analog-Anteil ist durch _MAX_ANALOG_CHAIN_DEPTH (5) begrenzt, dazu
+        # max. 1 digitale Zwischenstufe (cd_digital) + 1 Codec-Layer (mp3_low).
+        # Das alte harte <= 5 verletzte legale Tief-5-Ketten.
+        assert len(result.transfer_chain) <= detector._MAX_ANALOG_CHAIN_DEPTH + 2
         assert result.transfer_chain[-1] in {"mp3_low", "mp3_high", "aac"}
         assert all(
             order.get(a, 99) <= order.get(b, 99) for a, b in zip(result.transfer_chain, result.transfer_chain[1:])

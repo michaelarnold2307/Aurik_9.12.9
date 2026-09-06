@@ -128,16 +128,16 @@ class EinladungsGate:
             failure_reasons = []
 
             # Kriterium 1: Keine Roughness-Spitze > 0.5 in Stimmen-/Klimax-Zonen
-            roughness_max_in_voiced = self._check_roughness_in_voiced_zones(
-                roughness_windows, voiced_zones, sr
-            )
+            roughness_max_in_voiced = self._check_roughness_in_voiced_zones(roughness_windows, voiced_zones, sr)
             if roughness_max_in_voiced > ROUGHNESS_SPIKE_THRESHOLD:
                 failure_reasons.append(
                     f"Roughness-Spitze {roughness_max_in_voiced:.3f} > {ROUGHNESS_SPIKE_THRESHOLD} in Stimme/Klimax"
                 )
 
             # Kriterium 2: Sharpness-Verlauf ohne Sprünge > 0.2 acum
-            sharpness_max_jump = float(np.max(np.abs(np.diff(sharpness_windows)))) if len(sharpness_windows) > 1 else 0.0
+            sharpness_max_jump = (
+                float(np.max(np.abs(np.diff(sharpness_windows)))) if len(sharpness_windows) > 1 else 0.0
+            )
             if sharpness_max_jump > SHARPNESS_JUMP_THRESHOLD:
                 failure_reasons.append(
                     f"Sharpness-Sprung {sharpness_max_jump:.3f} > {SHARPNESS_JUMP_THRESHOLD} acum zwischen Fenstern"
@@ -486,7 +486,7 @@ def check_vqi_recovery(
         return vqi, floor
 
     except Exception as e:
-        logger.warning("VQI-Recovery-Check fehlgeschlagen: %s", e)
+        logger.warning("VQI-Wiederherstellungs-Prüfung fehlgeschlagen: %s", e)
         return 0.72, 0.72  # konservativer Default
 
 

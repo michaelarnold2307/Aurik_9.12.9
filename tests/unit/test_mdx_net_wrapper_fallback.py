@@ -16,7 +16,7 @@ def test_hpss_fallback_recombines_close_to_original(monkeypatch):
         ]
     )
 
-    monkeypatch.setattr("librosa.stft", lambda channel, n_fft, hop_length: channel)
+    monkeypatch.setattr("librosa.stft", lambda channel, n_fft, hop_length, center=True: channel)
     monkeypatch.setattr("librosa.decompose.hpss", lambda d, margin=2.0: (0.4 * d, 0.6 * d))
     monkeypatch.setattr("librosa.istft", lambda d, hop_length, length=None: np.asarray(d, dtype=np.float32))
     monkeypatch.setattr("librosa.util.fix_length", lambda x, size: np.asarray(x[:size], dtype=np.float32))
