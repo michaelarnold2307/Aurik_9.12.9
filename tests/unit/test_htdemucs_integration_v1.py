@@ -166,7 +166,11 @@ class TestHtdemucsPlugin:
         from backend.core.musical_goals.musical_goals_metrics import SeparationFidelityMetric
 
         metric = SeparationFidelityMetric()
-        audio = (0.16 * np.sin(np.linspace(0, 4 * np.pi, 48000, dtype=np.float32))).astype(np.float32)
+        # §Separation-SOTA/Test-Drift-Fix: Der <3-s-Guard (§Perf-Fix) leitet
+        # kürzere Signale in den Proxy — das 1-s-Fixture erreichte den echten
+        # HTDemucs-Pfad (und damit den Cache) nie. 3.5 s Fixture stellt die
+        # Testabsicht (Cache-Reuse) wieder her.
+        audio = (0.16 * np.sin(np.linspace(0, 4 * np.pi, int(48000 * 3.5), dtype=np.float32))).astype(np.float32)
         ref = audio.copy()
         calls = {"n": 0}
 

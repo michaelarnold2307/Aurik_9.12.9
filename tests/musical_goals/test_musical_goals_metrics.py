@@ -1830,5 +1830,22 @@ class TestVQIGenreWeights:
         gc.collect(0)
 
 
+def test_sep_time_budget_scaling():
+    """§Separation-SOTA: HTDemucs-Budget skaliert mit Audio-Länge, Floor 3 s.
+
+    Regression für die Warnung „HTDemucs 10.5s > Budget 3.0s“ (2026-09-06):
+    Das Budget war statisch 3 s — Modell-Warm-up und Voll-Song-Inferenz
+    rissen es bei jedem Session-Start. Jetzt: 0.5× RT + 3-s-Floor,
+    Warm-up exklusiv (läuft in measure_all vorab).
+    """
+    from backend.core.musical_goals.musical_goals_metrics import _sep_time_budget_s
+
+    assert _sep_time_budget_s(2.0) == 3.0  # Floor
+    assert _sep_time_budget_s(30.0) == 15.0  # 0.5× RT
+    assert _sep_time_budget_s(240.0) == 120.0  # Voll-Song
+    # 30-s-Clip bei ~0.35× RT ≈ 10.5 s liegt deutlich unter 15 s Budget.
+    assert 10.5 <= _sep_time_budget_s(30.0)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

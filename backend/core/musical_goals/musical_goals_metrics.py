@@ -3575,6 +3575,17 @@ class MicroDynamicsMetric:
         return float(20.0 * np.log10(peak / rms))
 
 
+def _sep_time_budget_s(duration_s: float) -> float:
+    """Längen-kalibriertes HTDemucs-Zeitbudget (§Separation-SOTA).
+
+    Kalibriert am Elke-Best-Referenzlauf: ~0.35× RT auf CPU (Modell-Warm-up
+    ausgenommen — läuft in measure_all vorab außerhalb der Budget-Uhr).
+    0.5× RT + 3-s-Floor gibt Marge für langsame Maschinen, ohne die
+    Budget-Semantik auszuhöhlen.
+    """
+    return float(max(3.0, duration_s * 0.5))
+
+
 class SeparationFidelityMetric:
     """13. Musikalisches Ziel: Separation-Treue (§1.2 Spec 01).
 
@@ -3673,7 +3684,7 @@ class SeparationFidelityMetric:
             - Zu kurz (<2s) für aussagekräftige Demux
             - HTDemucs Modell lädt nicht
             - global_scalar < 0.15 (Restoration-Stärke zu niedrig, Demux nicht sinnvoll)
-            - Time-Budget überschritten (>3s)
+            - Time-Budget überschritten (längen-kalibriert, ~0.5× RT, Warm-up exklusiv)
         """
         min_len = min(len(restored), len(reference))
         if min_len < 64:
@@ -3754,9 +3765,10 @@ class SeparationFidelityMetric:
             return float(np.clip(_prior, 0.0, 1.0))
         self._heavy_sep_budget_left = _sep_budget - 1
 
-        # Time-Budget: max. 3s für HTDemucs-Inferenz — darüber fällt auf Proxy zurück
+        # Time-Budget: längen-kalibriert (~0.5× RT, Floor 3 s) für HTDemucs-INFERENZ —
+        # Modell-Warm-up läuft in measure_all vorab und zählt nicht gegen das Budget.
         _t0 = time.perf_counter()
-        _time_budget_s = 3.0
+        _time_budget_s = _sep_time_budget_s(_duration_s)
 
         # Versuche HTDemucs-Separation
         try:
@@ -4536,6 +4548,29 @@ class MusicalGoalsChecker:
             )
 
         scores: dict[str, float] = {}
+
+        # §Separation-SOTA (2026-09-06): HTDemucs-Modell einmalig VOR der
+        # Per-Goal-Budget-Uhr vorwärmen — der erste separation_fidelity-Call
+        # zahlte sonst Modell-Load (~5-8 s) und riss Time-Budget + die
+        # measure_all-Zeitwarnung bei jedem Session-Start.
+        if float(global_scalar) >= 0.15 and getattr(self, "_htdemucs_warmed", False) is False:
+            self._htdemucs_warmed = True
+            try:
+                from plugins.htdemucs_plugin import get_htdemucs_plugin
+
+                _wp = get_htdemucs_plugin()
+                if getattr(_wp, "_model_type", "uninitialized") == "uninitialized":
+                    _t_warm0 = time.perf_counter()
+                    try:
+                        _wp.separate(np.zeros(max(int(sr // 4), 1), dtype=np.float32), sr)
+                    except Exception:
+                        pass
+                    logger.debug(
+                        "measure_all: HTDemucs warm-up %.1f s (außerhalb Per-Goal-Budget)",
+                        time.perf_counter() - _t_warm0,
+                    )
+            except Exception:
+                logger.debug("measure_all: HTDemucs warm-up nicht möglich")
 
         _t_all_start = time.perf_counter()
         for goal_name, metric_obj in self.metrics.items():

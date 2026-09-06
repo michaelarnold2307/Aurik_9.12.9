@@ -1,24 +1,20 @@
 # TASK_CHANGES — Live-Ledger der aktuellen Aufgabe
 
-> Generiert von `scripts/change_ledger.py snapshot` (Base: `52ab82d6`, Stand: 2026-09-06 23:51 CEST).
+> Generiert von `scripts/change_ledger.py snapshot` (Base: `7a250f16`, Stand: 2026-09-07 00:04 CEST).
 > CI (`ci-lite.yml` pr-evidence-gate) erzwingt Abdeckung: jede geänderte Code-Datei muss hier stehen.
 
 ## Geänderte Dateien
 
 | Status | Pfad | Art |
 |---|---|---|
-| M | .github/FILE_REGISTRY.md | modifiziert |
-| M | .github/instructions/hoerordnung.instructions.md | modifiziert |
 | M | CHANGELOG.md | modifiziert |
-| M | backend/core/listening_fatigue_metric.py | modifiziert |
-| M | backend/core/one_take_export.py | modifiziert |
-| M | backend/core/unified_restorer_v3.py | modifiziert |
+| M | backend/core/musical_goals/musical_goals_metrics.py | modifiziert |
+| M | tests/musical_goals/test_musical_goals_metrics.py | modifiziert |
+| M | tests/unit/test_htdemucs_integration_v1.py | modifiziert |
 | ?? | .kun-canvas/code-thr_30b063288bfa42e991f4cfd923fe883b/canvas.json | ungetrackt |
 | ?? | .kun-canvas/code-thr_30b063288bfa42e991f4cfd923fe883b/design-system.json | ungetrackt |
 | ?? | .kun-canvas/code-thr_da03d37df8524d309b628ff228693a8e/canvas.json | ungetrackt |
 | ?? | .kun-canvas/code-thr_da03d37df8524d309b628ff228693a8e/design-system.json | ungetrackt |
-| ?? | backend/core/anti_fatigue_pass.py | ungetrackt |
-| ?? | tests/unit/test_anti_fatigue_pass.py | ungetrackt |
 
 ## Entscheidungen
 

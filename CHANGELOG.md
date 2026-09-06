@@ -35,6 +35,12 @@
   numpy-1.26-Stubs typisieren `nan_to_num`/`sosfiltfilt` als Any; Rückgaben
   jetzt über annotierte Typ-Grenze (`_out65: np.ndarray`), 3 tote
   `type: ignore[no-any-return]` entfernt. mypy: 0 Fehler.
+- **Separation-SOTA:** HTDemucs-Warnungen („10.5s > Budget 3.0s“ / „took 10.6s“)
+  beseitigt — (a) Modell-Warm-up läuft jetzt einmalig in `measure_all` VOR der
+  Per-Goal-Budget-Uhr (erster Call zahlte sonst Modell-Load), (b) Zeitbudget
+  längen-kalibriert (`_sep_time_budget_s`: 0.5× RT, Floor 3 s) statt statisch 3 s,
+  (c) Test-Drift-Fix: Cache-Reuse-Test nutzt 3.5-s-Fixture (1-s lief seit dem
+  <3-s-Guard nie durch den echten Pfad).
 - **Anti-Fatigue (Hörordnung §6):** „BEST-EFFORT (no corrections possible)“
   behoben — OneTakeExport korrigierte Fatigue nur per blindem High-Shelf,
   während die eigene Korrekturkette (Gain → Limiter → Kompression) die
