@@ -2839,6 +2839,25 @@ class BatchProcessingThread(QThread):
                     if metrics:
                         self._latest_live_metrics = metrics
                         self._update_live_quality(metrics)
+                        # §Kommunikation Defekt-Chips: behobene Typen in Echtzeit von
+                        # Chip-Zähler und Gesamtzahl subtrahieren (sobald Chips gesetzt).
+                        _resolved_now = metrics.get("resolved") or []
+                        if _resolved_now:
+                            try:
+                                from Aurik10.ui.hearing_gates_summary import apply_resolved_defects as _ard
+
+                                _cc = dict(getattr(self, "_defect_chip_counts", {}) or {})
+                                if _cc:
+                                    _cc, _ct, _cdone = _ard(_cc, _resolved_now)
+                                    self._defect_chip_counts = _cc
+                                    self._defect_chip_total = _ct
+                                    self._defect_chips_done = sorted(
+                                        set(getattr(self, "_defect_chips_done", [])) | set(_cdone)
+                                    )
+                                    if _cdone and hasattr(self, "_refresh_chips_display"):
+                                        self._refresh_chips_display()
+                            except Exception:
+                                pass
                         # Guardian-Revert auch als Status-Text anzeigen
                         if metrics.get("guardian_reverted") and hasattr(self, "status_text"):
                             self._apply_status_text_style("error")
@@ -10701,15 +10720,9 @@ class ModernTitleBar(QWidget):
             safe_color = "rgba(123,147,184,0.85)"
         self.status_label.setText(text)
         # Transparenter Glassmorphism-Hintergrund
-        self.status_label.setStyleSheet(
-            _sanitize_qss_colors(
-                f"color: {safe_color};"
-                "padding: 6px 18px;"
-                "background: rgba(102,126,234,0.08);"
-                "border-radius: 8px;"
-                "font-size: 9.5pt;"
-            )
-        )
+        self.status_label.setStyleSheet(_sanitize_qss_colors(
+            f"color: {safe_color};padding: 6px 18px;background: rgba(102,126,234,0.08);border-radius: 8px;font-size: 9.5pt;"
+        ))
 
 
 class ModernButton(QPushButton):
@@ -13743,9 +13756,7 @@ class ModernMainWindow(QMainWindow):
         self.quality_score_label = QLabel("—")
         self.quality_score_label.setWordWrap(True)
         self.quality_score_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.quality_score_label.setStyleSheet(
-            _sanitize_qss_colors("color: #8894A8; font-size: 8pt; padding: 4px; background: transparent;")
-        )
+        self.quality_score_label.setStyleSheet(_sanitize_qss_colors("color: #8894A8; font-size: 8pt; padding: 4px; background: transparent;"))
         qi.addWidget(self.quality_score_label)
 
         self.info_banner = QLabel("")
@@ -24467,6 +24478,30 @@ class ModernMainWindow(QMainWindow):
                         defects[_ak] = max(float(defects.get(_ak, 0.0) or 0.0), _cur_active_f)
                 _initial_sc = _initial_mut
                 _initial_has_defects = any(v > 0.01 for k, v in _initial_sc.items())
+            # §Kommunikation Defekt-Chips (finaler Render-Einhang): behobene Typen aus
+            # dem Live-Payload (Engine → _latest_live_metrics["resolved"]) in Echtzeit
+            # aus dem aktiven Set entfernen und auf Severity 0 setzen — der bestehende
+            # severity-basierte Chip-Render zeigt sie damit als „behoben“; zusätzlich
+            # Restzahl im Live-Label aktualisieren.
+            if _status == "correcting" and getattr(self, "_latest_live_metrics", None):
+                try:
+                    _resolved_live = (self._latest_live_metrics or {}).get("resolved") or []
+                    if _resolved_live:
+                        for _rk in _resolved_live:
+                            _rk_s = str(_rk).lower()
+                            _active_defects_set.discard(_rk_s)
+                            if isinstance(defects, dict):
+                                defects[_rk_s] = 0.0
+                            _done_set = set(getattr(self, "_defect_chips_done", []))
+                            _done_set.add(_rk_s)
+                            self._defect_chips_done = sorted(_done_set)
+                        if hasattr(self, "defect_count_live_label"):
+                            _remain = len(_active_defects_set)
+                            self.defect_count_live_label.setText(
+                                "✅ Schadensbehebung" if _remain == 0 else f"⚙ Verbleibende Schäden: {_remain}"
+                            )
+                except Exception:
+                    pass
             _show_chips = (
                 bool(active)
                 or bool(_active_defects_set)

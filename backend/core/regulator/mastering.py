@@ -3,6 +3,7 @@ SOTA-Mastering-Chain für AURIK: Modular, erweiterbar, produktiv.
 Enthält: LUFS-Normalisierung, Multiband-Kompression, adaptives EQing, Limiter, Stereo-Enhancement.
 """
 
+import logging
 from collections.abc import Callable
 from typing import Any, cast
 

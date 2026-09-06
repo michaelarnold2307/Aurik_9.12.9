@@ -196,6 +196,9 @@ class EraResult:
         material_prior:        Empfohlener Material-Typ-String aus ``DECADE_MATERIAL_PRIOR``.
         noise_profile:         Spektrales Rauschprofil (Bark-Bänder, 24 Werte).
         tier_used:             Welche Erkennungsstufe genutzt wurde (1 = CLAP, 2 = DSP, 3 = Heuristik).
+        tier1_used:            True wenn Tier-1 (CLAP) Erkennung aktiv war.
+        regression_snr:        SNR-Wert der Regression-Schätzung (falls verfügbar).
+        regression_mos:         MOS-Wert der Regression-Schätzung (falls verfügbar).
         hf_rolloff_hz:         Gemessener HF-Rolloff-Punkt (-3 dB) in Hz.
         is_remaster_suspected: True wenn RemasterDetector einen Remaster erkannt hat.
     """
@@ -206,6 +209,9 @@ class EraResult:
     material_prior: str
     noise_profile: np.ndarray = field(default_factory=lambda: np.zeros(24, dtype=np.float32))
     tier_used: int = 2
+    tier1_used: bool = False
+    regression_snr: float = 0.0
+    regression_mos: float = 0.0
     hf_rolloff_hz: float = 20000.0
     is_remaster_suspected: bool = False
 
@@ -1732,9 +1738,9 @@ class EraClassifier:
                     material_prior=result.material_prior,
                     noise_profile=result.noise_profile,
                     tier_used=result.tier_used,
-                    tier1_used=result.tier1_used,  # type: ignore[attr-defined]
-                    regression_snr=result.regression_snr,  # type: ignore[attr-defined]
-                    regression_mos=result.regression_mos,  # type: ignore[attr-defined]
+                    tier1_used=result.tier1_used,
+                    regression_snr=result.regression_snr,
+                    regression_mos=result.regression_mos,
                 )
                 logger.info(
                     "🕰️ §2.13 Era-Ceiling: chain=%s → %s ceiling=%d → "

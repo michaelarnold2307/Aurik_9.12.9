@@ -205,7 +205,8 @@ def test_close_event_headless_gate():
 
 def test_restaurier_denker_stores_repair_plan_for_frontend():
     src = _read("denker/restaurier_denker.py")
-    assert "cached_defect_result.repair_plan = _repair_plan" in src
+    # Mypy-Fassung (933f1a89): cast(Any, cached_defect_result).repair_plan = _repair_plan
+    assert "cached_defect_result).repair_plan = _repair_plan" in src
 
 
 def test_bridge_exports_sota_accessors():

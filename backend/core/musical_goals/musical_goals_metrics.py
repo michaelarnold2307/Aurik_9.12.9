@@ -36,6 +36,7 @@ import time
 import types
 import importlib
 import warnings
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -191,6 +192,34 @@ except Exception:
 _GET_VERSA_PLUGIN: Any = _GET_VERSA_PLUGIN_IMPL
 
 logger = logging.getLogger(__name__)
+
+# Mel-Filterbank-Cache für _quick_mfcc (sr, n_fft) → weights + freqs
+# Vermeidet Neuberechnung der 20-Band triangular Filterbank bei jedem MFCC-Aufruf.
+_MEL_CACHE: dict[tuple[int, int], tuple[np.ndarray, np.ndarray]] = {}
+
+
+def _get_mel_filterbank(sr: int, n_fft: int) -> tuple[np.ndarray, np.ndarray]:
+    """Liefert (mel_weights, freqs) für gegebene sr/n_fft — cached."""
+    key = (sr, n_fft)
+    if key not in _MEL_CACHE:
+        n_mels = 20
+        freqs = np.fft.rfftfreq(n_fft, d=1.0 / sr)
+        mel_min = 2595 * np.log10(1 + 80 / 700)
+        mel_max = 2595 * np.log10(1 + min(sr / 2, 8000) / 700)
+        mel_pts = np.linspace(mel_min, mel_max, n_mels + 2)
+        hz_pts = 700 * (10 ** (mel_pts / 2595) - 1)
+
+        _left = hz_pts[:-2, None]  # (n_mels, 1)
+        _center = hz_pts[1:-1, None]  # (n_mels, 1)
+        _right = hz_pts[2:, None]  # (n_mels, 1)
+        _fq = freqs[None, :]  # (1, F)
+        _w = np.where(
+            (_fq > _left) & (_fq <= _center) & ((_center - _left) > 1e-6), (_fq - _left) / (_center - _left), 0.0
+        ) + np.where(
+            (_fq > _center) & (_fq <= _right) & ((_right - _center) > 1e-6), (_right - _fq) / (_right - _center), 0.0
+        )  # (n_mels, F)
+        _MEL_CACHE[key] = (_w.astype(np.float32), freqs)
+    return _MEL_CACHE[key]
 
 
 def _is_pytest_context() -> bool:
@@ -3547,12 +3576,12 @@ class MicroDynamicsMetric:
 
 
 class SeparationFidelityMetric:
-    """13. Musikalisches Ziel: Separation-Treue (§1.2 Spec v10.0.0).
+    """13. Musikalisches Ziel: Separation-Treue (§1.2 Spec 01).
 
     Misst, ob Instrumente/Klangschichten nach Restaurierung spektral sauber
     getrennt bleiben oder durch Restaurierungs-Artefakte ungewollt vermischt werden.
 
-    v10.0.0 Implementierung (Echte Stem-Separation):
+    Implementierung (Echte Stem-Separation):
         - HTDemucs 4-Stem-Trennung (vocals, drums, bass, other)
         - Rekonstruktionsfehler: residuum = original − (vocals+drums+bass+other)
         - separation_fidelity = 1.0 − (RMS(residuum) / RMS(original))
@@ -3644,6 +3673,7 @@ class SeparationFidelityMetric:
             - Zu kurz (<2s) für aussagekräftige Demux
             - HTDemucs Modell lädt nicht
             - global_scalar < 0.15 (Restoration-Stärke zu niedrig, Demux nicht sinnvoll)
+            - Time-Budget überschritten (>3s)
         """
         min_len = min(len(restored), len(reference))
         if min_len < 64:
@@ -3660,18 +3690,73 @@ class SeparationFidelityMetric:
             )
             return self._separation_fidelity_proxy(restored, reference, sr, min_len)
 
+        # §Perf-Fix: Audio zu kurz für aussagekräftige Stem-Separation (< 3s).
+        # HTDemucs braucht mind. ~2-3s für stabile Inferenz; darunter ist der Score
+        # nicht repräsentativ und kostet unnötig Zeit.
+        _duration_s = min_len / sr
+        if _duration_s < 3.0:
+            logger.debug(
+                "separation_fidelity: duration=%.2fs < 3.0s, nutze Proxy-Methode",
+                _duration_s,
+            )
+            return self._separation_fidelity_proxy(restored, reference, sr, min_len)
+
+        # Content-basierter Cache-Key (Hash statt Länge/Std — trifft öfter bei Phasen-Iterationen)
         cache = getattr(self, "_htdemucs_separation_cache", {})
+        # §A1 Mess-Wiederverwendung: Inhalts-Hash über das GESAMTE relevante Audio
+        # (gedeckelt ~4 MB, gestridet) statt nur der ersten 32 Bytes — die alten
+        # 32-Byte-Keys kollidierten bei gleichem Dateianfang (falsche Cache-Treffer
+        # = Qualitätsrisiko) und verfehlten echte Wiederholungen später im Signal.
+        _bytes_for_hash = restored[:min_len].tobytes()
+        _step_hash = max(1, len(_bytes_for_hash) // 4_000_000)
+        _hash_key = int(hashlib.md5(_bytes_for_hash[::_step_hash]).hexdigest(), 16) % (2**32)
         cache_key = (
-            int(len(restored)),
-            int(len(reference)),
+            _hash_key,
             int(sr),
-            round(float(_global_scalar), 4),
+            # §A1-3: KEIN global_scalar im Key — der Score hängt nur vom Audio-Inhalt ab
+            # (scalar wirkt allein im <0.15-Pre-Guard). Gleicher Kandidat über
+            # Scalar-Varianten (Excellence-/FC-Schritte) teilt sich jetzt einen echten
+            # Messwert statt je Variante ~15 s neu zu rechnen.
             str(material_type),
-            float(np.std(restored[: min_len])) if min_len > 0 else 0.0,
         )
         if cache_key in cache:
             logger.debug("separation_fidelity: HTDemucs cache hit (global_scalar=%.3f)", _global_scalar)
             return float(cache[cache_key])
+
+        # §m2 Mess-Budget (pro Lauf, song-isoliert je MusicalGoalsChecker-Instanz):
+        # Die HTDemucs-Separation eines >= 3-s-Clips läuft chunked und überschreitet
+        # damit regelmäßig das 3-s-Zeitbudget — jeder Cache-Miss kostet dann ~15 s
+        # und endet ohnehin im Proxy-Fallback. Erlaubt sind pro Lauf nur wenige
+        # echte Versuche; danach sofort Proxy (0 ms) statt 15-s-Verschwendung.
+        _sep_budget = int(getattr(self, "_heavy_sep_budget_left", 2))
+        if _sep_budget <= 0:
+            # §A1-2 Vorfilter-Fallback: statt neutral 0.5 den letzten ECHTEN Messwert
+            # desselben Materials/SR aus dem Inhalts-Cache nutzen (nur echte Läufe
+            # werden gecacht — der Proxy-Pfad cached nicht). Informierte Schätzung
+            # bleibt näher an der Realität; Entscheidungen danach bleiben qualitätsnah.
+            _prior: float | None = None
+            try:
+                _cache_all = getattr(self, "_htdemucs_separation_cache", {}) or {}
+                for (_hk, _csr, _csc, _cmat), _cval in _cache_all.items():
+                    if int(_csr) == int(sr) and str(_cmat) == str(material_type):
+                        _prior = float(_cval)
+            except Exception:
+                _prior = None
+            if _prior is None:
+                logger.warning(
+                    "separation_fidelity: HTDemucs-Mess-Budget erschöpft (2/Lauf, §m2) → neutraler Proxy"
+                )
+                return self._separation_fidelity_proxy(restored, reference, sr, min_len)
+            logger.warning(
+                "separation_fidelity: HTDemucs-Mess-Budget erschöpft → Prior-Fallback (letzter echter Wert %.3f)",
+                _prior,
+            )
+            return float(np.clip(_prior, 0.0, 1.0))
+        self._heavy_sep_budget_left = _sep_budget - 1
+
+        # Time-Budget: max. 3s für HTDemucs-Inferenz — darüber fällt auf Proxy zurück
+        _t0 = time.perf_counter()
+        _time_budget_s = 3.0
 
         # Versuche HTDemucs-Separation
         try:
@@ -3679,6 +3764,16 @@ class SeparationFidelityMetric:
 
             plugin = get_htdemucs_plugin()
             sep_result = plugin.separate(restored, sr)
+
+            # Time-Budget-Check nach Separation
+            _elapsed = time.perf_counter() - _t0
+            if _elapsed > _time_budget_s:
+                logger.warning(
+                    "separation_fidelity: HTDemucs %.1fs > Budget %.1fs → Proxy-Fallback",
+                    _elapsed,
+                    _time_budget_s,
+                )
+                return self._separation_fidelity_proxy(restored, reference, sr, min_len)
 
             # Rekonstruktion der Summe aller Stems
             reconstructed = sep_result.reconstruct()
@@ -3695,8 +3790,9 @@ class SeparationFidelityMetric:
             score = float(np.clip(separation_fidelity, 0.0, 1.0))
 
             logger.debug(
-                "separation_fidelity (HTDemucs): %.3f (RMS-restored=%.2e, RMS-residual=%.2e)",
+                "separation_fidelity (HTDemucs): %.3f (%.1fs; RMS-restored=%.2e, RMS-residual=%.2e)",
                 score,
+                _elapsed,
                 rms_restored,
                 rms_residual,
             )
@@ -4142,25 +4238,9 @@ class ArticulationMetric:
         mag = np.abs(np.fft.rfft(audio[:n_fft] * win))
         power = mag**2 + 1e-10
 
-        # 20-band Mel filterbank
-        n_mels = 20
-        freqs = np.fft.rfftfreq(n_fft, d=1.0 / sr)
-        mel_min = 2595 * np.log10(1 + 80 / 700)
-        mel_max = 2595 * np.log10(1 + min(sr / 2, 8000) / 700)
-        mel_pts = np.linspace(mel_min, mel_max, n_mels + 2)
-        hz_pts = 700 * (10 ** (mel_pts / 2595) - 1)
-
-        # Vectorized triangular mel filterbank — replaces 20 × n_freq_bins Python nested loop
-        _left = hz_pts[:-2, None]  # (n_mels, 1)
-        _center = hz_pts[1:-1, None]  # (n_mels, 1)
-        _right = hz_pts[2:, None]  # (n_mels, 1)
-        _fq = freqs[None, :]  # (1, F)
-        _w = np.where(
-            (_fq > _left) & (_fq <= _center) & ((_center - _left) > 1e-6), (_fq - _left) / (_center - _left), 0.0
-        ) + np.where(
-            (_fq > _center) & (_fq <= _right) & ((_right - _center) > 1e-6), (_right - _fq) / (_right - _center), 0.0
-        )  # (n_mels, F)
-        mel_energies = (_w @ power).astype(np.float32)  # (n_mels,)
+        # Cached Mel filterbank (sr, n_fft) → weights — vermeidet Neuberechnung
+        mel_weights, _freqs = _get_mel_filterbank(sr, n_fft)
+        mel_energies = (mel_weights @ power).astype(np.float32)  # (n_mels,)
 
         log_mel = np.log(mel_energies + 1e-10)
         if _SCIPY_DCT is None:

@@ -179,6 +179,30 @@ class PostProcessingGate:
         self._total_checks += 1
         _thresh = threshold if threshold is not None else _REGRESSION_THRESHOLD
 
+        # §A3 Rollback-Prognose (historisch): Hat diese Komponente in den letzten
+        # beiden Läufen desselben Prozesses Regression erzeugt (z. B. PEO/HPG mit
+        # brillanz-Verlust in jedem Lauf), wird sie übersprungen, BEVOR component_fn
+        # und die Vorher-/Nachher-Messung laufen — Ergebnis identisch mit dem
+        # bisherigen ÜBERSPRUNGEN-Pfad (Original bleibt), aber ohne dessen Kosten.
+        # Binäre-Stärken-Suche bleibt ausgenommen (eigene Bewertung).
+        _hist = getattr(self, "_a3_history", {})
+        if (
+            not binary_search_strength
+            and int((_hist.get(label) or {}).get("consecutive", 0)) >= 2
+        ):
+            logger.warning(
+                "PostGate [%s]: §A3-Prognose — 2× Regression in Folge, Messung übersprungen",
+                label,
+            )
+            self._total_skipped += 1
+            return PostGateResult(
+                audio=audio,
+                adopted=False,
+                scores_before={},
+                skip_reason="a3_historisch_regressiv",
+                duration_ms=(time.time() - t0) * 1000.0,
+            )
+
         # §v10.16: Binäre Suche für optimale Stärke
         if binary_search_strength and strength is not None:
             _optimal = self._binary_search_strength(
@@ -251,6 +275,13 @@ class PostProcessingGate:
 
         # ── 5. Entscheidung ───────────────────────────────────────────
         if regressions:
+            # §A3: Regression zählt in die Historie ein (Skip ab 2× in Folge).
+            _hist = getattr(self, "_a3_history", {})
+            _h = dict(_hist.get(label) or {})
+            _h["consecutive"] = int(_h.get("consecutive", 0)) + 1
+            _h["last_goals"] = list(regressions)[:3]
+            _hist[label] = _h
+            self._a3_history = _hist
             logger.info(
                 "PostGate [%s]: Regression in %d/%d Zielen (%s) — Komponente ÜBERSPRUNGEN",
                 label,
@@ -275,6 +306,11 @@ class PostProcessingGate:
             len(goals),
             (time.time() - t0) * 1000.0,
         )
+        # §A3: Erfolg setzt die Regressions-Historie zurück.
+        _hist = getattr(self, "_a3_history", {})
+        if label in _hist:
+            _hist[label] = {"consecutive": 0}
+            self._a3_history = _hist
         self._total_adopted += 1
         return PostGateResult(
             audio=processed,

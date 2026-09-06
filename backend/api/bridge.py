@@ -117,8 +117,24 @@ from .bridge_core import (
     get_restorer_classes,
     get_unified_restorer_v3_instance,
     is_preview_mode,
-    normalize_user_mode,
 )
+
+# ---------------------------------------------------------------------------
+# Canonical Contract — Mode-Normalisierung (§11 Spec 08)
+# ---------------------------------------------------------------------------
+
+def normalize_user_mode(mode: str | None) -> str:
+    """Normalisiert Nutzer-Mode-Aliase auf die kanonischen Release-Modi.
+
+    Canonical Contract:
+      - ``"Restoration"``
+      - ``"Studio 2026"``
+
+    Unbekannte Eingaben fallen fail-safe auf ``"Restoration"`` zurück.
+    """
+    from .bridge_core import normalize_user_mode as _core_normalize
+
+    return _core_normalize(mode)
 
 
 def _coerce_dict_str_any(raw: Any) -> dict[str, Any]:

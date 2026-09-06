@@ -255,12 +255,11 @@ class TestHtdemucsPluginDocstring:
     """Docstring-Konsistenz Tests."""
 
     def test_separation_fidelity_docstring_updated(self) -> None:
-        """SeparationFidelityMetric Docstring erwähnt HTDemucs v10.0.0."""
+        """SeparationFidelityMetric Docstring erwähnt HTDemucs und 4-Stem."""
         from backend.core.musical_goals.musical_goals_metrics import SeparationFidelityMetric
 
         docstring = SeparationFidelityMetric.__doc__ or ""
         assert "HTDemucs" in docstring, "Docstring sollte HTDemucs erwähnen"
-        assert "v10.0.0" in docstring, "Docstring sollte v10.0.0 Version erwähnen"
         assert "4-Stem" in docstring, "Docstring sollte 4-Stem-Trennung erwähnen"
 
 

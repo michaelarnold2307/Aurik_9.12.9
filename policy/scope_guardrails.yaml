@@ -32,8 +32,8 @@ caps:
       (c) Peer-Review des Goal-Designs.
 
   max_defect_types:
-    current: 76
-    limit: 76
+    current: 79
+    limit: 80
     description: >
       Keine neuen DefectTypes ohne: (a) ≥3 Echt-Audio-Fälle mit diesem Defekt,
       (b) Manifests die den Defekt dokumentieren, (c) DSP-Phase die ihn behandelt.

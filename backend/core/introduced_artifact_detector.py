@@ -88,6 +88,117 @@ class IntroducedArtifactDetector:
         arr64 = np.nan_to_num(arr64, nan=0.0, posinf=0.0, neginf=0.0)
         return np.clip(arr64, -1.0, 1.0).astype(np.float32, copy=False)  # type: ignore[no-any-return]
 
+    def scan(self, audio: np.ndarray, sr: int) -> IADResult:
+        """Single-audio Artefakt-Erkennung (ohne Original-Referenz).
+
+        Wird vom Defect Consensus Pipeline aufgerufen, wenn nur das restaurierte
+        Signal verfügbar ist. Nutzt heuristische Mustererkennung für typische
+        Verarbeitungsartefakte im restaurierten Audio.
+
+        Args:
+            audio: Restauriertes Audiosignal (mono oder stereo).
+            sr: Abtastrate in Hz.
+
+        Returns:
+            IADResult mit erkannten Artefakten und Kontaminations-Fraktion.
+        """
+        audio = self._sanitize_audio(audio)
+        mono = audio if audio.ndim == 1 else audio.mean(axis=0)
+        n_samples = len(mono)
+        if n_samples == 0:
+            return IADResult(has_artifacts=False, confidence=1.0)
+
+        artifact_mask = np.zeros(n_samples, dtype=bool)
+        artifacts: list[ArtifactRegion] = []
+
+        # 1. Click-Erkennung im restaurierten Signal (energetische Spitzen)
+        click_len = max(1, int(self.CLICK_MAX_DURATION_MS / 1000.0 * sr))
+        kernel = np.ones(click_len) / click_len
+        energy = np.sqrt(np.convolve(mono**2, kernel, mode="same") + 1e-12)
+        global_rms = float(np.sqrt(np.mean(mono**2) + 1e-12))
+        if global_rms > 1e-10:
+            click_threshold = global_rms * 10.0 ** (self.CLICK_THRESHOLD_DB / 20.0)
+            click_mask = energy > click_threshold
+            in_click = False
+            start = 0
+            for i, v in enumerate(click_mask):
+                if v and not in_click:
+                    in_click = True
+                    start = i
+                elif not v and in_click:
+                    in_click = False
+                    if (i - start) <= click_len * 2:
+                        sev = float(np.clip(float(np.max(energy[start:i])) / click_threshold, 0.0, 1.0))
+                        artifacts.append(
+                            ArtifactRegion(
+                                "nmf_residual_click",
+                                max(0, start - click_len),
+                                min(n_samples, i + click_len),
+                                sev,
+                                0.75,
+                            )
+                        )
+                        artifact_mask[max(0, start - click_len) : min(n_samples, i + click_len)] = True
+
+        # 2. Musical Noise: tonaler Content in Stille-Bereichen
+        win = max(1, int(0.10 * sr))
+        hop = max(1, int(0.05 * sr))
+        for s in range(0, n_samples - win, hop):
+            e = s + win
+            db = 20.0 * np.log10(max(float(np.sqrt(np.mean(mono[s:e] ** 2))), 1e-10))
+            if db < self.SILENCE_THRESHOLD_DBFS:
+                # Prüfe auf tonalen Content (Harmonizität) in Stille
+                h = self._harmonicity(mono[s:e], sr)
+                if h > self.HARMONICITY_THRESHOLD:
+                    sev = float(np.clip(h / 1.0, 0.0, 1.0))
+                    artifacts.append(ArtifactRegion("musical_noise", s, e, sev, 0.70))
+                    artifact_mask[s:e] = True
+
+        # 3. Phase-Vocoder Smearing: temporale Inkonsistenzen im restaurierten Signal
+        # Nutzt RMS-Gradient-Analyse auf dem Mono-Signal allein
+        pvoc_hop = 512
+        rms_frames = np.array(
+            [float(np.sqrt(np.mean(mono[i : i + pvoc_hop] ** 2))) for i in range(0, n_samples - pvoc_hop, pvoc_hop)]
+        )
+        if len(rms_frames) >= 3:
+            diff = np.diff(rms_frames)
+            max_diff = float(np.max(np.abs(diff)) + 1e-12)
+            onset_threshold = max(0.05 * max_diff, 1e-6)
+            in_smear = False
+            smear_start = 0
+            for i, d in enumerate(diff):
+                if d > onset_threshold and not in_smear:
+                    in_smear = True
+                    smear_start = i
+                elif d <= onset_threshold and in_smear:
+                    duration_samples = (i - smear_start) * pvoc_hop
+                    if duration_samples > max(1, int(self.PVOC_SMEAR_THRESHOLD_MS / 1000.0 * sr)):
+                        sev = float(np.clip(duration_samples / max(int(self.PVOC_SMEAR_THRESHOLD_MS / 50.0 * sr), 1), 0.0, 1.0))
+                        artifacts.append(
+                            ArtifactRegion(
+                                "phase_vocoder_smearing",
+                                smear_start * pvoc_hop,
+                                min(n_samples, i * pvoc_hop + pvoc_hop),
+                                sev,
+                                0.65,
+                            )
+                        )
+                        artifact_mask[smear_start * pvoc_hop : min(n_samples, i * pvoc_hop + pvoc_hop)] = True
+                    in_smear = False
+
+        frac = float(np.sum(artifact_mask)) / n_samples if n_samples > 0 else 0.0
+        return IADResult(
+            has_artifacts=len(artifacts) > 0,
+            artifacts=artifacts,
+            n_ml_hallucinations=sum(1 for a in artifacts if a.artifact_type == "ml_hallucination"),
+            n_nmf_clicks=sum(1 for a in artifacts if a.artifact_type == "nmf_residual_click"),
+            n_pvoc_smearing=sum(1 for a in artifacts if a.artifact_type == "phase_vocoder_smearing"),
+            n_musical_noise=sum(1 for a in artifacts if a.artifact_type == "musical_noise"),
+            artifact_mask=artifact_mask,
+            total_contaminated_fraction=frac,
+            confidence=float(np.clip(1.0 - frac, 0.0, 1.0)),
+        )
+
     def detect(self, original: np.ndarray, restored: np.ndarray, sr: int) -> IADResult:
         """Erkennt durch Restaurierung eingebrachte Artefakte."""
         original = self._sanitize_audio(original)
@@ -371,12 +482,20 @@ def detect_introduced_artifacts(original: np.ndarray, restored: np.ndarray, sr: 
     return get_iad().detect(original, restored, sr)
 
 
+def scan_introduced_artifacts(audio: np.ndarray, sr: int) -> IADResult:
+    """Convenience-Wrapper für Single-Audio Artefakt-Erkennung (ohne Original)."""
+    if sr != 48000:
+        raise ValueError(f"SR muss 48000 Hz sein, erhalten: {sr}")
+    return get_iad().scan(audio, sr)
+
+
 __all__ = [
     "ArtifactRegion",
     "IADRegion",
     "IADResult",
     "IntroducedArtifactDetector",
     "detect_introduced_artifacts",
+    "scan_introduced_artifacts",
     "get_iad",
     "get_introduced_artifact_detector",
 ]

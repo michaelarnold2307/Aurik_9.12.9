@@ -240,7 +240,11 @@ def detect_vibrato_rate(
 _detector_lock = threading.Lock()
 
 
-def get_vibrato_detector() -> None:
-    """Platzhalter für zukünftigen Singleton-Zugriff (stateless)."""
-    # Derzeit stateless — kein Singleton nötig
-    pass
+def get_vibrato_detector():
+    """Gibt die Vibrato-Detektor-Funktion zurück (stateless, §0p).
+
+    Returns:
+        Callable[[np.ndarray, int | None, int | None], VibratoDetectionResult]:
+            detect_vibrato_rate-Funktion.
+    """
+    return detect_vibrato_rate

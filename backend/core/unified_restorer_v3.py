@@ -7854,11 +7854,21 @@ class UnifiedRestorerV3:
                     _display = f"🎵 {phase}"
             if progress_callback is not None:
                 try:
-                    # §v10.14 P1: Live-Metriken in den Progress-Callback einspeisen
+                    # §Kommunikation Defekt-Chips (Echtzeit): Diff der behobenen
+                    # Defekte seit dem letzten Callback — Quelle §v10.18
+                    # resolved_defects_accumulator. Payload = Liste der Defekttypen;
+                    # GUI subtrahiert sie von Gesamtzahl & betroffenen Chips.
+                    _res_snap = dict(getattr(self, "_resolved_defects_accumulator", {}) or {})
+                    _res_sent = set(getattr(self, "_resolved_sent_keys", set()))
+                    _res_new = sorted(t for t in _res_snap if t not in _res_sent)
+                    if _res_new:
+                        _res_sent.update(_res_new)
+                        self._resolved_sent_keys = _res_sent
                     _live_metrics = {
                         "mushra": float(getattr(self, "_mqa_mushra", 0.0) or 0.0),
                         "hpi": float(getattr(self, "_phase_deltas", {}).get(phase, {}).get("hpi_live", 0.0) or 0.0),
                         "vqi": float(getattr(self, "_panns_singing", 0.0) or 0.0),
+                        "resolved": _res_new,
                     }
                     progress_callback(pct, _display, time.monotonic() - start_time, _live_metrics)
                 except Exception as _cb_exc:
@@ -8192,6 +8202,14 @@ class UnifiedRestorerV3:
         if audio.ndim == 2 and audio.shape[1] <= 2 and audio.shape[0] > audio.shape[1]:
             audio = audio.T  # (N, 2) → (2, N)
             logger.debug("wiederherstellen(): Stereo (N,%d) → (%d,N) normalisiert", audio.shape[0], audio.shape[0])
+
+        # §Ebene-0 Vocal-Overdrive: Referenz-Original (48 kHz, kanal-erst) für den
+        # Final-Check am Lauf-Ende — misst kumulativen Vocal-Drive über ALLE Phasen
+        # (die Inkrementell-Checks pro Phase sehen nur Einzelschritte).
+        try:
+            self._vocal_orig_ref_final = np.array(audio, dtype=np.float32, copy=True)
+        except Exception:
+            self._vocal_orig_ref_final = None
 
         # ── OOM-Guard: Audio-Buffer-Größe gegen RAM-Budget prüfen ────────────
         # Spec §9: Audio-Buffer max. 4 GB.  Intermediate STFTs/copies multiplizieren
@@ -14495,6 +14513,16 @@ class UnifiedRestorerV3:
                         _fc_conflict_phases,
                         _fc_max_iter,
                     )
+                # §Wohlklang (m3, automatisch für jeden Song): Pre-Enhancement-Referenz
+                # — Zustand nach der Reparatur-/Export-Vorbereitung, VOR der
+                # FeedbackChain-/Excellence-Verstärkung. Verletzt das Endergebnis das
+                # Einladungs-Gate (Rauigkeit/Schärfe), blendet die finale Korrektur
+                # weich (max. 25 %) gegen diese Referenz — kein Nutzer-Eingriff.
+                try:
+                    self._wohklang_pre_enhancement_ref = np.asarray(restored_audio, dtype=np.float32).copy()
+                except Exception:
+                    self._wohklang_pre_enhancement_ref = None
+
                 # §Goal-deficit FC boost (v10.0.0): estimate current goal levels from
                 # last PMGG log entries. If goals are below their adaptive targets after
                 # the phase pipeline, the FeedbackChain needs more iterations to close
@@ -16016,10 +16044,15 @@ class UnifiedRestorerV3:
             # Wissenschaftliche Begründung: Identischer ExcellenceOptimizer auf bereits
             # optimierten Daten akkumuliert STFT-Rundungsfehler. Die Korrektur bei
             # niedrigem MOS erfolgt einmalig im ExzellenzDenker (AurikDenker Stufe 7).
-            if _pqs_result is not None and _pqs_result.pqs_mos < 4.0:
+            # §m2-B Reife-Fix: Trigger nutzt den MATERIAL-adaptiven Floor (_mos_t) statt
+            # hartem 4.0 — analoges Material (z. B. Vinyl, Floor 2.5) löst keine
+            # ExzellenzDenker-Nachbesserung auf unerreichbare Ziele mehr aus.
+            if _pqs_result is not None and _pqs_result.pqs_mos < _mos_t:
                 logger.info(
-                    "PQS-MOS=%.2f < 4.0 — Korrektur wird im ExzellenzDenker (Stufe 7) behandelt",
+                    "PQS-MOS=%.2f < Material-Floor %.1f — Korrektur wird im ExzellenzDenker "
+                    "(Stufe 7) behandelt",
                     _pqs_result.pqs_mos,
+                    _mos_t,
                 )
                 # §2.14 Quality-Gate→Action: Kritische Qualität signalisiert
                 # ExzellenzDenker, alle Post-Processing-Phasen zurückzurollen.
@@ -18554,19 +18587,9 @@ class UnifiedRestorerV3:
                 # die operative Hörbarkeits-Näherung. Log/Report müssen sie als
                 # „über Hörbarkeits-Schwelle“ ausweisen — nicht als volles Bark-Masking.
                 _mat_key = str(getattr(material_type, "value", str(material_type))).lower()
-                _MATERIAL_JND_OFFSET = {
-                    "cassette": 0.04,
-                    "cassette_tape": 0.04,
-                    "vinyl": -0.02,
-                    "lp": -0.02,
-                    "shellac": 0.02,
-                    "reel_tape": 0.00,
-                    "cd_digital": -0.03,
-                    "mp3_low": 0.05,
-                    "mp3_high": 0.03,
-                    "aac": 0.03,
-                    "streaming": 0.02,
-                }
+                # JND-Offsets kanonisch in backend/core/defect_audibility_gate.py
+                # (m1 Hörbarkeits-Gate — eine Quelle für Schwelle & Lauf-Ende-Bericht).
+                from backend.core.defect_audibility_gate import MATERIAL_JND_OFFSET as _MATERIAL_JND_OFFSET
                 _chain_depth = int(getattr(self, "_transfer_chain_depth", 1) or 1)
                 _depth_offset = (_chain_depth - 1) * 0.01  # tiefere Kette = mehr Maskierung
                 _AUDIBLE_THRESHOLD = float(
@@ -19029,6 +19052,108 @@ class UnifiedRestorerV3:
                 )
         except Exception as _mmp_exc:
             logger.debug("§2.44 MertMushraProxy nicht blockierend: %s", _mmp_exc)
+
+        # §Ebene-4 Einladungs-Gate (Hörordnung §6): Positives Wohlklang-Kriterium
+        # „Wohlklang, in den sich das Ohr hineinlegt" wird als Fenster-Gate gemessen.
+        # Roughness (Zwicker), Sharpness (Bismarck), Loudness (ERB) über 5-s-Fenster.
+        # Gate erfüllt wenn keine Roughness-Spitze > 0.5 in Stimmen-/Klimax-Zonen liegt
+        # und Sharpness-Verlauf keine Sprünge > 0.2 acum zwischen benachbarten Fenstern.
+        try:
+            from backend.core.dsp.einladungs_gate import check_einladungs_gate as _check_eg
+
+            # Voiced-Zonen aus Kontext holen (bereits von PANNs/Vocal-Detektion ermittelt)
+            _voiced_zones = []
+            if isinstance(getattr(self, "_restoration_context", None), dict):
+                rctx = self._restoration_context
+                _voiced_zones = list(rctx.get("vibrato_zones") or [])
+                _voiced_zones.extend(list(rctx.get("frisson_zones") or []))
+
+            # sr-Normalisierung: das Gate assertet sr == 48000; restored_audio liegt
+            # intern immer bei 48 kHz vor, der sample_rate-Parameter kann je nach
+            # Ausgangsmaterial aber 44100 sein (stiller AssertionError vorher).
+            _sr_eg = int(sample_rate or 48000)
+            if _sr_eg != 48000:
+                _sr_eg = 48000
+
+            _eg_result = _check_eg(restored_audio, _sr_eg, voiced_zones=_voiced_zones)
+
+            # §Wohlklang-Korrektur (m3, automatisch für jeden Song): Verletzt das
+            # Endergebnis das Einladungs-Gate, wird weich (10 %-Schritte, max. 25 %)
+            # gegen die Pre-Enhancement-Referenz geblendet und erneut geprüft, bis
+            # das Gate erfüllt ist — ohne die Restauration rückgängig zu machen.
+            _eg_ref_fin = getattr(self, "_wohklang_pre_enhancement_ref", None)
+            if not _eg_result.gate_passed and _eg_ref_fin is not None:
+                try:
+                    _wk_fin = np.asarray(restored_audio, dtype=np.float32).copy()
+                    _wk_ref_a = np.asarray(_eg_ref_fin, dtype=np.float32)
+                    if _wk_fin.shape != _wk_ref_a.shape:
+                        if (
+                            _wk_fin.ndim == 2
+                            and _wk_ref_a.ndim == 2
+                            and _wk_fin.shape == _wk_ref_a.shape[::-1]
+                        ):
+                            _wk_ref_a = _wk_ref_a.T
+                        else:
+                            _wk_ref_a = None
+                    if _wk_ref_a is not None:
+                        _eg_corrected = False
+                        for _wkf_i in range(5):
+                            if _eg_result.gate_passed:
+                                break
+                            _wk_fin = np.clip(
+                                (0.90 * _wk_fin + 0.10 * _wk_ref_a).astype(np.float32), -1.0, 1.0
+                            )
+                            _eg_result = _check_eg(_wk_fin, _sr_eg, voiced_zones=_voiced_zones)
+                            _eg_corrected = True
+                        if _eg_corrected:
+                            restored_audio = _wk_fin
+                            if hasattr(result, "audio") and result.audio is not None:
+                                result.audio = _wk_fin
+                            if _eg_result.gate_passed:
+                                logger.info(
+                                    "§Ebene-4 Wohlklang-Korrektur aktiv: Einladungs-Gate nach "
+                                    "Blend erfüllt (Rauigkeit/Schärfe unter Schwelle)"
+                                )
+                            else:
+                                logger.warning(
+                                    "§Ebene-4 Wohlklang-Korrektur: Gate nach max. 5 Blends "
+                                    "weiterhin verletzt — %s",
+                                    "; ".join(_eg_result.failure_reasons),
+                                )
+                            if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+                                result.metadata["einladungs_gate_corrected"] = True
+                except Exception as _eg_corr_exc:
+                    logger.debug("§Ebene-4 Wohlklang-Korrektur nicht blockierend: %s", _eg_corr_exc)
+
+            if not _eg_result.gate_passed:
+                logger.info(
+                    "§Ebene-4 Einladungs-Gate NICHT erfüllt (positiver Wohlklang): %s",
+                    "; ".join(_eg_result.failure_reasons),
+                )
+                # Metadaten für Diagnose speichern
+                if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+                    result.metadata["einladungs_gate_passed"] = False
+                    result.metadata["einladungs_roughness_mean"] = round(_eg_result.roughness_mean, 4)
+                    result.metadata["einladungs_roughness_max_voiced"] = round(
+                        _eg_result.roughness_max_in_voiced, 4
+                    )
+                    result.metadata["einladungs_sharpness_jump"] = round(_eg_result.sharpness_max_jump, 4)
+                    result.metadata["einladungs_loudness_mean"] = round(_eg_result.loudness_mean, 4)
+                    result.metadata["einladungs_failure_reasons"] = list(_eg_result.failure_reasons)
+            else:
+                logger.debug("§Ebene-4 Einladungs-Gate erfüllt (positiver Wohlklang)")
+                if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+                    result.metadata["einladungs_gate_passed"] = True
+
+        except Exception as _eg_exc:
+            logger.debug("§Ebene-4 Einladungs-Gate nicht blockierend: %s", _eg_exc)
+            # Fehler sichtbar machen (vorher stiller AssertionError bei sr != 48000):
+            # Telemetrie statt Schweigen, damit der Wohlklang-Pfad nachweisbar läuft.
+            try:
+                if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+                    result.metadata["einladungs_gate_error"] = f"{type(_eg_exc).__name__}: {_eg_exc}"[:200]
+            except Exception:
+                pass
 
         try:
             from backend.core.holistic_perceptual_gate import get_holistic_gate as _get_hg
@@ -19855,6 +19980,65 @@ class UnifiedRestorerV3:
                     )
         except Exception as _hpi_final_exc:
             logger.debug("§2.44 finale HPI-Neubewertung nicht blockierend: %s", _hpi_final_exc)
+
+        # §VQI-Recovery per Phase mit material-adaptiven Floors (Hörordnung Ebene 1)
+        # Prüft VQI gegen material-spezifischen Floor; löst Recovery-Kaskade aus wenn
+        # Score unter Floor fällt. Verhindert, dass Phasen den Gesang „zerstören".
+        try:
+            from backend.core.dsp.einladungs_gate import check_vqi_recovery as _check_vqi_rec
+            from backend.core.dsp.einladungs_gate import trigger_recovery_cascade as _trigger_rec
+
+            # Material-Typ für Floor-Bestimmung holen
+            _mat_type = str(
+                (getattr(self, "_restoration_context", None) or {}).get("material_type", "unknown")
+            ).lower()
+
+            _vqi_score, _floor = _check_vqi_rec(restored_audio, sample_rate, _mat_type)
+
+            if _vqi_score < _floor:
+                # VQI unter Floor → Recovery-Kaskade aktivieren
+                _recovery_params = _trigger_rec(_mat_type, _vqi_score, _floor)
+                logger.warning(
+                    "§VQI-Recovery: Score=%.3f < Floor=%.3f (material=%s) — Kaskade aktiviert",
+                    _vqi_score,
+                    _floor,
+                    _mat_type,
+                )
+                # Recovery-Parameter in restoration_context speichern für nachfolgende Phasen
+                if isinstance(getattr(self, "_restoration_context", None), dict):
+                    self._restoration_context["vqi_recovery_active"] = True
+                    self._restoration_context["vqi_deficit_db"] = _recovery_params.get("vqi_deficit_db", 0.0)
+                    self._restoration_context["vocal_boost_factor"] = _recovery_params.get(
+                        "recovery_boost_factor", 1.0
+                    )
+            else:
+                logger.debug("§VQI-Recovery: Score=%.3f ≥ Floor=%.3f (material=%s) — OK", _vqi_score, _floor, _mat_type)
+
+        except Exception as _vqi_rec_exc:
+            logger.debug("§VQI-Recovery nicht blockierend: %s", _vqi_rec_exc)
+
+        # §HPI Referenz-Memory Update (relaxed): Aktualisiert GP-Memory wenn HPI > 0.05
+        # UND artifact_freedom ≥ 0.92 (statt 0.95 für historische Aufnahmen).
+        try:
+            from backend.core.dsp.einladungs_gate import should_update_hpi_reference as _should_update
+
+            if _should_update(_hpi_result.hpi, _artifact_freedom_for_hpi):
+                # GP-Memory aktualisieren mit aktuellem Audio als Referenz
+                self._gp_memory_reference = restored_audio.copy()
+                logger.info(
+                    "§HPI Referenz-Memory aktualisiert: HPI=%.4f AF=%.4f (relaxed Update)",
+                    _hpi_result.hpi,
+                    _artifact_freedom_for_hpi,
+                )
+            else:
+                logger.debug(
+                    "§HPI Referenz-Memory NICHT aktualisiert: HPI=%.4f AF=%.4f",
+                    _hpi_result.hpi,
+                    _artifact_freedom_for_hpi,
+                )
+
+        except Exception as _gp_mem_exc:
+            logger.debug("§HPI Referenz-Memory Update nicht blockierend: %s", _gp_mem_exc)
 
         # Zentrale Gate-Klassifikation (A/B/C) für deterministische Endentscheidung + Telemetrie.
         _quality_gate_registry = self._classify_quality_gate_events(
@@ -22742,6 +22926,116 @@ class UnifiedRestorerV3:
         except Exception as _akb_record_exc:
             logger.debug("§AKB-1 aufzeichnen_outcome nicht blockierend: %s", _akb_record_exc)
 
+        # §Ebene-0 Vocal-Overdrive-Final-Check: kumulativer Drive über alle Phasen
+        # (Kamm-/IMD-Excess, Sättigung, Crest-Kollaps in stimmlichen Frames) — am
+        # Lauf-Ende gegen das Original-Referenzsignal gemessen; bei Verstoß wird
+        # weich Richtung Original geblendet (bis zu 4 Iterationen, Floor 0.70),
+        # damit verzerrter/übersteuerter Gesang garantiert nicht exportiert wird.
+        try:
+            from backend.core.dsp.vocal_overdrive_guard import (
+                protect_vocal_overdrive as _vo_final_protect,
+                vocal_drive_telemetry as _vo_final_telemetry,
+            )
+
+            _vo_final_ref = getattr(self, "_vocal_orig_ref_final", None)
+            _vo_final_rctx = getattr(self, "_restoration_context", None) or {}
+            _vo_final_rctx = _vo_final_rctx if isinstance(_vo_final_rctx, dict) else {}
+            _vo_final_sing = float(_vo_final_rctx.get("panns_singing", 0.0) or 0.0)
+            _vo_final_active = bool(
+                _vo_final_rctx.get("is_vocal")
+                or _vo_final_rctx.get("vocal_active")
+                or _vo_final_sing >= 0.15
+            )
+            if _vo_final_ref is not None and _vo_final_active:
+                _vo_final_post = np.asarray(restored_audio, dtype=np.float32)
+                _vo_guarded, _vo_final_res = _vo_final_protect(
+                    np.asarray(_vo_final_ref, dtype=np.float32),
+                    _vo_final_post,
+                    int(sample_rate),
+                    vocal_active=True,
+                    phase_id="final",
+                    mode="final",
+                )
+                if _vo_final_res.blend_factor < 1.0:
+                    restored_audio = _vo_guarded
+                    if hasattr(result, "audio"):
+                        result.audio = _vo_guarded
+                    logger.warning(
+                        "§Ebene-0 Vocal-Drive Final-Check: Blend=%.2f — %s",
+                        _vo_final_res.blend_factor,
+                        "; ".join(_vo_final_res.reasons),
+                    )
+                if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+                    result.metadata.update(_vo_final_telemetry(_vo_final_res))
+        except Exception as _vo_final_exc:
+            logger.debug("§Ebene-0 Vocal-Overdrive-Final-Check nicht blockierend: %s", _vo_final_exc)
+
+        # §Ebene-2 Hörbarkeits-Gate (backend/core/defect_audibility_gate.py;
+        # Hörordnung §4 „Reparatur gilt als abgeschlossen, wenn der Defekt unter
+        # der Maskierungsschwelle liegt“): Die Restdefekte des §B2-Post-Scans
+        # (self._defect_reduction_per_type) werden gegen die material-/ketten-
+        # adaptive JND-Schwelle geprüft; ERB-maskierte Events gelten als abgedeckt.
+        # Hörbar gebliebene Typen mit Reduktionsspielraum werden als
+        # nachbehandlungswürdig ausgewiesen (Verdict in result.metadata;
+        # gezielte Zweitbehandlung der Typen = Folge-Milestone m1b).
+        try:
+            from backend.core.defect_audibility_gate import (
+                DefectAudibilityReport,
+                evaluate_defect_audibility,
+                log_audibility_report,
+            )
+
+            _ag_rctx = getattr(self, "_restoration_context", None) or {}
+            _ag_rctx = _ag_rctx if isinstance(_ag_rctx, dict) else {}
+            _ag_mat = _ag_rctx.get("material_type") or _ag_rctx.get("material") or ""
+            if not _ag_mat:
+                try:  # material_type liegt im restore()-Scope (falls sichtbar)
+                    _ag_mat = material_type  # type: ignore[name-defined]
+                except NameError:
+                    _ag_mat = ""
+            # Enum → Wert normalisieren (MaterialType.VINYL → "vinyl"), damit der
+            # JND-Offset greift; Fallback auf Kurznamen für fremde Enum-Repräsentationen.
+            if hasattr(_ag_mat, "value"):
+                _ag_mat = _ag_mat.value
+            _ag_mat = str(_ag_mat or "").split(".")[-1].strip().lower()
+            _ag_depth = int(
+                _ag_rctx.get("transfer_depth")
+                or _ag_rctx.get("transfer_chain_depth")
+                or getattr(self, "_transfer_chain_depth", 1)
+                or 1
+            )
+            _ag_data = getattr(self, "_defect_reduction_per_type", None) or {}
+            _ag_report: DefectAudibilityReport = evaluate_defect_audibility(
+                _ag_data if isinstance(_ag_data, dict) else {},
+                material_key=str(_ag_mat),
+                chain_depth=_ag_depth,
+            )
+            log_audibility_report(_ag_report)
+            # m1b: hörbar gebliebene, nachbehandlungswürdige Typen gezielt in die
+            # Stufe-2-Refinement-Queue (KMV) stellen — nur Typen mit sicherer
+            # Phasen-Zuordnung, kein blindes Wiederholen der Gesamtkette.
+            if not _ag_report.gate_passed and _ag_report.improvable_types:
+                try:
+                    from backend.core.defect_audibility_gate import (
+                        retry_phases_for_types as _ag_retry,
+                    )
+
+                    _ag_retry_phases = _ag_retry(_ag_report.improvable_types)
+                    if _ag_retry_phases:
+                        _ag_existing = list(getattr(result, "deferred_phases", []) or [])
+                        result.deferred_phases = sorted(set(_ag_existing) | set(_ag_retry_phases))
+                        logger.warning(
+                            "§Hörbarkeits-Gate m1b: %d Typ(en) → Stufe-2-Nachbehandlung gequeued: %s",
+                            len(_ag_retry_phases),
+                            ", ".join(_ag_retry_phases),
+                        )
+                except Exception as _ag_retry_exc:
+                    logger.debug("§Hörbarkeits-Gate m1b-Queue nicht blockierend: %s", _ag_retry_exc)
+            if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+                result.metadata["audibility_gate"] = _ag_report.to_metadata()
+        except Exception as _ag_exc:
+            logger.debug("§Hörbarkeits-Gate nicht blockierend: %s", _ag_exc)
+
         logger.info(
             "✅ Restoration vollstaendig: %.1fs (%.2f× RT), Quality: %.1f%%",
             total_time,
@@ -23031,6 +23325,16 @@ class UnifiedRestorerV3:
                     warnings=list(result.warnings),
                     metadata=dict(result.metadata),
                 )
+
+        # §T3 End-Garantie: terminaler 100-%-Callback — unabhängig von Phasenzahl,
+        # Skips, Deferrals oder Planänderungen erreicht jeder Fortschritts-Konsument
+        # im Erfolgsfall exakt 100 % (GUI setzt zusätzlich hart auf Maximum).
+        try:
+            _cb_term = locals().get("progress_callback")
+            if _cb_term is not None:
+                _cb_term(100.0, "✅ Restoration abgeschlossen", time.monotonic() - start_time)
+        except Exception:
+            logger.debug("Terminal-100-Callback nicht blockierend")
 
         return result
 
@@ -34424,6 +34728,180 @@ class UnifiedRestorerV3:
                         result.metadata["hearing_invariant_retreat"] = _ho_retreat_reason
             except Exception as _ho_retreat_exc:
                 logger.debug("§SCK-R/§WBG-R Eskalation nicht blockierend: %s", _ho_retreat_exc)
+
+            # §Ebene-1 Invarianten-Guard (Hörordnung §3): Fünf unverhandelbare Hör-Invarianten
+            # werden nach jeder Phase geprüft. Verletzt eine Phase eine dieser Invarianten,
+            # wird die Phase geblendet — nicht erst am Pipeline-Ende „wiederhergestellt".
+            # 1. Stimm-Identität (≥ 0.92)  2. Konsonanten-Klarheit (≥ 0.85)
+            # 3. Vibrato-Erhalt (Rate-Fehler ≤ 0.3 Hz, Tiefe ≥ 0.85)
+            # 4. Dynamikbogen (Arc-Corr ≥ 0.70)  5. Atem-Zeitstruktur (≤ 10 % Änderung)
+            try:
+                from backend.core.dsp.level_1_invariants_guard import check_level_1_invariants as _l1_check
+
+                # Kontext für Level-1 Guard zusammenstellen
+                _l1_ctx = {}
+                if isinstance(getattr(self, "_restoration_context", None), dict):
+                    rctx = self._restoration_context
+                    _l1_ctx["vqi_result"] = rctx.get("vqi_result") or {}
+                    _l1_ctx["breath_zones"] = rctx.get("breath_zones") or []
+                    _l1_ctx["vibrato_info"] = rctx.get("vibrato_info")
+
+                _l1_result = _l1_check(audio, result.audio, _sr_guards, context=_l1_ctx)
+
+                if _l1_result.blend_factor < 1.0:
+                    # Invariante verletzt → Phase geblendet
+                    result.audio = np.clip(
+                        (_l1_result.blend_factor * result.audio + (1.0 - _l1_result.blend_factor) * audio).astype(
+                            np.float32
+                        ),
+                        -1.0,
+                        1.0,
+                    )
+                    logger.info(
+                        "§Ebene-1 Invarianten verletzt (%s): blend=%.2f — %s",
+                        _pid_guards,
+                        _l1_result.blend_factor,
+                        ", ".join(_l1_result.violated_invariants),
+                    )
+
+                # Metadaten für Diagnose speichern
+                if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+                    result.metadata["level_1_singer_identity"] = round(_l1_result.singer_identity, 4)
+                    result.metadata["level_1_consonant_clarity"] = round(_l1_result.consonant_clarity, 4)
+                    result.metadata["level_1_vibrato_rate_error_hz"] = round(_l1_result.vibrato_rate_error_hz, 3)
+                    result.metadata["level_1_vibrato_depth_preservation"] = round(
+                        _l1_result.vibrato_depth_preservation, 4
+                    )
+                    result.metadata["level_1_emotional_arc_correlation"] = round(
+                        _l1_result.emotional_arc_correlation, 4
+                    )
+                    result.metadata["level_1_breath_change_percent"] = round(_l1_result.breath_change_percent, 4)
+                    if _l1_result.violated_invariants:
+                        result.metadata["level_1_violated"] = list(_l1_result.violated_invariants)
+
+            except Exception as _l1_exc:
+                logger.debug("§Ebene-1 Invarianten-Guard nicht blockierend: %s", _l1_exc)
+
+            # §Ebene-0 Vocal-Overdrive-Guard (backend/core/dsp/vocal_overdrive_guard.py):
+            # harte Inkrementell-Invariante — keine Phase darf dem Gesang nichtlinearen
+            # Drive hinzufügen (Kamm-/IMD-Excess über Schwelle, Sättigung, Crest-Kollaps
+            # in stimmlichen Frames). Verletzung → Blend Richtung Phasen-Eingang,
+            # schwere Verletzung → vollständige Rücknahme der Phase. Nur aktiv bei
+            # Vokal-Evidenz im Kontext (kein kollateraler Eingriff bei Instrumental).
+            try:
+                from backend.core.dsp.vocal_overdrive_guard import (
+                    protect_vocal_overdrive as _vo_protect,
+                )
+
+                _vo_rctx = getattr(self, "_restoration_context", None) or {}
+                _vo_rctx = _vo_rctx if isinstance(_vo_rctx, dict) else {}
+                _vo_singing = float(_vo_rctx.get("panns_singing", 0.0) or 0.0)
+                _vo_vocal_evidence = bool(
+                    _vo_rctx.get("is_vocal")
+                    or _vo_rctx.get("vocal_active")
+                    or _vo_rctx.get("vocal_zones")
+                    or _vo_rctx.get("vibrato_zones")
+                    or _vo_singing >= 0.15
+                )
+                if _vo_vocal_evidence:
+                    _vo_zones = _vo_rctx.get("vocal_zones") or _vo_rctx.get("vibrato_zones") or []
+                    _vo_audio, _vo_res = _vo_protect(
+                        audio,
+                        result.audio,
+                        _sr_guards,
+                        voiced_zones=list(_vo_zones) if isinstance(_vo_zones, list) else None,
+                        vocal_active=True,
+                        phase_id=str(_pid_guards),
+                    )
+                    if _vo_res.blend_factor < 1.0:
+                        result.audio = _vo_audio
+                        _vo_pma = getattr(self, "_phase_metadata_accumulator", None)
+                        if isinstance(_vo_pma, dict):
+                            _vo_per = list(_vo_pma.get("vocal_drive_phase_events") or [])
+                            _vo_per.append(
+                                {"phase": str(_pid_guards), "reasons": list(_vo_res.reasons)}
+                            )
+                            _vo_pma["vocal_drive_phase_events"] = _vo_per[-20:]
+
+            except Exception as _vo_exc:
+                logger.debug("§Ebene-0 Vocal-Overdrive-Guard nicht blockierend: %s", _vo_exc)
+
+            # §Ebene-4a Wohlklang-Veto pro Phase (Hörordnung §6, automatisch):
+            # Rauigkeit (Roughness-Spitzen) und Schärfe-Sprünge (Sharpness > 0.2 acum)
+            # sind Wohlklang-Verletzungen. Bringt eine HF-/Enhancer-Phase das Signal von
+            # „Gate ok" zu „Gate verletzt", wird sie iterativ Richtung Phasen-Eingang
+            # geblendet (2× 50 %) und bei anhaltender schwerer Verletzung vollständig
+            # zurückgenommen — für jeden Song, ohne Nutzer-Eingriff.
+            _WOHLKLANG_HF_PHASES: frozenset[str] = frozenset(
+                {
+                    "phase_04_eq_correction",
+                    "phase_06_frequency_restoration",
+                    "phase_07_harmonic_restoration",
+                    "phase_16_final_eq",
+                    "phase_17_mastering_polish",
+                    "phase_23_spectral_repair",
+                    "phase_38_presence_boost",
+                    "phase_39_air_band_enhancement",
+                    "phase_41_output_format_optimization",
+                    "phase_50_spectral_repair",
+                    "phase_56_spectral_band_gap_repair",
+                }
+            )
+            if _pid_guards in _WOHLKLANG_HF_PHASES and not np.array_equal(
+                np.asarray(audio, dtype=np.float32), np.asarray(result.audio, dtype=np.float32)
+            ):
+                try:
+                    from backend.core.dsp.einladungs_gate import check_einladungs_gate as _wk4_check
+
+                    _wk4_rctx = getattr(self, "_restoration_context", None) or {}
+                    _wk4_rctx = _wk4_rctx if isinstance(_wk4_rctx, dict) else {}
+                    _wk4_zones = list(_wk4_rctx.get("vibrato_zones") or [])
+                    _wk4_zones.extend(list(_wk4_rctx.get("frisson_zones") or []))
+                    _wk4_pre_res = _wk4_check(audio, _sr_guards, voiced_zones=_wk4_zones)
+                    if _wk4_pre_res.gate_passed:
+                        _wk4_cur = np.asarray(result.audio, dtype=np.float32).copy()
+                        _wk4_pre = np.asarray(audio, dtype=np.float32)
+                        _wk4_reverted = False
+                        _wk4_violated = False
+                        for _wk4_i in range(3):
+                            _wk4_post_res = _wk4_check(_wk4_cur, _sr_guards, voiced_zones=_wk4_zones)
+                            if _wk4_post_res.gate_passed:
+                                break
+                            _wk4_violated = True
+                            if _wk4_i < 2:
+                                _wk4_cur = np.clip(
+                                    (0.5 * _wk4_cur + 0.5 * _wk4_pre).astype(np.float32), -1.0, 1.0
+                                )
+                            else:
+                                _wk4_cur = np.asarray(_wk4_pre, dtype=np.float32).copy()
+                                _wk4_reverted = True
+                        result.audio = _wk4_cur
+                        if _wk4_violated:
+                            if _wk4_reverted:
+                                logger.warning(
+                                    "§Ebene-4a Wohlklang-Veto (%s): Phase zurückgenommen — %s",
+                                    _pid_guards,
+                                    "; ".join(_wk4_post_res.failure_reasons),
+                                )
+                            else:
+                                logger.info(
+                                    "§Ebene-4a Wohlklang-Veto (%s): Blend — %s",
+                                    _pid_guards,
+                                    "; ".join(_wk4_post_res.failure_reasons),
+                                )
+                            _wk4_pma = getattr(self, "_phase_metadata_accumulator", None)
+                            if isinstance(_wk4_pma, dict):
+                                _wk4_ev = list(_wk4_pma.get("wohklang_phase_events") or [])
+                                _wk4_ev.append(
+                                    {
+                                        "phase": str(_pid_guards),
+                                        "reverted": bool(_wk4_reverted),
+                                        "reasons": list(_wk4_post_res.failure_reasons),
+                                    }
+                                )
+                                _wk4_pma["wohklang_phase_events"] = _wk4_ev[-20:]
+                except Exception as _wk4_exc:
+                    logger.debug("§Ebene-4a Wohlklang-Veto nicht blockierend: %s", _wk4_exc)
 
             # §P4 MIIPHER-Aktivierungs-Telemetrie: Akkumuliert aus phase_03-Ergebnis-Metadaten.
             # Sichtbar in Analyse-JSON als 'miipher_tier0_applied' für Diagnose ob SOTA-Modell aktiv war.
