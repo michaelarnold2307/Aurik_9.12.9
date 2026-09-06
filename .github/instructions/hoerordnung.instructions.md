@@ -106,6 +106,11 @@ wird als Fenster-Gate gemessen, nicht als Einzelwert:
   Stufe 3 definiert — hier werden sie zum eigenständigen Gate.)
 - **Ermüdungs-Abbruch:** Fatigue (experience_runtime) > 0.40 beendet die
   Optimierung (gilt schon in OneTakeExport; hier generell für End-Gate/FC).
+  Die audio-basierte Listening-Fatigue (Spektralbalance/Crest/Mikrodynamik,
+  `listening_fatigue_metric.py`) wird seit v10.0.20 komponenten-getrieben
+  präventiert: `anti_fatigue_pass.py` korrigiert High-Shelf und
+  Mikrodynamik-Expansion mit Do-No-Harm; OneTakeExport nutzt denselben Plan
+  statt blindem High-Shelf. Kein neuer Schwellwert, keine Regeländerung.
 - **Bezugspunkt:** Die Goosebumps-/HPE-Bewertung bleibt erhalten, aber ein
   „EXZELLENT" ersetzt das Einladungs-Gate nicht — beide müssen unabhängig halten.
 

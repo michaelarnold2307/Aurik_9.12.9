@@ -65,8 +65,13 @@ def measure_fatigue(
         crest_db = 20.0 * np.log10(peak / rms + 1e-12)
         crest_db = float(np.clip(crest_db, _MIN_CREST_DB, _MAX_CREST_DB))
 
-        # Deviation from optimal: 0 = optimal, 1 = worst
-        crest_dev = abs(crest_db - _OPTIMAL_CREST_DB) / (_OPTIMAL_CREST_DB - _MIN_CREST_DB)
+        # Deviation from optimal: 0 = optimal, 1 = worst.
+        # Einseitig (§Hörordnung Ebene 1): Nur KOMPRESSION (Crest unter Optimum)
+        # ist ermüdend — natürliche Dynamik (Crest über Optimum) wird nicht bestraft.
+        if crest_db >= _OPTIMAL_CREST_DB:
+            crest_dev = 0.0
+        else:
+            crest_dev = (_OPTIMAL_CREST_DB - crest_db) / (_OPTIMAL_CREST_DB - _MIN_CREST_DB)
         crest_dev = float(np.clip(crest_dev, 0.0, 1.0))
 
         # ── 2. Spektralbalance (HF-Anteil) ──────────────────────────

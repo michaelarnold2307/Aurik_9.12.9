@@ -35,6 +35,14 @@
   numpy-1.26-Stubs typisieren `nan_to_num`/`sosfiltfilt` als Any; Rückgaben
   jetzt über annotierte Typ-Grenze (`_out65: np.ndarray`), 3 tote
   `type: ignore[no-any-return]` entfernt. mypy: 0 Fehler.
+- **Anti-Fatigue (Hörordnung §6):** „BEST-EFFORT (no corrections possible)“
+  behoben — OneTakeExport korrigierte Fatigue nur per blindem High-Shelf,
+  während die eigene Korrekturkette (Gain → Limiter → Kompression) die
+  Crest-/Mikro-Komponenten verschlechterte. Neu: komponenten-getriebener
+  `anti_fatigue_pass` (High-Shelf nur bei hf_dev; peak-neutrale
+  Mikrodynamik-Expansion bei Crest/Mikro; Do-No-Harm), Gain-Headroom-Kappe
+  in OneTakeExport, einseitiger Crest (natürliche Dynamik wird nicht mehr
+  als Ermüdung bestraft), UV3-Verdrahtung vor dem Export-Gate.
 - **Fix:** `pyproject.toml` TOML-Syntax (Trailing-Quotes in `description`),
   Versions-Kommentar 10.0.20.
 

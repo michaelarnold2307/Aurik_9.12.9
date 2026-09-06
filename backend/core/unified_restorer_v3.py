@@ -13919,6 +13919,29 @@ class UnifiedRestorerV3:
         except Exception as _polish_exc:
             logger.debug("§v10.0.5 FinalPolish not verfuegbar: %s", _polish_exc)
 
+        # §Anti-Fatigue-Pass (Hörordnung §6/§V7): komponenten-getriebene
+        # Hörermüdungs-Prävention VOR dem Export-Gate — Do-No-Harm.
+        try:
+            from backend.core.anti_fatigue_pass import anti_fatigue_pass as _afp_uv3
+
+            _afp_res = _afp_uv3(restored_audio, sample_rate)
+            if _afp_res.applied:
+                restored_audio = _afp_res.audio.astype(np.float32)
+                logger.info(
+                    "§Anti-Fatigue: %.2f→%.2f (%s)",
+                    _afp_res.before,
+                    _afp_res.after,
+                    _afp_res.reason,
+                )
+                if hasattr(result, "metadata") and isinstance(result.metadata, dict):
+                    result.metadata["anti_fatigue"] = {
+                        "before": _afp_res.before,
+                        "after": _afp_res.after,
+                        "reason": _afp_res.reason,
+                    }
+        except Exception as _afp_exc:
+            logger.debug("§Anti-Fatigue nicht blockierend: %s", _afp_exc)
+
         # §v10.17 OneTakeExport: Export-Qualität garantieren
         try:
             from backend.core.one_take_export import OneTakeExport

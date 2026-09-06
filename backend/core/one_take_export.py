@@ -187,34 +187,30 @@ class OneTakeExport:
                     if _deviation > 4.0:
                         _gain_cap_db = max(_gain_cap_db, _deviation * 1.05)
                     gain_db = float(np.clip(gain_db, -_gain_cap_db, _gain_cap_db))
+                    # §Anti-Fatigue (Hörordnung §6): Gain nie über den True-Peak-
+                    # Headroom hinaus — sonst erzwingt der Folge-Limiter Kompression
+                    # und treibt die Fatigue (Gain→Limiter→Crest-Verlust).
+                    # LUFS ist Warn-Ziel, kein Hard-Fail.
+                    gain_db = min(gain_db, max(0.0, -0.3 - check.true_peak_dbtp))
                     if abs(gain_db) > 0.5:
                         current *= 10.0 ** (gain_db / 20.0)
                         corrections_this_round.append(
                             f"gain({check.integrated_lufs:+.1f}→{lufs_target:+.0f} LUFS, Δ={gain_db:+.1f}dB)"
                         )
 
-            # 3. Fatigue zu hoch → adaptive Höhenabsenkung
-            # §v10.9: Adaptiver Cut: -1dB@0.35, -2dB@0.40, -3dB@0.50
-            _fatigue_db = _fatigue_cut_db(check.fatigue_score)
-            if _fatigue_db < 0:
+            # 3. Fatigue zu hoch → komponenten-getriebene Korrektur
+            #    (§Anti-Fatigue, Hörordnung §6): High-Shelf nur bei HF-Anteil,
+            #    Mikrodynamik-Expansion bei Crest-/Mikro-Anteil — Do-No-Harm.
+            if not check.fatigue_ok:
                 try:
-                    from scipy.signal import butter, sosfiltfilt
+                    from backend.core.anti_fatigue_pass import anti_fatigue_pass as _afp_ote
 
-                    sos = butter(
-                        2,
-                        _FATIGUE_HF_CUT_FREQ / (sr / 2),
-                        btype="highshelf",
-                        output="sos",
-                    )
-                    sos[:, :3] *= 10.0 ** (_fatigue_db / 40.0)
-                    if current.ndim == 2:
-                        for ch in range(min(current.shape[0], 2)):
-                            current[ch] = sosfiltfilt(sos, current[ch])
-                    else:
-                        current = sosfiltfilt(sos, current)
-                    corrections_this_round.append(
-                        f"hf_cut({_fatigue_db:+d}dB@{_FATIGUE_HF_CUT_FREQ}Hz, fatigue={check.fatigue_score:.2f})"
-                    )
+                    _afp_ote_res = _afp_ote(current.astype(np.float32), sr)
+                    if _afp_ote_res.applied:
+                        current = np.asarray(_afp_ote_res.audio, dtype=np.float64)
+                        corrections_this_round.append(
+                            f"anti_fatigue({_afp_ote_res.before:.2f}→{_afp_ote_res.after:.2f}, {_afp_ote_res.reason})"
+                        )
                 except Exception as _e:
                     logger.debug("one_take_Ausgabe: unkritisch exception: %s", _e)
 
