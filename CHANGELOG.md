@@ -31,6 +31,10 @@
   §V6-Silent-Failure (Phase-0-Goal-Baseline iterierte dict-Strings statt
   Werte — Block lief nie). 1 legitimer Dual-Signatur-Fallback bleibt als
   `cast(Any, …)` (DefectScanner-Progress).
+- **Fix (Phase 65):** `no-any-return`-Restfehler in `_apply_shelving_eq` —
+  numpy-1.26-Stubs typisieren `nan_to_num`/`sosfiltfilt` als Any; Rückgaben
+  jetzt über annotierte Typ-Grenze (`_out65: np.ndarray`), 3 tote
+  `type: ignore[no-any-return]` entfernt. mypy: 0 Fehler.
 - **Fix:** `pyproject.toml` TOML-Syntax (Trailing-Quotes in `description`),
   Versions-Kommentar 10.0.20.
 
