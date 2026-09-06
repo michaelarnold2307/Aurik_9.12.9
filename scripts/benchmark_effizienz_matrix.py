@@ -196,7 +196,9 @@ def run_cell(
         progress: list[dict[str, float | str]] = []
         last_pct: dict[str, Any] = {"pct": -1}
 
-        def _cb(pct: float, phase: str, elapsed_s: float) -> None:
+        def _cb(pct: float, phase: str = "", elapsed_s: float = 0.0) -> None:
+            # Dual-Signatur: Restorer ruft teils (pct, name) ohne elapsed_s —
+            # Defaults verhindern, dass Events verloren gehen (top_phases=null).
             # Nur relevante Übergänge speichern (kein Spam bei identischem pct).
             if int(pct) != int(last_pct["pct"]) or phase != last_pct.get("phase"):
                 progress.append(
