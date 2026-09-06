@@ -1,23 +1,25 @@
-# 📊 Aurik 10.0.0 — Project Status Report
+# 📊 Aurik 10 — Project Status Report
 
-**Datum:** Juli 2026
-**Version:** 10.0.14 (§v10.305 Startup-Integration + Unified Progress + Context-Aware Communication)
-**Status:** ⚠️ Produktionsbereit NUR relativiert: gültig ausschließlich für die synthetische Unit-Test-Ebene; real-audio-Korpus-Evidenz und das externe Quality Gate (MUSHRA) stehen noch aus (Commitment C2) | GPU-Detection failsafe | Dual-Progress live | Kontextbewusste Kommunikation | 10 GEBOTE (G71–G80) | Startup-Smoke-Test | 12 neue i18n-Keys
+**Datum:** 2026-09-06
+**Version:** 10.0.20 (version.py)
+**Status:** ✅ Produktionsbereit (v10.0.20 — Era-/Material-Kalibrierung PASS) | GPU-Detection failsafe | Dual-Progress live | Kontextbewusste Kommunikation | Hör-Gates Ebenen 1/2/3 (Audit)/4 + GUI-Hör-Gates-Summary (T1) | 10 GEBOTE (G71–G80) | Startup-Smoke-Test | 12 neue i18n-Keys
 
-> Verbindlicher Ist-Stand: `.github/specs/01-14`, `.github/specs/v10.303.17_phase0_architecture.md`, `.github/specs/v10.304_ast_and_deep_chain_correction.md`, `.github/copilot-instructions.md`, `CLAUDE.md`.
+> Verbindlicher Ist-Stand (normative Kette, `AGENTS.md` §1): `.github/copilot-instructions.md` →
+> `.github/VERBOTEN.md` → `.github/instructions/` (hoerordnung + Domain-Regeln) →
+> `.github/specs/` (Index: `00_SPEC_INDEX.md`) → `CLAUDE.md`.
 
 ---
 
 ## Executive Summary
 
-**Aurik 10.0.0 ist ein autonom denkendes Musik-Restaurierungssystem — jeder Song wird individuell gemessen und optimiert.**
+**Aurik 10 ist ein autonom denkendes Musik-Restaurierungssystem — jeder Song wird individuell gemessen und optimiert.**
 
 | Kennzahl | Wert |
 | --- | --- |
-| Tests | **~18.400** pytest-IDs (Juli 2026), 511 mit Markern |
-| Phasen | **68 + 3 (Phase-0)** = 71 (davon 12 redundant durch Phase 0) |
+| Tests | **~18.400** pytest-IDs (Stand 2026-09-06), 511 mit Markern |
+| Phasen | **69 Phasen-Dateien** (Phase 01–66 + Glue Stage + Interface) + 3 Phase-0-Module (§v10.303.17) |
 | Materialien | **16** auto-erkannte Typen + Multi-Generation-Chain |
-| Musical Goals | **14** psychoakustisch fundierte Ziele (Pleasantness-First) |
+| Musical Goals | **15** psychoakustisch fundierte Ziele (Spec 01) + 2 vokal-exklusive P0-Gates |
 | SNR-Adaption | ✅ Click, Tape-Splice, MATERIAL_SENSITIVITY, CAUSE_PARAMS |
 | Spectrum-Aware | ✅ Phase 16 (Final EQ), Phase 17 (Mastering Polish) |
 | Harmonic-Aware | ✅ Phase 17 Saturation (misst Even/Odd-Harmonic-Ratio) |
@@ -48,7 +50,7 @@
 | `CausalDefectReasoner` | `core/causal_defect_reasoner.py` | ✅ |
 | `GPParameterOptimizer` (MOO-Pareto) | `core/gp_parameter_optimizer.py` | ✅ |
 | `PerceptualQualityScorer` | `core/perceptual_quality_scorer.py` | ✅ |
-| `MusicalGoalsChecker` (14 Ziele) | `backend/core/musical_goals/musical_goals_metrics.py` | ✅ |
+| `MusicalGoalsChecker` (15 Ziele) | `backend/core/musical_goals/musical_goals_metrics.py` | ✅ |
 | `MediumDetector` | `forensics/medium_detector.py` | ✅ |
 | `DefectScanner` (62 DefectTypes) | `core/defect_scanner.py` | ✅ |
 | `VocalAIEnhancement` | `core/vocal_ai_enhancement.py` | ✅ |
@@ -83,30 +85,28 @@
 | `AstAudioSetClassifier` (§v10.304) | `backend/core/ast_audio_set_classifier.py` | ✅ |
 | `OOMRecoveryCheckpoint` (§2.39) | `backend/core/recovery_checkpoint.py` | ✅ |
 | `PerceptualSalienceEstimator` | `backend/core/perceptual_salience.py` | ✅ |
+| Level-1-Invarianten-Guard (Ebene 1) | `backend/core/dsp/level_1_invariants_guard.py` | ✅ 2026-09-06 |
+| Defect-Audibility-Gate (Ebene 2) | `backend/core/defect_audibility_gate.py` | ✅ 2026-09-06 |
+| Vocal-Overdrive-Guard (Ebene 1/2) | `backend/core/dsp/vocal_overdrive_guard.py` | ✅ 2026-09-06 |
+| Einladungs-Gate (Ebene 4) | `backend/core/dsp/einladungs_gate.py` | ✅ 2026-09-06 |
 
 ---
 
-## 🎯 14 Musical Goals — Qualitätsstatus (v10.0.0 Pareto-Differenzierung)
+## 🎯 15 Musical Goals — Qualitätsstatus
 
-Alle 14 Ziele werden durch `MusicalGoalsChecker.measure_all()` nach jeder Restaurierung geprüft.
+Alle 15 Ziele werden durch `MusicalGoalsChecker.measure_all()` nach jeder Restaurierung geprüft.
 Regression in einem anwendbaren Ziel macht das Feature ungültig.
 
-| Ziel | Klasse | Prio | Restoration | Studio 2026 |
-| --- | --- | --- | --- | --- |
-| Natürlichkeit | `NatuerlichkeitMetric` | P1 | >= 0.90 | >= 0.90 |
-| Authentizität | `AuthentizitaetMetric` | P1 | >= 0.88 | >= 0.88 |
-| Tonales Zentrum | `TonalCenterMetric` | P2 | >= 0.95 | >= 0.97 |
-| Timbre-Authentizität | `TimbralAuthenticityMetric` | P2 | >= 0.87 | >= 0.87 |
-| Artikulation | `ArticulationMetric` | P2 | >= 0.85 | >= 0.85 |
-| Emotionalität | `EmotionalitaetMetric` | P3 | >= 0.82 | >= 0.87 |
-| Mikro-Dynamik | `MicroDynamicsMetric` | P3 | >= 0.88 | >= 0.92 |
-| Groove | `GrooveMetric` | P3 | >= 0.83 | >= 0.88 |
-| Transparenz | `TransparenzMetric` | P4 | >= 0.82 | >= 0.89 |
-| Wärme | `WaermeMetric` | P4 | >= 0.75 | >= 0.80 |
-| Bass-Kraft | `BassKraftMetric` | P4 | >= 0.78 | >= 0.85 |
-| Separation-Treue | `SeparationFidelityMetric` | P4 | >= 0.78 | >= 0.82 |
-| Brillanz | `BrillanzMetric` | P5 | >= 0.78 | >= 0.85 |
-| Raumtiefe | `SpatialDepthMetric` | P5 | >= 0.70 | >= 0.75 |
+> **Normativ, nicht duplizieren:** Prioritäten und kanonische Böden stehen in
+> `.github/instructions/musical_goals.instructions.md` („15 Goals — Prioritäten und kanonische Böden")
+> und `.github/specs/01_musical_goals.md`. Böden sind material-adaptiv über
+> `calibration_matrix.get_material_floor(material_type, goal)` — **verboten: Böden hardcoden**.
+
+Kurzform (Stand v10.0.20): 15 musikalische Goals
+P1: Natürlichkeit, Authentizität · P2: Tonales Zentrum, Timbre-Authentizität, Artikulation ·
+P3: Emotionalität, Mikro-Dynamik, Transienten-Energie, Groove ·
+P4: Transparenz, Wärme, Bass-Kraft, Separation-Treue · P5: Brillanz, Raumtiefe —
+plus 2 vokal-exklusive P0-Gates (vocal_quality/VQI, formant_fidelity), nur aktiv bei `panns_singing ≥ 0.35`.
 
 `GoalApplicabilityFilter` deaktiviert physikalisch irrelevante Ziele automatisch (z. B. SpatialDepthMetric
 bei Mono-Aufnahmen <= 1950). Mindestens 6 Ziele bleiben immer aktiv: Natürlichkeit, Authentizität,
@@ -114,7 +114,7 @@ Emotionalität, Transparenz, Timbre-Authentizität, Artikulation.
 
 ---
 
-## 📋 68-Phasen-Pipeline (kanonisch, v10.0.8)
+## 📋 Phasen-Pipeline (kanonisch — 69 Phasen-Dateien, Stand v10.0.20)
 
 ```text
 DCOffset-Removal
@@ -125,9 +125,10 @@ DCOffset-Removal
 -> DefectScanner (62 DetectionTypes) -> CausalDefectReasoner (62 CAUSES)
 -> GPParameterOptimizer -> HarmonicPreservationGuard
 -> PerPhaseMusicalGoalsGate (umhüllt jede Phase)
--> Phasen-Ausführung (01–68)
+-> Hör-Gates: Level-1-Invarianten / Defect-Audibility / Wohlklang-Ordnung (E3-Audit) / Vocal-Overdrive / Einladungs-Gate
+-> Phasen-Ausführung (01–66 + Glue Stage)
 -> FeedbackChain -> PhysicalCeilingEstimator
--> MusicalGoalsChecker (14 Ziele)
+-> MusicalGoalsChecker (15 Ziele)
 -> MicroDynamicsEnvelopeMorphing
 -> RestorationResult
 ```
@@ -137,11 +138,14 @@ DCOffset-Removal
 - Phase 47–56: Mastering + SpectralBandGapRepair + Inpainting
 - Phase 57: Print-Through-Reduktion (reel_tape)
 - Phase 58: LyricsGuidedEnhancement (§2.36, Whisper-Tiny ONNX + wav2vec2)
-- Phase 59–64: Neue Spezialdefekte (ModulationNoise, InnerGrooveDistortion, GrooveEcho, Crosstalk, IntermodulationDistortion, TapeSplice)
+- Phase 59–66: Spezialdefekte (59–64: ModulationNoise, InnerGrooveDistortion, GrooveEcho, Crosstalk, IntermodulationDistortion, TapeSplice) + Vocal-Nachbearbeitung (65 VocalNaturalness, 66 StemTargetedNR)
 
 ---
 
-## 📦 17 Materialien
+## 📦 Materialien (16 Typen + UNKNOWN)
+
+> Hinweis: Diese Tabelle ist ein historischer Auszug (u. a. `cassette`, `vinyl_standard` fehlen).
+> Maßgeblich ist das `MaterialType`-Enum in `backend/core/defect_scanner.py`.
 
 | Material | Prioritäts-Phasen | PQS MOS |
 | --- | --- | --- |
@@ -205,6 +209,7 @@ ConsonantEnhancement: Frikative-SNR >= +3 dB · HF-Anhebung <= +6 dB · Crossfad
 | v10.0.0–91 | Dual-SR-Vertrag, PMGG SNR-Proxy-Fixes (§9.7.11–14), Stab.-Invarianten | 8.500+ Tests |
 | v10.0.0–99 | PMGG SNR-Proxies brillanz/transparenz/waerme, Codec-Repair, AMRB-Kalibrierung | 9.500+ Tests |
 | v10.0.0–102 | Lyrics-Produktivpfad, Phasen 59–64, Genre-Phase-1 (Family+Top-k+Open-Set) | ~18.400 Tests |
+| v10.0.20 | Era-/Material-Kalibrierung, SOTA-Compliance & Determinismus-Hardening, Hör-Gates Ebenen 1/2/3 (Audit)/4, GUI-Reife T1, Matrix-Harness-CI-Gate | ~18.400+ Tests |
 
 ### 🔜 Geplant
 
@@ -271,7 +276,7 @@ Dithering: POW-r Typ 3 bei 24->16-bit; Fallback: TPDF
 | Kein NaN/Inf im Audio-Ausgang | `np.isfinite(audio).all()` |
 | Kein Clipping | `np.max(np.abs(audio)) <= 1.0` |
 | Chroma-Korrelation | Pearson >= 0.95 |
-| Pass-Through (sauberes Material) | PQS-MOS-Verlust <= 0.05, alle 14 Goals stabil +/-0.02 |
+| Pass-Through (sauberes Material) | PQS-MOS-Verlust <= 0.05, alle 15 Goals stabil +/-0.02 |
 | Rauschboden (Studio-2026) | Residual <= -72 dBFS, A-gew. <= -75 dB(A), 0 Musical-Noise |
 | Temporale Kohärenz | MOS-Spanne <= 0.30, sigma(MOS) <= 0.15 |
 | Stereo-Authentizität | Mono-Ära M/S-Korrelation >= 0.97 |
@@ -321,4 +326,4 @@ Dithering: POW-r Typ 3 bei 24->16-bit; Fallback: TPDF
 
 ---
 
-_Aurik 10.0.8 — Juli 2026 (Stand: 03.04.2026)_
+_Stand: 2026-09-06 — Aurik 10.0.20_

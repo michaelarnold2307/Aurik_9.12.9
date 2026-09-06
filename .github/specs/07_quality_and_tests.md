@@ -402,6 +402,28 @@ automatisch geprüft werden.
 **Absolutes Zeitlimit Stufe 1:** `_MAX_TOTAL_SECONDS = 14400.0` (240 Minuten, §K 64×RT-aligned)
 Nach Überschreitung: KMV Stufe 2 (`MLRefinementThread`) übernimmt automatisch.
 
+### §9.1d Matrix-Harness-CI-Gate (Budget-Enforcement, Bootstrap-CI, Phase-Profiling, Ebene-3-Audit)
+
+`scripts/benchmark_effizienz_matrix.py` stellt das maschinelle Gate gegen die
+§9-Tabelle dieser Spec bereit:
+
+- **Budget-Enforcement:** `--enforce-budget` (bzw. `--ci`, das es impliziert)
+  prüft die gemessenen Zeiten je Zelle gegen die Tabelle in §9 dieser Spec.
+  Verletzungen landen im Ergebnis-JSON unter `budget_violations` und führen im
+  CI-Modus zu Exit 1. Operationen, für die die Pipeline kein Per-Operation-Timing
+  liefert, werden als `null` dokumentiert (nicht geschätzt).
+- **Bootstrap-95 %-CI:** `--bootstrap-ci` berechnet je Zelle Konfidenzintervalle
+  der Qualitäts-/MUSHRA-Werte (Percentile-Bootstrap, deterministisch per Seed,
+  §G5 (copilot-instructions.md)); Schlüssel `quality_ci95`/`mushra_ci95` plus
+  `bootstrap_seed`/`bootstrap_n`/`bootstrap_alpha`.
+- **Phase-Profiling:** `--profile-top-phases N` schreibt die N langsamsten
+  Phasen je Zelle (Wall-Zeit) als `top_phases` ins Ergebnis-JSON
+  (Opt-in; `--ci` setzt 3).
+- **Ebene-3-Audit:** `backend/core/wohlklang_ordnung_gate.py`
+  (`WohlklangOrdnungGate`) verifiziert die lexikografische Wohlklang-Ordnung
+  (§5/§8 (hoerordnung.instructions.md)) maschinell; Ergebnis im
+  Metadata-Key `wohlklang_ordnung`, GUI-Ampel via `hearing_gates_summary.py`.
+
 **FeedbackChain-Abbruch (Fix M, v10.0.0 — MOS-Metrik präzisiert, harmonisiert v10.0.0):**
 
 ```python

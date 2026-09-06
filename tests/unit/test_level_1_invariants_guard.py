@@ -223,6 +223,31 @@ class TestBlendFactor:
 class TestEdgeCases:
     """Tests für Edge-Cases."""
 
+    def test_quality_never_trades_for_identity(self, sample_audio):
+        """Ein Kandidat, der VQI verbessert, aber singer_identity unter die
+        Ebene-1-Invariante (0.92) drückt, wird geblockt — Qualität darf nie
+        gegen Identität getauscht werden (Bug-Klasse AUDIO-QUALITY P1).
+
+        Beleg über die reale Gate-API (kein Mock): der VQI-Kontext meldet einen
+        hohen Qualitäts-Score (vqi=0.98) und zugleich ein
+        singer_identity_cosine unter der Schwelle — der Guard muss blend < 1.0
+        und „singer_identity" als verletzt ausweisen.
+        """
+        audio, sr = sample_audio
+        context = {
+            "vqi_result": {
+                "singer_identity_cosine": 0.80,  # < 0.92 → Identität verletzt
+                "vqi_score": 0.98,  # Qualität „verbessert"
+            }
+        }
+
+        result = check_level_1_invariants(audio, audio, sr, context=context)
+
+        # Identität ist blockiert — kein Push-Through trotz hoher Qualität.
+        assert result.singer_identity < 0.92
+        assert "singer_identity" in result.violated_invariants
+        assert result.blend_factor < 1.0
+
     def test_short_audio_returns_fallback(self):
         """Kurzes Audio (< 256 Samples) sollte Fallback zurückgeben."""
         audio = np.zeros(100, dtype=np.float32)

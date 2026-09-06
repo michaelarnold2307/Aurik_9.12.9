@@ -1,7 +1,7 @@
-# Aurik 10.0.8 Roadmap – Stand April 2026 (Historischer Snapshot + aktueller Stand)
+# Aurik 10 Roadmap (Historischer Snapshot + aktueller Stand)
 
-> **Aurik 10.0.8 ist ein intelligentes, kontextbewusstes Musik- und Gesangs-Restaurierungs-, Reparatur- und Rekonstruktions-System. Aktuelle Version: 10.0.8 (Juli 2026), 68 Phasen, ~18.400+ Tests.**
-> Hinweis: Diese Roadmap bildet überwiegend einen historischen Planungsstand ab. Für den aktuellen normativen Zustand gelten `.github/specs/01-14` und `docs/CHANGELOG_HISTORY.md`.
+> **Aurik 10 ist ein intelligentes, kontextbewusstes Musik- und Gesangs-Restaurierungs-, Reparatur- und Rekonstruktions-System. Aktuelle Version: 10.0.20 (2026-09-06), 69 Phasen-Dateien, ~18.400+ Tests.**
+> Hinweis: Diese Roadmap bildet überwiegend einen historischen Planungsstand ab. Für den aktuellen normativen Zustand gilt die normative Kette (`AGENTS.md` §1) mit `.github/specs/` (Index: `00_SPEC_INDEX.md`).
 > Releasepfad-Norm: Bridge -> `AurikDenker.denke(...)` -> `export_guard()`. Aeltere v2-/Server-/Docker-Planpunkte sind `LEGACY_NON_RELEASE`.
 
 ## Abgeschlossene Versionen (Highlights)
@@ -28,7 +28,7 @@
 | v10.0.0 | SongCal-PMGG-Integration (§2.31b), Material-adaptive PHASE\_GOAL\_EXCLUSIONS | ~9.200+ |
 | v10.0.0 | K-S tonal\_center Proxy (§9.7.11), SNR-robuste brillanz/transparenz/waerme (§9.7.12–14) | ~10.000+ |
 | v10.0.0 | §2.29c Restorative-Phase-Baseline-Capping, PMGG 122 Tests | ~10.700+ |
-| v10.0.8 | Genre-Phase-1 (Family+Top-k+Open-Set), LyricsGuidedEnhancement Pflichtmodul, 68 Phasen | ~18.400+ |
+| v10.0.8 | Genre-Phase-1 (Family+Top-k+Open-Set), LyricsGuidedEnhancement Pflichtmodul (damals 68 Module; heute 69 Phasen-Dateien) | ~18.400+ |
 
 ---
 
@@ -1276,7 +1276,15 @@ _Verbleibend: Lyrics-Guided Enhancement Implementation (v10.0-R&D), AutoMix/Auto
 
 ## 🔜 Nächste Meilensteine
 
+Erledigt (2026-09-06, v10.0.20+):
+- Ebene-3-Audit-Gate (`WohlklangOrdnungGate`) + GUI-Ampel
+- Matrix-Harness-CI-Gate: Budget-Enforcement, Bootstrap-95 %-CI, Phase-Profiling
+
+Offen:
 - CAUSE_PARAMS vollständig SNR-adaptiv
 - MATERIAL_SENSITIVITY komplett auf Messung umstellen
 - Watchdog E2E-Checkpoint-Export-Test
 - Goal-Erreichungs-Matrix automatisieren (100 Songs → HPI>0 in ≥95%)
+- Era-/Material-Kalibrierungskorpus (Schellack/Vinyl/Kassette/mp3/Streaming-Anker)
+- RSS-Senkung & Modell-Quantisierung (ONNX/OpenVINO int8/fp16), GPU-Offload-Neubewertung
+- Custom Model Training (KI/ML 98% → 99%)

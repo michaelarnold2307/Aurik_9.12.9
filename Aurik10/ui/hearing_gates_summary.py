@@ -5,6 +5,7 @@ Konsumierte Keys (aus unified_restorer_v3.py):
   * metadata["audibility_gate"] = {gate_passed, threshold, n_audible_unmasked,
     n_masked, n_resolved, improvable_types, …}
   * metadata["einladungs_gate_passed"/"_corrected"/"_sharpness_jump"/…]
+  * metadata["wohlklang_ordnung"] = {status, violated_goals, detail, violations}
   * metadata["vocal_drive_*"] (vocal_drive_telemetry-Felder)
 """
 
@@ -15,6 +16,11 @@ from typing import Any
 
 def _ag(meta: dict) -> dict:
     v = meta.get("audibility_gate") or {}
+    return v if isinstance(v, dict) else {}
+
+
+def _wo(meta: dict) -> dict:
+    v = meta.get("wohlklang_ordnung") or {}
     return v if isinstance(v, dict) else {}
 
 
@@ -29,6 +35,8 @@ def hearing_gate_status(meta: dict) -> str:
     """green | yellow | red — Ampel über alle Hör-Gates."""
     ag = _ag(meta)
     if ag.get("gate_passed") is False:
+        return "red"
+    if _wo(meta).get("status") == "VIOLATION":
         return "red"
     if meta.get("einladungs_gate_passed") is False and not meta.get("einladungs_gate_corrected"):
         return "red"
@@ -55,6 +63,7 @@ def hearing_gates_details(meta: dict) -> list[str]:
     """Detailzeilen für den Ergebnis-Banner."""
     out: list[str] = []
     ag = _ag(meta)
+    wo = _wo(meta)
     if ag:
         out.append(
             "Audibility: bestanden" if ag.get("gate_passed") is not False else "Audibility: Restdefekte über Schwelle"
@@ -65,6 +74,12 @@ def hearing_gates_details(meta: dict) -> list[str]:
             out.append("  Stufe-2-Queue: " + ", ".join(str(x) for x in ag["improvable_types"][:6]))
         if _num(ag.get("n_masked")) > 0:
             out.append(f"  maskiert: {int(_num(ag.get('n_masked')))} Typ(en)")
+    if wo.get("status") == "VIOLATION":
+        goals = wo.get("violated_goals") or []
+        names = ", ".join(str(g) for g in goals)
+        out.append(f"Wohlklang-Ordnung: verletzt ({names})")
+    elif wo.get("status") == "PASS":
+        out.append("Wohlklang-Ordnung: erfüllt")
     eg_passed = meta.get("einladungs_gate_passed")
     if eg_passed is False:
         if meta.get("einladungs_gate_corrected"):

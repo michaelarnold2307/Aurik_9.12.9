@@ -37,6 +37,14 @@ class TestStatus:
         m = _meta(vocal_drive_hard_revert=True)
         assert hearing_gate_status(m) == "red"
 
+    def test_red_wohlklang_ordnung_violation(self) -> None:
+        m = _meta(wohlklang_ordnung={"status": "VIOLATION", "violated_goals": ["waerme"]})
+        assert hearing_gate_status(m) == "red"
+
+    def test_green_wohlklang_ordnung_pass(self) -> None:
+        m = _meta(wohlklang_ordnung={"status": "PASS"})
+        assert hearing_gate_status(m) == "green"
+
 
 class TestLines:
     def test_line_has_icon(self) -> None:
@@ -52,6 +60,16 @@ class TestLines:
     def test_details_wohlklang(self) -> None:
         det = hearing_gates_details(_meta(einladungs_gate_passed=True))
         assert any("Wohlklang: erfüllt" in d for d in det)
+
+    def test_details_wohlklang_ordnung_violation(self) -> None:
+        m = _meta(wohlklang_ordnung={"status": "VIOLATION", "violated_goals": ["waerme"]})
+        det = hearing_gates_details(m)
+        assert any("Wohlklang-Ordnung: verletzt" in d and "waerme" in d for d in det)
+
+    def test_details_wohlklang_ordnung_pass(self) -> None:
+        m = _meta(wohlklang_ordnung={"status": "PASS"})
+        det = hearing_gates_details(m)
+        assert any("Wohlklang-Ordnung: erfüllt" in d for d in det)
 
     def test_details_empty(self) -> None:
         det = hearing_gates_details(_meta())

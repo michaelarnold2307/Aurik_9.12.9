@@ -87,6 +87,12 @@ und für die FeedbackChain-Boosts.
 senkt — unabhängig davon, ob der Einzel-Score des Boost-Ziels steigt
 (Teamwork- statt Dominanz-Prinzip, Spec 01 §1.2c).
 
+Seit v10.0.20 wird Ebene 3 zusätzlich maschinell auditiert: `WohlklangOrdnungGate`
+(`backend/core/wohlklang_ordnung_gate.py`) verifiziert die Dominanz-Konformität
+von Kandidaten-Entscheidungen auf Basis von `goal_priority_protocol.py` und meldet
+Verstöße an die GUI-Ampel (`hearing_gates_summary.py`). Kein neuer Schwellwert,
+keine Regeländerung — vgl. §8, Zeile „3“.
+
 ## 6. Ebene 4 — Einladungs-Gate (positiver Nachweis)
 
 „Wohlklang, in den sich das Ohr hineinlegt" ist ein **positives** Kriterium und
@@ -129,7 +135,7 @@ jeweiligen Mess-Definitionen; hier zählt nur der Entscheidungsfluss):
 |---|---|
 | 1 | VQI-Gate + singer_identity-Rollback + EmotionalArc (UV3, Spec 01 §2.35c–e), ConsonantClarity; **§SCK-R/§WBG-R** Phasen-Rücknahme im zentralen Phasen-Call (`unified_restorer_v3.py`, Konkretisierung zu V24/V25 in dsp.instructions.md) |
 | 2 | `compute_masking_threshold_iso11172` (dsp §2.62), PerceptualSalience (Pass-Through-Guard), `residuum_masking.py` (3. Blend-Term), `_should_skip_masked_phase` (Stufe B), §v10.703-Countdown (Stufe A: ERB-maskierte Events) |
-| 3 | GoalPriorityProtocol (Spec 01 §2.34) + `HEARING_TIER_MAP`/`hearing_tier()` (Hörordnungs-Dominanzstufe), `goal_weights` (§2.56), PhaseConductor/PMGG; Guards in FeedbackChain (intern + UV3-Callback) und End-Gate-Ranking |
+| 3 | GoalPriorityProtocol (Spec 01 §2.34) + `HEARING_TIER_MAP`/`hearing_tier()` (Hörordnungs-Dominanzstufe), `goal_weights` (§2.56), PhaseConductor/PMGG; Guards in FeedbackChain (intern + UV3-Callback) und End-Gate-Ranking; `wohlklang_ordnung_gate.py` (`WohlklangOrdnungGate`, maschineller Audit der Dominanz-Konformität, meldet Verstöße an die GUI-Ampel) |
 | 4 | `inviting_sound_gate.py` (Fenster-Gate), experience_runtime (fatigue_index), GoosebumpsQualityChecker, OneTakeExport |
 | §7 Konfliktregel | Wohlklang-Garantie-Alignment-Guard, af-false-positive-Handling, MQA-Verdict-Kennzeichnung („Messartefakt-Verdacht“) |
 

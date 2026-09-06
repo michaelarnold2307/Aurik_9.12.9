@@ -1,4 +1,39 @@
-# Changelog — Aurik 10.0.19
+# Changelog — Aurik 10.0.20
+
+## Unreleased (nach 10.0.20)
+
+### 👂 Hörordnung Ebene 3 — maschineller Audit + Matrix-Harness-CI-Gate
+
+- **Ebene 3:** `wohlklang_ordnung_gate` (`WohlklangOrdnungGate`) — Audit der
+  lexikografischen Wohlklang-Ordnung (Hörordnung §5/§8); verdrahtet in
+  FeedbackChain (intern + UV3-Callback), Metadata-Key `wohlklang_ordnung`,
+  GUI-Ampel (rot bei VIOLATION).
+- **Matrix-Harness-CI:** `benchmark_effizienz_matrix` mit `--enforce-budget`,
+  `--bootstrap-ci`, `--profile-top-phases`, `--ci` (Budget-Tabelle aus
+  copilot-instructions §Performance-Budget; 95 %-CI deterministisch per Seed).
+- **Fix:** `pyproject.toml` TOML-Syntax (Trailing-Quotes in `description`),
+  Versions-Kommentar 10.0.20.
+
+## 10.0.20 (2026-09-06) — Era-/Material-Kalibrierung, SOTA-Hardening, Hör-Gates Ebenen 1/2/4
+
+### 🎚️ Era-/Material-Kalibrierung (Worldclass Release Gate PASS)
+
+- Era-/Material-abhängige Kalibrierung über die Kette: Material-Crest-Kalibrierung,
+  stereo_penalty/af_veto/ntx_threshold-Material-Schwellen (§CALIB), Deep-Chain-Korrektur.
+- SOTA-Compliance & Determinismus-Hardening; 10 neue Guard-/Denker-Module + 71 Unit-Tests
+  (u. a. PresenceEmbedding/EraAuthenticCompletion, G90).
+
+### 👂 Hör-Gates (Hörordnung Ebenen 1/2/4) + GUI
+
+- **Ebene 1:** `level_1_invariants_guard` — fünf unverhandelbare Invarianten pro Phase
+  (Stimm-Identität, Konsonanten-Klarheit, Vibrato-Erhalt, Dynamikbogen, Atem-Zeitstruktur).
+- **Ebene 2:** `defect_audibility_gate` — material-/ketten-adaptive JND-Schwelle für Restdefekte
+  (ERB-Maskierung, Physical-Cap-Typen).
+- **Ebene 4:** `einladungs_gate` (positives Wohlklang-Gate, VQI-Recovery) +
+  `vocal_overdrive_guard` (hartes Vocal-Schutz-Invariante, kalibriert an Elke Best 1977).
+- **GUI (Reife T1):** `hearing_gates_summary` — Ampel/Detail der Hör-Gates im Score-Banner.
+- Werkzeuge: `benchmark_effizienz_matrix` (UV3-Modi-Matrix, RSS/RT/JSON),
+  `mushra_harness` (ITU-R BS.1534); Audit `audit/gui_reife_audit_2026-09-06.md`.
 
 ## 10.14.0 (2026-08-06) — „Durchblick": Detector-Root-Cause-Fixes
 
@@ -138,7 +173,7 @@
 
 ### 🔧 Infrastruktur
 
-- **Phase Icons (§G60):** 68 Phasen mit intuitiven Unicode-Icons in Logs
+- **Phase Icons (§G60):** Icons für alle Phasenmodule in Logs
 - **Deutsche Logs:** Alle neuen Module durchgängig deutsch
 - **Streaming Processor (§G62):** ~90 % Memory-Reduktion für lange Dateien
 - **Phase Parallelizer (§G60):** Framework für parallele Phasen-Ausführung

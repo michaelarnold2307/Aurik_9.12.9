@@ -992,6 +992,22 @@ class FeedbackChain:
                             _ho_dropped_tier = min(_ho_dropped_tier, _t_ho)
                         elif _d_ho > _gpp.REGRESSION_EPSILON:
                             _ho_gained_tier = min(_ho_gained_tier, _t_ho)
+                    # Hörordnung Ebene 3 Audit (hoerordnung.instructions.md §5/§8):
+                    # Maschinelle Dominanz-Verifikation via WohlklangOrdnungGate
+                    # (Reihenfolge recycelt aus GoalPriorityProtocol, keine neuen
+                    # Schwellwerte). Ergebnis für UV3-Metadaten/GUI-Ampel.
+                    try:
+                        from backend.core.wohlklang_ordnung_gate import (  # pylint: disable=import-outside-toplevel
+                            WohlklangOrdnungGate as _WOGate,
+                        )
+
+                        _wo_deltas = {
+                            str(_g_ho): float(_curr_goals.get(_g_ho, _v_prev)) - float(_v_prev)
+                            for _g_ho, _v_prev in _prev_goals.items()
+                        }
+                        self.last_wohlklang_audit = _WOGate().evaluate(_wo_deltas).to_dict()
+                    except Exception as _wo_exc:
+                        logger.debug("WohlklangOrdnungGate in FeedbackChain nicht verfügbar: %s", _wo_exc)
                     if _ho_dropped_tier < _ho_gained_tier:
                         _ho_entry = (
                             f"FeedbackChain Iteration {i}: Hörordnungs-Verstoß "

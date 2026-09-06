@@ -14800,6 +14800,21 @@ class UnifiedRestorerV3:
                                         _ho_dropped_tier = min(_ho_dropped_tier, _t_ho2)
                                     elif _d_ho2 > _gpp_ho.REGRESSION_EPSILON:
                                         _ho_gained_tier = min(_ho_gained_tier, _t_ho2)
+                                # §Ebene-3 Audit (hoerordnung.instructions.md §8):
+                                # Dominanz-Konformität maschinell verifizieren;
+                                # Ergebnis in Metadaten für GUI-Ampel.
+                                try:
+                                    from backend.core.wohlklang_ordnung_gate import (
+                                        WohlklangOrdnungGate as _WOGate_cb,
+                                    )
+
+                                    _wo_deltas_cb = {
+                                        str(_g_ho2): float((_sa or {}).get(_g_ho2, _v_prev2)) - float(_v_prev2)
+                                        for _g_ho2, _v_prev2 in (_sb or {}).items()
+                                    }
+                                    self._last_wohlklang_audit = _WOGate_cb().evaluate(_wo_deltas_cb).to_dict()
+                                except Exception as _wo_cb_exc:
+                                    logger.debug("WohlklangOrdnungGate im FC-Callback nicht verfügbar: %s", _wo_cb_exc)
                                 if _ho_dropped_tier < _ho_gained_tier:
                                     logger.warning(
                                         "§FC-GPP: Hörordnungs-Verstoß (Senkung Stufe %d gegen Gewinn Stufe %d) — Kandidat verworfen",
@@ -14864,6 +14879,20 @@ class UnifiedRestorerV3:
                     _fc_numbered_list.append((_fc_n, _fc_wrap(), {}))
                 _fc_chain_result = _fc_chain.run(restored_audio, _fc_numbered_list, ceiling=_fc_ceiling_val)
                 restored_audio = _fc_chain_result.audio
+                # §Ebene-3 Audit → Ergebnis-Metadaten (hoerordnung.instructions.md §8, GUI-Ampel).
+                try:
+                    _wo_audit = getattr(_fc_chain, "last_wohlklang_audit", None) or getattr(
+                        self, "_last_wohlklang_audit", None
+                    )
+                    if _wo_audit and hasattr(result, "metadata") and isinstance(result.metadata, dict):
+                        result.metadata["wohlklang_ordnung"] = dict(_wo_audit)
+                        if _wo_audit.get("status") == "VIOLATION":
+                            logger.warning(
+                                "§Ebene-3 Audit: Wohlklang-Ordnungs-Verstoß dokumentiert — %s",
+                                _wo_audit.get("detail", ""),
+                            )
+                except Exception as _wo_meta_exc:
+                    logger.debug("WohlklangOrdnung-Metadaten nicht blockierend: %s", _wo_meta_exc)
                 # §v10.x Chunk-Längen-Invariante (Befund 2026-08-22): letzte
                 # shape-kompatible Pipeline-Ausgabe als Fallback-Checkpoint —
                 # für den Fall, dass ein Post-Pipeline-Block ein Voll-Song-

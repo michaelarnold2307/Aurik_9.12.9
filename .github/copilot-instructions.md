@@ -228,6 +228,12 @@ Folgende Phasen sind im Restoration-Modus normativ VERBOTEN (§0a/UV3-Forbidden-
 | RestorabilityEstimator | <= **5 s** |
 | Export (FLAC 24-bit) | <= 10 s |
 
+Die Budget-Tabelle wird maschinell je Zelle von
+`scripts/benchmark_effizienz_matrix.py --ci --enforce-budget` geprüft;
+Verletzungen werden im Ergebnis-JSON unter dem Schlüssel `budget_violations`
+gemeldet und führen im CI-Modus zu Exit 1. Operationen ohne Per-Operation-Timing
+in der Pipeline werden als `null` dokumentiert (nicht geschätzt).
+
 ## Bug-Klassen (normativ, synchron zu Spec 10)
 
 | Klasse | Bedeutung | Priorität |
