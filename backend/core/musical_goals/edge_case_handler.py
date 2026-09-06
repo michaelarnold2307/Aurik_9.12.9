@@ -740,7 +740,19 @@ class EdgeCaseHandler:
         # Compute power spectrum
         if not _LIBROSA_AVAILABLE:
             logger.debug("librosa not verfuegbar — spectrum Profil uebersprungen")
-            return SpectrumProfile()  # type: ignore[call-arg]
+            # §V7/Spec 07: Pflichtfelder explizit setzen — der leere Konstruktor
+            # warf zur Laufzeit TypeError (librosa-Fallback-Pfad).
+            return SpectrumProfile(
+                has_low_freq=False,
+                has_mid_freq=False,
+                has_high_freq=False,
+                bass_ratio=0.0,
+                mid_ratio=0.0,
+                treble_ratio=0.0,
+                spectral_centroid=0.0,
+                spectral_bandwidth=0.0,
+                missing_bands=list(sorted({"bass", "mid", "treble"})),
+            )
         stft = librosa.stft(audio, n_fft=_n_fft_ech, hop_length=_hop_ech)
         magnitude = np.abs(stft)
         power = magnitude**2

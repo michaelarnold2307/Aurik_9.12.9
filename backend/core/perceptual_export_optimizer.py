@@ -90,9 +90,9 @@ class PerceptualExportOptimizer:
             dfn = DeepFilterNetV3IIPlugin()
             # DFN erwartet (batch, channels, samples) oder (channels, samples)
             if audio.ndim == 2:
-                processed = dfn.enhance(audio)  # type: ignore[call-arg]
+                processed = dfn.enhance(audio, sr)
             else:
-                processed = dfn.enhance(audio[np.newaxis, :])  # type: ignore[call-arg]
+                processed = dfn.enhance(audio[np.newaxis, :], sr)
             logger.info("§AQ DeepFilterNet: ML noise/click repair angewendet")
             return cast(np.ndarray, (np.asarray(processed, dtype=np.float32)))
         except Exception as e:

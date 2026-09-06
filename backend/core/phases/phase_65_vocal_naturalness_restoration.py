@@ -502,7 +502,7 @@ class VocalNaturalnessRestorationPhase(PhaseInterface):
                     result,
                     sample_rate,
                     max_boost_db=_formant_boost_db,
-                    era_decade=int(_era_p65_lpc) if _era_p65_lpc is not None else None,  # type: ignore[call-arg]
+                    era_decade=int(_era_p65_lpc) if _era_p65_lpc is not None else None,
                 )
                 result = result_enhanced.astype(np.float32)
                 _p65_meta["stages_applied"].append(f"formant_tilt_{_formant_boost_db:.2f}dB")

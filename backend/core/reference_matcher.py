@@ -47,7 +47,7 @@ def analyze_reference(audio: np.ndarray, sr: int) -> MatchProfile:
         l, r = audio[:, 0], audio[:, 1]
         stereo = float(np.clip(1.0 - abs(np.corrcoef(l, r)[0, 1]), 0.0, 1.0))
 
-    return MatchProfile(  # type: ignore[call-arg]
+    return MatchProfile(
         target_eq_curve=long_spec.astype(np.float32),
         target_rms_db=20 * np.log10(rms),
         target_stereo_width=stereo,

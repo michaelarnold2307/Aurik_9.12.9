@@ -2169,7 +2169,9 @@ class DefectScanner:
                     try:
                         progress_callback(_pct, name)
                     except TypeError:
-                        progress_callback(_pct)  # type: ignore[call-arg]
+                        # Dual-Signatur-Fallback: 1-Arg-Callbacks werden absichtlich
+                        # unterstützt (Runtime-Vertrag älterer Aufrufer).
+                        cast(Any, progress_callback)(_pct)
 
         _tail_steps_done = 0
         # Fixed tail steps: 24 defect-type ticks always run.

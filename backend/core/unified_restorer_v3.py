@@ -9734,12 +9734,11 @@ class UnifiedRestorerV3:
                 except Exception as _prior_exc:
                     logger.debug("§3.2 SVM-Prior-laden nicht blockierend: %s", _prior_exc)
 
-                _svm_result = _svm.build_from_audio(  # type: ignore[call-arg]
+                _svm_result = _svm.build_from_audio(
                     audio,
                     sample_rate,
                     panns_singing=float(getattr(self, "_panns_singing", 0.5)),
                     vfa_result=self._restoration_context.get("vfa_result", {}),
-                    prior_model=_svm_prior,  # §3.2: Warm-Start mit prior
                 )
                 self._restoration_context["singer_voice_model"] = (
                     _svm_result.to_dict() if _svm_result is not None else None
@@ -11504,7 +11503,7 @@ class UnifiedRestorerV3:
                 # Roughness, Sharpness, Spectral Flatness via PsychoAcousticMetrics
                 from backend.core.psychoacoustic_metrics import PsychoAcousticMetrics
 
-                _pam = PsychoAcousticMetrics(sample_rate)  # type: ignore[call-arg]
+                _pam = PsychoAcousticMetrics(sample_rate)
                 _sgi_roughness = float(_pam.calculate_roughness(_pa_mono))
                 _sgi_sharpness = float(_pam.calculate_sharpness(_pa_mono))
                 _sgi_spectral_flatness = float(_pam.calculate_spectral_flatness(_pa_mono))
@@ -11597,7 +11596,7 @@ class UnifiedRestorerV3:
                 # STFT spectral peak consistency over the full song duration.
                 from backend.core.psychoacoustic_metrics import PsychoAcousticMetrics as _PAM_VHT
 
-                _pam_vht = _PAM_VHT(sample_rate)  # type: ignore[call-arg]
+                _pam_vht = _PAM_VHT(sample_rate)
                 _sgi_harm_coh = float(_pam_vht.calculate_harmonic_coherence(_pa_seg))
 
                 # --- Transient Density: STFT Spectral Flux + Peak-Picking ---
@@ -13905,11 +13904,10 @@ class UnifiedRestorerV3:
 
             _polish_decade = int(getattr(self, "_restoration_context", {}).get("decade", 1980) or 1980)
             _polish_mat = str(getattr(self, "_restoration_context", {}).get("primary_material", "digital"))
-            restored_audio = apply_final_polish(  # type: ignore[call-arg]
+            restored_audio = apply_final_polish(
                 restored_audio,
                 sample_rate,
-                era_decade=_polish_decade,
-                material=_polish_mat,
+                decade=_polish_decade,
                 bit_depth=24 if self.is_studio_mode() else 16,
             )
             logger.info(
@@ -22127,14 +22125,13 @@ class UnifiedRestorerV3:
                 if _dnh_hpi > 0:
                     _analytics_meta["hpi"] = _dnh_hpi
 
-                _dnh_result = _guardian.evaluate(  # type: ignore[call-arg]
+                _dnh_result = _guardian.evaluate(
                     restored_audio,
                     target_sample_rate,
                     material=_dnh_mat,
                     chain_depth=int(getattr(self, "_restoration_context", {}).get("transfer_chain_depth", 1)),
                     mushra_score=_dnh_mushra,
                     hpi_score=_dnh_hpi,
-                    closed_loop_state=getattr(self, "_closed_loop_state", None),
                 )
 
                 # ═══ §v10.103 P3: UnifiedQualityModel — Zweitmeinung ═══
@@ -23380,7 +23377,7 @@ class UnifiedRestorerV3:
                     self._wohlklang_best_mushra,
                     _retry_mushra,
                 )
-                result = RestorationResult(  # type: ignore[call-arg]
+                result = RestorationResult(
                     audio=self._wohlklang_best_audio,
                     config=result.config,
                     material_type=result.material_type,
@@ -25415,7 +25412,7 @@ class UnifiedRestorerV3:
             _ech36 = _ECH36h()
             _ech_cap = 10 * sample_rate
             _ech_audio = restored_audio[:_ech_cap] if restored_audio.shape[-1] > _ech_cap else restored_audio
-            _eca36 = _ech36.assess_edge_cases(_ech_audio, sample_rate)  # type: ignore[call-arg]
+            _eca36 = _ech36.assess_edge_cases(_ech_audio, sample_rate)
             _edge_case_result = _eca36.as_dict() if hasattr(_eca36, "as_dict") else {"severity": str(_eca36)}
             logger.debug("⚠️ EdgeCaseHandler: %s", _edge_case_result)
             return _edge_case_result
@@ -26510,7 +26507,7 @@ class UnifiedRestorerV3:
             from backend.core.psychoacoustic_metrics import PsychoAcousticMetrics as _PAM
 
             _pam_audio = np.mean(restored_audio, axis=0) if restored_audio.ndim == 2 else restored_audio
-            _pam = _PAM()  # type: ignore[call-arg]
+            _pam = _PAM()
             _pam_result = {
                 "roughness": round(float(_pam.calculate_roughness(_pam_audio)), 4),
                 "sharpness": round(float(_pam.calculate_sharpness(_pam_audio)), 4),
@@ -36213,22 +36210,23 @@ class UnifiedRestorerV3:
                         measure_all as _p0_measure_all,
                     )
 
-                    _p0_goals = _p0_measure_all(  # type: ignore[call-arg]
-                        current_audio,
-                        sample_rate,
-                        material_key=_mat_key,
-                        mode="restoration",
-                    )
-                    _p0_baseline = {}
-                    for _g in _p0_goals:
-                        _p0_baseline[_g.name] = _g.score  # type: ignore[attr-defined]
+                    _p0_goals = _p0_measure_all(current_audio, sample_rate)
+                    # measure_all liefert dict[goal_name -> score]; die frühere
+                    # Objekt-Iteration (.name/.score/.threshold) scheiterte still
+                    # an dict-Strings (Block lief nie — §V6-Silent-Failure behoben).
+                    _p0_baseline = {str(_g): float(_v) for _g, _v in (_p0_goals or {}).items()}
                     _rc["phase0_goal_baseline"] = _p0_baseline
                     _rc["goal_baseline_scores"] = _p0_baseline
                     # Goal-Budget mit Phase-0-Realität neu kalibrieren
                     _gb = _rc.get("goal_budget")
                     if _gb is not None and hasattr(_gb, "recalibrate"):
                         _gb.recalibrate(_p0_baseline)
-                    _p0_excellence = sum(1.0 for _g in _p0_goals if _g.score >= _g.threshold) / max(len(_p0_goals), 1)  # type: ignore[misc, attr-defined]
+                    from backend.core.musical_goals.musical_goals_metrics import get_checker
+
+                    _p0_thresholds = get_checker().thresholds
+                    _p0_excellence = sum(
+                        1.0 for _g, _v in _p0_baseline.items() if _v >= float(_p0_thresholds.get(_g, 0.85))
+                    ) / max(len(_p0_baseline), 1)
                     logger.info(
                         "§v10.303.17 Verarbeitungsschritt-0 Goal-Baseline: excellence=%.3f (%d goals)",
                         _p0_excellence,
@@ -43667,9 +43665,11 @@ class UnifiedRestorerV3:
 
         from backend.core.unified_restorer_v3 import RestorationResult
 
-        return RestorationResult(  # type: ignore[call-arg]
+        return RestorationResult(
             audio=opt_result.audio,
             config=self.config,
+            material_type=self.config.material_type,
+            defect_scores=dict(getattr(self, "_defect_result_scores", {}) or {}),
             total_time_seconds=time.monotonic() - t0,
             metadata={
                 "optimization": "closed_loop",

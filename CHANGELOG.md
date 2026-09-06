@@ -22,6 +22,15 @@
   degradiert" bei Songs mit analogem Träger in der Kette. Behoben via
   `dc_replace`-Helper `_apply_analog_era_ceiling` (Felder bleiben erhalten,
   Ignore entfernt) + 6 Regressionstests (unit + classify-Pfad).
+- **Call-Arg-Ignore-Audit (backend-weit, 23 Stellen):** alle
+  `# type: ignore[call-arg]` geprüft und entfernt — 14 maskierten echte
+  Vertragsverletzungen (u. a. `apply_final_polish` falsche Kwargs `era_decade`/
+  `material` → `decade`; `dfn.enhance` ohne Pflicht-`sr`; `SpectrumProfile()`
+  ohne 9 Pflichtfelder im librosa-Fallback; Closed-Loop-`RestorationResult`
+  ohne `material_type`/`defect_scores`; `SteerDecision`-Fremd-Kwargs) und ein
+  §V6-Silent-Failure (Phase-0-Goal-Baseline iterierte dict-Strings statt
+  Werte — Block lief nie). 1 legitimer Dual-Signatur-Fallback bleibt als
+  `cast(Any, …)` (DefectScanner-Progress).
 - **Fix:** `pyproject.toml` TOML-Syntax (Trailing-Quotes in `description`),
   Versions-Kommentar 10.0.20.
 

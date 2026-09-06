@@ -205,11 +205,10 @@ class PleasantnessSteering:
                     int(reduction * 100),
                     step_info,
                 )
-                return SteerDecision(  # type: ignore[call-arg]
+                return SteerDecision(
                     action=SteerAction.RETRY_LIGHTER,
                     reason=f"Angenehmheit gesunken (ΔP={delta:+.3f}) — leichter wiederholen",
                     delta_pleasantness=delta,
-                    intensity_reduction=reduction,
                 )
 
             # Max Retries erreicht → SKIP
@@ -220,11 +219,10 @@ class PleasantnessSteering:
                 self.MAX_RETRIES_PER_STEP,
                 step_info,
             )
-            return SteerDecision(  # type: ignore[call-arg]
+            return SteerDecision(
                 action=SteerAction.SKIP_AND_REVERT,
                 reason=f"Nach {self.MAX_RETRIES_PER_STEP} Retries keine Verbesserung — Schritt übersprungen",
                 delta_pleasantness=delta,
-                fallback_audio=self._current_pre_audio,
             )
 
         # Case 4: Deutliche Verschlechterung → SOFORT SKIP
@@ -245,21 +243,19 @@ class PleasantnessSteering:
                     best.step_id,
                     best.pleasantness,
                 )
-                return SteerDecision(  # type: ignore[call-arg]
+                return SteerDecision(
                     action=SteerAction.ROLLBACK_TO_BEST,
                     reason=(
                         f"{self._consecutive_drops} Schritte in Folge verschlechtert. "
                         f"Rollback zu Schritt {best.step_id} (P={best.pleasantness:.3f})"
                     ),
                     delta_pleasantness=delta,
-                    fallback_audio=best.audio.copy(),
                 )
 
-        return SteerDecision(  # type: ignore[call-arg]
+        return SteerDecision(
             action=SteerAction.SKIP_AND_REVERT,
             reason=f"Deutliche Verschlechterung (ΔP={delta:+.3f}) — Schritt übersprungen",
             delta_pleasantness=delta,
-            fallback_audio=self._current_pre_audio,
         )
 
     def final_evaluate(self, final_audio: np.ndarray) -> SteerDecision:
@@ -285,14 +281,13 @@ class PleasantnessSteering:
                 best.pleasantness,
                 best.step_id,
             )
-            return SteerDecision(  # type: ignore[call-arg]
+            return SteerDecision(
                 action=SteerAction.ROLLBACK_TO_BEST,
                 reason=(
                     f"Endergebnis (P={final_p:.3f}) schlechter als "
                     f"bester Zwischenstand Schritt {best.step_id} (P={best.pleasantness:.3f})"
                 ),
                 delta_pleasantness=delta_vs_best,
-                fallback_audio=best.audio.copy(),
             )
 
         # Endergebnis ist ok

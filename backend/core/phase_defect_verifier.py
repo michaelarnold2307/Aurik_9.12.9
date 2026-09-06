@@ -859,7 +859,7 @@ class PhaseDefectVerifier:
                     except Exception as _rw_exc:
                         logger.debug("PDV reweight alpha=%.2f fehlgeschlagen for %s: %s", alpha, phase_id, _rw_exc)
 
-            result = DefectVerificationResult(  # type: ignore[call-arg]
+            result = DefectVerificationResult(
                 phase_id=phase_id,
                 targeted_defects=list(proxies_before.keys()),
                 proxies_before=proxies_before,
