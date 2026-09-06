@@ -8304,6 +8304,17 @@ class UnifiedRestorerV3:
         self._pre_pipeline_ref = original_audio_for_goals.copy()
 
         _cb(5, "Restaurierbarkeit wird geprüft…")
+        # §Performance-Budget-Telemetrie (copilot-instructions.md, Spec 07 §9):
+        # Per-Operation-Timings für das Matrix-Harness-Budget-Gate sammeln —
+        # rohe Sekunden; Normierung auf „pro Minute Audio“ macht der Harness.
+        _budget_timings: dict[str, float | None] = {
+            "defect_scanner_s": None,
+            "phase_pipeline_s": None,
+            "feedback_chain_s": None,
+            "excellence_optimizer_s": None,
+            "restorability_estimator_s": None,
+            "export_flac_s": None,
+        }
         # §2.26 RestorabilityEstimator — Vor-Assessment der Restaurierbarkeit (DSP-only, < 5 s)
         # §2.29 Normativ (PMGG Datenfluss-Invariante): _pmgg_restorability_score MUSS aus
         # RestorabilityEstimator.estimate().restorability_score stammen — kein Hard-Code 70.0.
@@ -8312,6 +8323,7 @@ class UnifiedRestorerV3:
         _pmgg_restorability_source = "fallback"
         _pmgg_estimated_result = None
         _mat_str = self.config.material_type.value if self.config.material_type is not None else "unknown"
+        _t_re0 = time.perf_counter()
         try:
             from backend.core.restorability_estimator import estimate_restorability
 
@@ -8327,6 +8339,7 @@ class UnifiedRestorerV3:
             )
         except Exception as _re_exc:
             logger.debug("RestorabilityEstimator nicht verfügbar: %s", _re_exc)
+        _budget_timings["restorability_estimator_s"] = round(time.perf_counter() - _t_re0, 4)
 
         if _pmgg_restorability_source == "cached" and _cached_restorability_kwarg is not None:
             logger.info(
@@ -9905,7 +9918,12 @@ class UnifiedRestorerV3:
                 or self._restoration_context.get("input_path", "")
                 or "uv3_session"
             )
-            _master_seed = _sm.start_session(song_id=_song_id_for_seed)
+            _seed_override_raw = os.environ.get("AURIK_MASTER_SEED", "").strip()
+            try:
+                _seed_override = int(_seed_override_raw) if _seed_override_raw else None
+            except ValueError:
+                _seed_override = None
+            _master_seed = _sm.start_session(song_id=_song_id_for_seed, master_seed=_seed_override)
             self._restoration_context["_seed_manager"] = _sm
             logger.debug(
                 "§G5 Seed-Manager: Session=%s Master-Seed=%d — deterministische Reproduzierbarkeit aktiv",
@@ -10379,6 +10397,7 @@ class UnifiedRestorerV3:
                     "fallback. Analyse-Präzision wird reduziert. Prüfe Pre-Analysis Logs."
                 )
 
+            _t_scan0 = time.perf_counter()
             defect_result = self.defect_scanner.scan(
                 _defect_scan_audio,
                 analysis_sample_rate,
@@ -10398,6 +10417,7 @@ class UnifiedRestorerV3:
                     else None
                 ),
             )
+            _budget_timings["defect_scanner_s"] = round(time.perf_counter() - _t_scan0, 4)
         if defect_result is None:
             logger.error(
                 "DefectScanner.scan() returned None — creating Ersatzpfad DefectAnalysisResult. "
@@ -14877,7 +14897,9 @@ class UnifiedRestorerV3:
                         return _inner
 
                     _fc_numbered_list.append((_fc_n, _fc_wrap(), {}))
+                _t_fc0 = time.perf_counter()
                 _fc_chain_result = _fc_chain.run(restored_audio, _fc_numbered_list, ceiling=_fc_ceiling_val)
+                _budget_timings["feedback_chain_s"] = round(time.perf_counter() - _t_fc0, 4)
                 restored_audio = _fc_chain_result.audio
                 # §Ebene-3 Audit → Ergebnis-Metadaten (hoerordnung.instructions.md §8, GUI-Ampel).
                 try:
@@ -15646,9 +15668,11 @@ class UnifiedRestorerV3:
             try:
                 from backend.core.excellence_optimizer import optimize_for_excellence
 
+                _t_ex0 = time.perf_counter()
                 restored_audio, _excellence_result = optimize_for_excellence(
                     restored_audio, sample_rate, material=material_type.value
                 )
+                _budget_timings["excellence_optimizer_s"] = round(time.perf_counter() - _t_ex0, 4)
                 logger.info("🏆 ExcellenceOptimizer: %s", _excellence_result.summary())
 
                 # §8.1 Re-Verifikation: Musical Goals nach ExcellenceOptimizer prüfen
@@ -22305,6 +22329,16 @@ class UnifiedRestorerV3:
             if (_uqmd := locals().get("_uqm_decision")) is not None
             else {"override_applied": False}
         )
+        # §Performance-Budget-Telemetrie: Phase-Pipeline-Summe aus PerformanceGuard
+        # (reale per-Phase-Durationen, Spec 07 §9) + alle Per-Operation-Timings.
+        if perf_report is not None:
+            try:
+                _budget_timings["phase_pipeline_s"] = round(
+                    float(sum(getattr(_p, "duration_seconds", 0.0) for _p in (perf_report.phases or []))),
+                    4,
+                )
+            except Exception as _ph_t_exc:
+                logger.debug("phase_pipeline_s nicht berechenbar: %s", _ph_t_exc)
         result = RestorationResult(
             audio=restored_audio,
             config=self.config,
@@ -22339,6 +22373,10 @@ class UnifiedRestorerV3:
                 "transfer_chain": list(_cal_transfer_chain) if _cal_transfer_chain else [],
                 "restorability_score": float(_pmgg_restorability_score),
                 "restorability_source": str(_pmgg_restorability_source),
+                # §Performance-Budget-Telemetrie (Spec 07 §9): Per-Operation-Timings
+                # für das Matrix-Harness-Budget-Gate; export_flac_s bleibt null
+                # (Export läuft außerhalb des Restorers).
+                "pipeline_budget_timings": dict(_budget_timings),
                 "quality_risk_flags": list(_quality_risk_flags),
                 "fail_reasons": list(_fail_reasons),
                 "degradation_status": _degradation_status,

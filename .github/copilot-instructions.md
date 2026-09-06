@@ -231,8 +231,11 @@ Folgende Phasen sind im Restoration-Modus normativ VERBOTEN (§0a/UV3-Forbidden-
 Die Budget-Tabelle wird maschinell je Zelle von
 `scripts/benchmark_effizienz_matrix.py --ci --enforce-budget` geprüft;
 Verletzungen werden im Ergebnis-JSON unter dem Schlüssel `budget_violations`
-gemeldet und führen im CI-Modus zu Exit 1. Operationen ohne Per-Operation-Timing
-in der Pipeline werden als `null` dokumentiert (nicht geschätzt).
+gemeldet und führen im CI-Modus zu Exit 1. Die Pipeline reicht dazu seit
+v10.0.20 reale Per-Operation-Timings als `metadata["pipeline_budget_timings"]`
+nach außen; fehlende Timings werden als `null` dokumentiert (nicht geschätzt).
+Mit `--repeats N` (deterministische Seed-Folge `AURIK_MASTER_SEED = 42+i`,
+§G5) liefert der Harness echte Stichproben für `--bootstrap-ci`.
 
 ## Bug-Klassen (normativ, synchron zu Spec 10)
 

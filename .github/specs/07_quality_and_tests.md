@@ -409,13 +409,21 @@ Nach Überschreitung: KMV Stufe 2 (`MLRefinementThread`) übernimmt automatisch.
 
 - **Budget-Enforcement:** `--enforce-budget` (bzw. `--ci`, das es impliziert)
   prüft die gemessenen Zeiten je Zelle gegen die Tabelle in §9 dieser Spec.
+  Seit v10.0.20 liefert die Pipeline dazu reale Per-Operation-Timings unter
+  `metadata["pipeline_budget_timings"]` (`defect_scanner_s`, `phase_pipeline_s`,
+  `feedback_chain_s`, `excellence_optimizer_s`, `restorability_estimator_s`;
+  `export_flac_s` bleibt null, da der Export außerhalb des Restorers läuft).
   Verletzungen landen im Ergebnis-JSON unter `budget_violations` und führen im
-  CI-Modus zu Exit 1. Operationen, für die die Pipeline kein Per-Operation-Timing
-  liefert, werden als `null` dokumentiert (nicht geschätzt).
+  CI-Modus zu Exit 1. Fehlende Timings werden als `null` dokumentiert (nicht
+  geschätzt); für `phase_pipeline_total` greift ein Legacy-Fallback
+  (engine_total_s/wall_s).
 - **Bootstrap-95 %-CI:** `--bootstrap-ci` berechnet je Zelle Konfidenzintervalle
   der Qualitäts-/MUSHRA-Werte (Percentile-Bootstrap, deterministisch per Seed,
   §G5 (copilot-instructions.md)); Schlüssel `quality_ci95`/`mushra_ci95` plus
-  `bootstrap_seed`/`bootstrap_n`/`bootstrap_alpha`.
+  `bootstrap_seed`/`bootstrap_n`/`bootstrap_alpha`. Mit `--repeats N` liefert
+  jede Wiederholung eine eigene Beobachtung (deterministische Seed-Folge
+  `AURIK_MASTER_SEED = 42+i`, dokumentiert unter `repeat_seeds`) — erst damit
+  wird das CI auf echten Stichproben geschätzt statt zu null zu degenerieren.
 - **Phase-Profiling:** `--profile-top-phases N` schreibt die N langsamsten
   Phasen je Zelle (Wall-Zeit) als `top_phases` ins Ergebnis-JSON
   (Opt-in; `--ci` setzt 3).

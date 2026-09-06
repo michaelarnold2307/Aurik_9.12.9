@@ -37,6 +37,9 @@ SOTA-CI-Erweiterungen (ausschließlich diese Datei):
     n_boot) und die Kalibrier-Konvention aus scripts/calibrate_mushra_bootstrap.py.
   * --profile-top-phases N : die N langsamsten Phasen je Zelle (Wall-Zeit aus den
     realen progress_callback-Zeitstempeln) landen unter ``top_phases``.
+  * --repeats N : N Wiederholungen je Zelle mit deterministischem Seed-Offset
+    (AURIK_MASTER_SEED = 42+i, §G5); liefert echte Stichproben für --bootstrap-ci
+    (mit einer Beobachtung degeneriert das CI zu null).
 
 Bestehende Aufrufe ohne Flags verhalten sich identisch (deterministisch,
 gleicher Output-Aufbau); die additiven JSON-Schlüssel sind an ihre Flags gebunden.
@@ -83,6 +86,19 @@ BUDGETS_S_PER_MIN: dict[str, float] = {
 _BOOTSTRAP_SEED = 42
 _N_BOOT = 5000
 _BOOTSTRAP_ALPHA = 0.05  # 95%-CI
+
+# Basis für deterministische Wiederholungs-Seeds bei --repeats N (§G5).
+_REPEAT_BASE_SEED = 42
+
+
+def _repeat_seed_schedule(base_seed: int, n: int) -> list[int]:
+    """Deterministische Seed-Folge für --repeats N (§G5).
+
+    Wiederholung i nutzt AURIK_MASTER_SEED = base_seed + i (0-basiert) —
+    reproduzierbar über Läufe hinweg, dokumentiert im Ergebnis-JSON unter
+    ``repeat_seeds``.
+    """
+    return [int(base_seed) + i for i in range(max(1, int(n)))]
 
 
 # --------------------------------------------------------------------------
@@ -154,6 +170,7 @@ def run_cell(
     log_path: Path,
     out_root: Path,
     save_wav: bool,
+    master_seed: int | None = None,
 ) -> dict[str, Any]:
     from backend.core.unified_restorer_v3 import QualityMode, RestorationConfig, UnifiedRestorerV3
 
@@ -170,6 +187,11 @@ def run_cell(
             enable_adaptive_skipping=cell.enable_adaptive_skipping,
         )
         engine = UnifiedRestorerV3(cfg)
+
+        # §G5: deterministische Wiederholungs-Seeds (--repeats N) — die Pipeline
+        # liest AURIK_MASTER_SEED via seed_manager.start_session(master_seed=...).
+        if master_seed is not None:
+            os.environ["AURIK_MASTER_SEED"] = str(int(master_seed))
 
         progress: list[dict[str, float | str]] = []
         last_pct: dict[str, Any] = {"pct": -1}
@@ -254,6 +276,8 @@ def run_cell(
             "pqs_mos": pqs_mos,
             "hpi": meta.get("hpi", None),
             "artifact_freedom": meta.get("artifact_freedom", None),
+            "pipeline_budget_timings": meta.get("pipeline_budget_timings", None),
+            "master_seed": int(master_seed) if master_seed is not None else None,
             "n_progress_events": len(progress),
             "progress": progress,
             "rss_samples": sampler.samples,
@@ -267,6 +291,8 @@ def run_cell(
         logger.exception("Zelle %s fehlgeschlagen", cell.id)
         return {"cell": cell.id, "quality_mode": cell.quality_mode, "error": repr(exc)}
     finally:
+        if master_seed is not None:
+            os.environ.pop("AURIK_MASTER_SEED", None)
         root_logger.removeHandler(file_handler)
         file_handler.close()
 
@@ -327,18 +353,22 @@ def _collect_quality_observations(entry: dict[str, Any]) -> tuple[list[float], l
     quality_obs: list[float] = []
     mushra_obs: list[float] = []
 
-    qe = entry.get("quality_estimate")
-    if isinstance(qe, (int, float)) and qe is not None:
-        quality_obs.append(float(qe))
+    # Primär-Eintrag + ggf. Wiederholungen (--repeats N): jede Wiederholung
+    # liefert eigene Beobachtungen, damit das Bootstrap-CI auf echten
+    # Stichproben statt Einzelwerten aufsetzt.
+    for _src in [entry, *list(entry.get("repeats") or [])]:
+        qe = _src.get("quality_estimate")
+        if isinstance(qe, (int, float)) and qe is not None:
+            quality_obs.append(float(qe))
 
-    mos = entry.get("pqs_mos")
-    if isinstance(mos, (int, float)) and mos is not None:
-        mushra_obs.append(float(mos))
+        mos = _src.get("pqs_mos")
+        if isinstance(mos, (int, float)) and mos is not None:
+            mushra_obs.append(float(mos))
 
-    for _key in ("hpi", "artifact_freedom"):
-        _v = entry.get(_key)
-        if isinstance(_v, (int, float)) and _v is not None:
-            quality_obs.append(float(_v))
+        for _key in ("hpi", "artifact_freedom"):
+            _v = _src.get(_key)
+            if isinstance(_v, (int, float)) and _v is not None:
+                quality_obs.append(float(_v))
 
     return quality_obs, mushra_obs
 
@@ -375,63 +405,74 @@ def _enforce_budget(entry: dict[str, Any], audio_minutes: float) -> tuple[list[d
 
     Rückgabe: (budget_violations, budget_checks). budget_checks dokumentiert je
     Operation limit, gemessen (sec pro Minute Audio) und ob ein Verstoß vorliegt.
-    Nur real verfügbare Timing-Daten werden geprüft; alle übrigen Operationen
-    werden als null + logger.warning (Begründung) geführt — NIEMALS geschätzt.
-
-    Real verfügbar in dieser Zelle:
-      * phase_pipeline_total → engine_total_s (Pipeline-Gesamtzeit, §Ergebnis-Dict)
-        bzw. wall_s (eigene Wandzeit) als Sekunden pro Minute Audio.
-    Nicht verfügbar (=> null): defect_scanner, feedback_chain,
-      excellence_optimizer, restorability_estimator, export_flac.
+    Primärquelle ist metadata["pipeline_budget_timings"] aus der Pipeline
+    (reale Per-Operation-Timings, Spec 07 §9.1d); nur wo diese fehlen, greift
+    der Legacy-Fallback engine_total_s/wall_s für phase_pipeline_total. Alles
+    andere wird als null + logger.warning (Begründung) geführt — NIEMALS geschätzt.
     """
     checks: dict[str, Any] = {}
     violations: list[dict[str, Any]] = []
 
-    # 1) Phase-Pipeline gesamt — real verfügbar über engine_total_s/wall_s.
-    measured_total_s = None
-    _ett = entry.get("engine_total_s")
-    if isinstance(_ett, (int, float)) and _ett is not None and float(_ett) > 0:
-        measured_total_s = float(_ett)
-    elif isinstance(entry.get("wall_s"), (int, float)):
-        measured_total_s = float(entry["wall_s"])
+    _pt = entry.get("pipeline_budget_timings")
+    if not isinstance(_pt, dict):
+        _pt = {}
+        logger.warning(
+            "Budget-Check: keine pipeline_budget_timings im Ergebnis (Zelle %s) — Fallback auf Gesamtzeit",
+            entry.get("cell"),
+        )
 
-    if measured_total_s is not None and audio_minutes > 0:
-        per_min = measured_total_s / audio_minutes
-        limit = BUDGETS_S_PER_MIN["phase_pipeline_total"]
+    def _check_op(op: str, measured_s: float | None) -> None:
+        if measured_s is None or not isinstance(measured_s, (int, float)) or audio_minutes <= 0:
+            checks[op] = None
+            logger.warning(
+                "Budget-Check '%s' nicht verfügbar (kein Per-Operation-Timing) — als null geführt, nicht geschätzt (Zelle %s)",
+                op,
+                entry.get("cell"),
+            )
+            return
+        per_min = float(measured_s) / audio_minutes
+        limit = BUDGETS_S_PER_MIN[op]
         ok = per_min <= limit
-        checks["phase_pipeline_total"] = {
-            "operation": "phase_pipeline_total",
+        checks[op] = {
+            "operation": op,
             "limit_s_per_min": limit,
             "measured_s_per_min": round(per_min, 2),
-            "measured_total_s": round(measured_total_s, 2),
+            "measured_total_s": round(float(measured_s), 2),
             "violation": not ok,
         }
         if not ok:
             violations.append(
                 {
-                    "operation": "phase_pipeline_total",
+                    "operation": op,
                     "limit_s_per_min": limit,
                     "measured_s_per_min": round(per_min, 2),
                     "cell": entry.get("cell"),
                 }
             )
-    else:
-        checks["phase_pipeline_total"] = None
-        logger.warning(
-            "Budget-Check 'phase_pipeline_total' übersprungen: keine Gesamtzeit verfügbar (Zelle %s)",
-            entry.get("cell"),
-        )
 
-    # 2) Übrige Operationen — kein reales Per-Operation-Timing im Ergebnis-Dict
-    #    (DefectScanner/FeedbackChain/ExcellenceOptimizer/RestorabilityEstimator/
-    #    Export laufen intern, ihre Zeiten werden nicht nach außen gereicht).
-    for _op in ("defect_scanner", "feedback_chain", "excellence_optimizer", "restorability_estimator", "export_flac"):
-        checks[_op] = None
-        logger.warning(
-            "Budget-Check '%s' nicht verfügbar (kein Per-Operation-Timing im Ergebnis-Dict der Pipeline) — als null geführt, nicht geschätzt (Zelle %s)",
-            _op,
-            entry.get("cell"),
-        )
+    # 1) Phase-Pipeline gesamt: pipeline_budget_timings.phase_pipeline_s
+    #    (Summe der realen per-Phase-Durationen) bevorzugt; sonst engine_total_s/wall_s.
+    _pps = _pt.get("phase_pipeline_s")
+    if isinstance(_pps, (int, float)) and _pps is not None and float(_pps) > 0:
+        _check_op("phase_pipeline_total", float(_pps))
+    else:
+        _ett = entry.get("engine_total_s")
+        _fallback = None
+        if isinstance(_ett, (int, float)) and _ett is not None and float(_ett) > 0:
+            _fallback = float(_ett)
+        elif isinstance(entry.get("wall_s"), (int, float)):
+            _fallback = float(entry["wall_s"])
+        _check_op("phase_pipeline_total", _fallback)
+
+    # 2) Übrige Operationen — aus pipeline_budget_timings (seit v10.0.20 real
+    #    gemessen); export_flac läuft außerhalb des Restorers und bleibt null.
+    for _op in ("defect_scanner", "feedback_chain", "excellence_optimizer", "restorability_estimator"):
+        _check_op(_op, _pt.get(f"{_op}_s"))
+    checks["export_flac"] = None
+    logger.warning(
+        "Budget-Check 'export_flac' nicht verfügbar (Export läuft außerhalb des Restorers) — als null geführt (Zelle %s)",
+        entry.get("cell"),
+    )
 
     return violations, checks
 
@@ -486,6 +527,12 @@ def main() -> None:
         default=None,
         help="Anzahl der langsamsten Phasen je Zelle (Wall-Zeit) in top_phases; nur aktiv wenn gesetzt (--ci setzt 3)",
     )
+    ap.add_argument(
+        "--repeats",
+        type=int,
+        default=1,
+        help="Wiederholungen je Zelle mit deterministischem Seed-Offset (AURIK_MASTER_SEED = 42+i, §G5); liefert echte Stichproben für --bootstrap-ci",
+    )
     args = ap.parse_args()
 
     # --ci impliziert Enforcement + Bootstrap-CI + Phase-Profiling (top 3) + Exit-Code-Verhalten.
@@ -510,13 +557,31 @@ def main() -> None:
     results: list[dict[str, Any]] = []
     any_budget_violation = False
     run_tag = time.strftime("%Y%m%d_%H%M%S")
+    _repeat_n = max(1, int(args.repeats))
     for cell in cells:
         logger.warning("=== Zelle %s (%s) gestartet: %s ===", cell.id, cell.quality_mode, time.strftime("%H:%M:%S"))
-        log_path = out_root / f"cell_{cell.id}_{run_tag}.log"
-        entry = run_cell(cell, audio, sr, log_path, out_root, not args.no_wav)
+        # §G5: deterministische Wiederholungs-Seeds (AURIK_MASTER_SEED = 42+i);
+        # jede Wiederholung liefert eigene Beobachtungen für --bootstrap-ci.
+        _repeat_seeds = _repeat_seed_schedule(_REPEAT_BASE_SEED, _repeat_n)
+        _rep_entries: list[dict[str, Any]] = []
+        for _rep_i in range(_repeat_n):
+            _log_path = out_root / (
+                f"cell_{cell.id}_{run_tag}.log"
+                if _repeat_n == 1
+                else f"cell_{cell.id}_{run_tag}_r{_rep_i}.log"
+            )
+            _save_wav = (not args.no_wav) and _rep_i == 0
+            _rep_entries.append(
+                run_cell(cell, audio, sr, _log_path, out_root, _save_wav, master_seed=_repeat_seeds[_rep_i])
+            )
+        entry = dict(_rep_entries[0])
         entry["clip"] = clip_path.name
         entry["seconds"] = float(args.seconds)
         entry["run_tag"] = run_tag
+        if _repeat_n > 1:
+            entry["repeat_count"] = _repeat_n
+            entry["repeat_seeds"] = list(_repeat_seeds)
+            entry["repeats"] = _rep_entries
 
         # ── Feature 3: Phase-Profiling (top_phases, nur auf Opt-in) ──
         if profile_top_phases is not None:
@@ -558,10 +623,21 @@ def main() -> None:
         # ── Feature 1: Budget-Enforcement ──
         if enforce_budget:
             _audio_minutes = float(entry.get("seconds", args.seconds)) / 60.0
-            _violations, _checks = _enforce_budget(entry, _audio_minutes)
-            entry["budget_checks"] = _checks
-            entry["budget_violations"] = _violations
-            if _violations:
+            _all_violations: list[dict[str, Any]] = []
+            _all_checks: list[dict[str, Any]] = []
+            for _rep_i, _rep_entry in enumerate(_rep_entries):
+                _violations, _checks = _enforce_budget(_rep_entry, _audio_minutes)
+                if _repeat_n > 1:
+                    for _x in _violations:
+                        _x = dict(_x)
+                        _x["repeat"] = _rep_i
+                        _all_violations.append(_x)
+                else:
+                    _all_violations.extend(_violations)
+                _all_checks.append(_checks)
+            entry["budget_checks"] = _all_checks[0] if _repeat_n == 1 else _all_checks
+            entry["budget_violations"] = _all_violations
+            if _all_violations:
                 any_budget_violation = True
 
         results.append(entry)

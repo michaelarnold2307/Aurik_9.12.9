@@ -11,6 +11,11 @@
 - **Matrix-Harness-CI:** `benchmark_effizienz_matrix` mit `--enforce-budget`,
   `--bootstrap-ci`, `--profile-top-phases`, `--ci` (Budget-Tabelle aus
   copilot-instructions §Performance-Budget; 95 %-CI deterministisch per Seed).
+- **Budget-Telemetrie (Pipeline):** `metadata["pipeline_budget_timings"]` mit
+  realen Per-Operation-Timings (Scanner/Phasen/FC/Excellence/Restorability;
+  Export bleibt null) + `AURIK_MASTER_SEED`-Override im Seed-Manager.
+- **Wiederholungen:** `--repeats N` mit deterministischer Seed-Folge (42+i, §G5)
+  — echte Stichproben für Bootstrap-CI; Budget-Prüfung je Wiederholung.
 - **Fix:** `pyproject.toml` TOML-Syntax (Trailing-Quotes in `description`),
   Versions-Kommentar 10.0.20.
 

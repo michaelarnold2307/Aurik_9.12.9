@@ -1279,6 +1279,8 @@ _Verbleibend: Lyrics-Guided Enhancement Implementation (v10.0-R&D), AutoMix/Auto
 Erledigt (2026-09-06, v10.0.20+):
 - Ebene-3-Audit-Gate (`WohlklangOrdnungGate`) + GUI-Ampel
 - Matrix-Harness-CI-Gate: Budget-Enforcement, Bootstrap-95 %-CI, Phase-Profiling
+- Per-Operation-Budget-Telemetrie der Pipeline (`pipeline_budget_timings`) — Budget-Gate prüft 5/6 Tabellenzeilen real
+- `--repeats N` (deterministische Seed-Folge) für echte Bootstrap-CI-Stichproben
 
 Offen:
 - CAUSE_PARAMS vollständig SNR-adaptiv
