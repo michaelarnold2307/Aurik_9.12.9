@@ -1,18 +1,23 @@
-# Aurik 10.0.8 - Dokumentationsindex
+# Aurik 10 — Dokumentationsindex
 
-Offizielle Dokumentation fuer Aurik 10.0.0.
+Offizielle Dokumentation für Aurik 10 (Version 10.0.20, Stand 2026-09-06).
 
 ## Normativer Vorrang
 
-Bei Abweichungen zwischen Einzel-Dokumenten und Spezifikation gilt immer:
+Bei Abweichungen zwischen Einzel-Dokumenten und Spezifikation gilt die
+normative Kette aus `AGENTS.md` §1 — in dieser Reihenfolge maßgeblich:
 
-1. `.github/specs/01-14`
-2. `docs/CHANGELOG_HISTORY.md`
+1. `.github/copilot-instructions.md` (Gebote/Verbote, DSP-Regeln, Startup-Vertrag)
+2. `.github/VERBOTEN.md` (V01–V52, Linter-Quelle)
+3. `.github/instructions/` — `hoerordnung.instructions.md` (Hör-Entscheidungen)
+   und Domain-Regeln (pipeline, phases, dsp, musical_goals, tests)
+4. `.github/specs/` (01–22 + versionierte v10.xx; kanonischer Index: `00_SPEC_INDEX.md`)
+5. `.github/GEBOTE.md` (Referenzkatalog; keine Tool-Enforcement)
 
 ## Kernfakten
 
-- Phasen: 68 (Phase 01–66 + Vocal Repair + Glue Stage)
-- Musical Goals: 14
+- Phasen: 69 Phasen-Dateien (Phase 01–66, Glue Stage, Interface)
+- Musical Goals: 15 (Spec 01)
 - DetectionTypes: 62
 - Kausal-Ursachen: 62
 - Tests: ~18.400
@@ -42,8 +47,9 @@ Bei Abweichungen zwischen Einzel-Dokumenten und Spezifikation gilt immer:
 - [Pipeline-Analyse](architecture/PIPELINE_FLOW_ANALYSIS.md)
 - [CI/CD](CI_CD.md)
 - [Testing Guide (inkl. Gate-Runbook)](development/TESTING.md)
-- [Worldclass Change Acceptance Protocol](WORLDCLASS_CHANGE_ACCEPTANCE_PROTOCOL.md)
+- [Worldclass Change Acceptance Protocol](archive/WORLDCLASS_CHANGE_ACCEPTANCE_PROTOCOL.md)
 - [Spec-Evidenzberichte](reports/spec_evidence/README.md)
+- [Historisches Archiv](archive/README.md) — UAT-Reports, Playbooks, alte Roadmaps
 
 ## Kanonischer Vertragsfluss (Kurz)
 

@@ -289,7 +289,7 @@ AURIK_GPU_DEVICE=1
 Die folgende Tabelle zeigt typische Verarbeitungszeiten für eine **3-Minuten-Stereodatei**
 (48 kHz, 24-bit) auf verschiedenen Konfigurationen:
 
-| Konfiguration | Phase 01–08 (Defect-Scan) | Kompletter Durchlauf (68 Phasen) | RT-Faktor |
+| Konfiguration | Phase 01–08 (Defect-Scan) | Kompletter Durchlauf (69 Phasen-Dateien) | RT-Faktor |
 | --- | --- | --- | --- |
 | **CPU (Ryzen 9 7950X, 16 Kerne)** | ~120 s | ~18 min | ~6× |
 | **CPU + ROCm (RX 7900 XTX)** | ~18 s | ~4 min | ~1.3× |

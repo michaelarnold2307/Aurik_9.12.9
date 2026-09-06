@@ -17,7 +17,7 @@
 - **Artistic Intent vor Defect-Scan**: `get_artistic_intent()` wird VOR dem Defect-Scan aufgerufen.
 - **Glue Stage immer**: Die Glue-Stage läuft in ALLEN Modi als vorletzte Phase.
 - **62 DefectTypes**: Keine willkürlichen neuen DefectTypes ohne Phase-Mapping und Material-Sensitivity.
-- **NaN/Inf-Schutz für ALLE Phasen**: Jede der 68 Phasen MUSS `np.nan_to_num()` oder `np.isfinite()` auf Ausgabe-Audio anwenden (§0a). PhaseInterface bietet Basis-Schutz; explizite Prüfung in jeder Phase als Defense-in-Depth.
+- **NaN/Inf-Schutz für ALLE Phasen**: Jede Phase MUSS `np.nan_to_num()` oder `np.isfinite()` auf Ausgabe-Audio anwenden (§0a). PhaseInterface bietet Basis-Schutz; explizite Prüfung in jeder Phase als Defense-in-Depth.
 - **Logger-Pflicht**: Jede Python-Datei, die `logger` verwendet, MUSS `import logging` und `logger = logging.getLogger(__name__)` auf Modulebene definieren. F821 (undefined name) ist Null-Toleranz.
 - **Test-Assertion-Konvention**: `np.testing.assert_allclose` nimmt Toleranzen (`rtol`, `atol`). NIEMALS Toleranzen an numpy-Mathefunktionen übergeben (`np.abs(x, rtol=1e-5)` → `np.abs(x)`).
 - **Guard-Counter-Lebendigkeit**: Jeder deklarierte Guard-Counter (`_max_measures`, `_timeout_s`) MUSS auch inkrementiert werden. Deklaration ohne `+= 1` ist toter Code — der Guard greift nie.

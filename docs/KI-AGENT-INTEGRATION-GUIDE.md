@@ -34,12 +34,13 @@ Dieses Dokument liefert **praktische Ergänzungen** zu den Richtlinien.
 | `CausalDefectReasoner` | `core/causal_defect_reasoner.py` | Bayesianische Kausalinferenz, 62 Kausal-Ursachen |
 | `GPParameterOptimizer` | `core/gp_parameter_optimizer.py` | RBF-GP + UCB, lernt dauerhaft pro Material |
 | `PerceptualQualityScorer` | `core/perceptual_quality_scorer.py` | Gammatone-NSIM + MCD + LUFS + MOS |
-| `MusicalGoalsChecker` | `backend/core/musical_goals/musical_goals_metrics.py` | 14 Ziele, `measure_all(audio, sr)` |
+| `MusicalGoalsChecker` | `backend/core/musical_goals/musical_goals_metrics.py` | 15 Ziele, `measure_all(audio, sr)` |
 | `DefectScanner` | `core/defect_scanner.py` | 62 DefectTypes, material-adaptive Klassifikation |
-| `UnifiedRestorerV3` | `core/unified_restorer_v3.py` | 68-Phasen-Pipeline-Orchestrator |
+| `UnifiedRestorerV3` | `core/unified_restorer_v3.py` | Phasen-Pipeline-Orchestrator (69 Phasen-Dateien) |
 | `VocalAIEnhancement` | `core/vocal_ai_enhancement.py` | `VoiceGender` (MALE/FEMALE/CHILD/ANDROGYNOUS) |
 | `ExcellenceOptimizer` | `core/excellence_optimizer.py` | `optimize_for_excellence()` |
 | `FeedbackChain` | `core/feedback_chain.py` | Iterative PQS-Schleife, max. 5 Iterationen |
+| Hör-Gates E1/2/4 | `core/dsp/level_1_invariants_guard.py`, `core/dsp/einladungs_gate.py`, `core/dsp/vocal_overdrive_guard.py`, `core/defect_audibility_gate.py` | Laufzeit-Guards der Hörordnung (Invarianten/Audibility/Wohlklang/Vocal-Schutz) |
 
 ### Kanonischer Pipeline-Ablauf
 
@@ -136,7 +137,7 @@ ls core/*.py | grep -i "mein_bereich"
 
 ---
 
-## 🗂️ Phasen-System (68 Phasen, Phase 01–66 + Vocal Repair + Glue Stage)
+## 🗂️ Phasen-System (69 Phasen-Dateien: Phase 01–66 + Glue Stage + Interface)
 
 Alle Phasen liegen in `core/phases/phase_NN_<beschreibung>.py` (backend/core/phases/).
 

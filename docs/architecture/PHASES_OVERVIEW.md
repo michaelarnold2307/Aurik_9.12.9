@@ -1,7 +1,7 @@
-# Aurik 10.0.8 — 68-Phasen-Pipeline Überblick
+# Aurik 10 — Phasen-Überblick (69 Phasen-Dateien)
 
-**Version:** 10.0.8  
-**Stand:** Mai 2026  
+**Version:** 10.0.20  
+**Stand:** 2026-09-06  
 **Status:** ✅ Produktionsbereit
 
 ---
@@ -14,12 +14,12 @@ Tier 0: RestorabilityEstimator, EraClassifier, GermanSchlagerClassifier
 Tier 1: MediumClassifier, DefectScanner, CausalDefectReasoner
 Tier 1: UncertaintyQuantifier, GPParameterOptimizer
 Tier 1: HarmonicPreservationGuard
-Tier 2-5: Phasen 01–66 + Vocal Repair + Glue Stage (jede via PerPhaseMusicalGoalsGate)
+Tier 2-5: Phasen 01–66 + Glue Stage + Interface = 69 Phasen-Dateien (jede via PerPhaseMusicalGoalsGate; Hör-Gates Ebenen 1/2/4 laufzeitnah)
 Tier 5: EraAuthenticPerceptualCompletion (konditionell)
 Tier 5: IntroducedArtifactDetector
 Tier 6: FeedbackChain, TemporalQualityCoherenceMetric
 Tier 6: PerceptualQualityScorer, ExcellenceOptimizer
-Tier 6: MusicalGoalsChecker (14 Ziele)
+Tier 6: MusicalGoalsChecker (15 Ziele)
 Tier 6: EmotionalArcPreservationMetric
 Tier 6: MicroDynamicsEnvelopeMorphing, GPParameterOptimizer.update()
 ```
@@ -40,6 +40,7 @@ Tier 6 immer sequenziell.
 | phase_04 | `phase_04_eq_correction.py` | Frequenzgang-Korrektur |
 | phase_05 | `phase_05_rumble_filter.py` | Tieffrequenzrumpeln |
 | phase_06 | `phase_06_frequency_restoration.py` | Bandbreitenerweiterung |
+| phase_07 | `phase_07_declipper.py` | Declipper (zweites 07-Modul, SOTA-Sprint) |
 | phase_07 | `phase_07_harmonic_restoration.py` | Oberton-Rekonstruktion |
 | phase_08 | `phase_08_transient_preservation.py` | Transientenerhalt |
 | phase_09 | `phase_09_crackle_removal.py` | Vinyl-Crackle |
@@ -98,8 +99,16 @@ Tier 6 immer sequenziell.
 | phase_62 | `phase_62_crosstalk_cancellation.py` | Übersprechen/Kanal-Bleed (BSS-basierte Kanaltrennung) |
 | phase_63 | `phase_63_intermodulation_reduction.py` | Intermodulations-Verzerrung (Volterra-basierte IMD-Tilgung) |
 | phase_64 | `phase_64_tape_splice_repair.py` | Tape-Splice-Reparatur (Splice-Click + Level-Crossfade) |
+| phase_65 | `phase_65_vocal_naturalness_restoration.py` | Vocal-Naturalness (Restoration-only, Spec 06 §7.10) |
+| phase_66 | `phase_66_stem_targeted_nr.py` | Stem-gezielte Rauschunterdrückung (Vocal-Stem) |
 
 ---
+
+**Ergänzende Module:** `phase_glue_stage.py` (Glue Stage, vorletzte Stufe) und
+`phase_interface.py` (Basisklasse) — zusammen mit den 67 nummerierten Modulen
+(Phase 01–66; Nummer 07 doppelt belegt) ergeben sich **69 Phasen-Dateien**.
+`vocal_repair.py` ist ein Zusatzmodul ohne Phasennummer (Bandbreiten-/Verzerrungs-Reparatur
+vor Phase 42, §G58).
 
 ## Instrument-Aktivierungsmatrix (PANNs-gesteuert)
 
@@ -159,4 +168,4 @@ Max. 5 Retries; P1/P2-Regression → volle Retry-Kaskade (4 Retries + Emergency)
 
 ---
 
-**Aurik 10.0.0 — Mai 2026**
+**Stand: 2026-09-06 — Aurik 10.0.20**

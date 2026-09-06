@@ -1,11 +1,12 @@
-# DefectScanner Specification - Aurik 10.0.8
+# DefectScanner Specification - Aurik 10
 
-**Version:** 10.0.8  
-**Stand:** Mai 2026  
+**Version:** 10.0.20  
+**Stand:** 2026-09-06  
 **Status:** ✅ Production-Ready  
-**Location:** `core/defect_scanner.py` (~2500 lines)
+**Location:** `backend/core/defect_scanner.py`
 
-> Hinweis: Verbindlicher Ist-Stand liegt in `.github/specs/01-14` und `docs/CHANGELOG_HISTORY.md`.
+> Hinweis: Verbindlicher Ist-Stand: normative Kette (`AGENTS.md` §1) — `.github/copilot-instructions.md`,
+> `.github/instructions/`, `.github/specs/` (Index: `00_SPEC_INDEX.md`).
 
 ---
 
@@ -57,7 +58,7 @@ The **DefectScanner** is the entry point for Aurik 10.0.0’s **Defect-First** r
 
 ## 3. Defect Types
 
-### 3.1 Enum Definition (62 DefectTypes, Stand v10.0.8)
+### 3.1 Enum Definition (62 DefectTypes, Stand v10.0.20)
 
 ```python
 class DefectType(Enum):

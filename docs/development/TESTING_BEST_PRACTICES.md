@@ -26,7 +26,7 @@
 
 ## Übersicht
 
-Aurik 10.0.0 Tests müssen die **14 Musical Goals** und das **Adaptive Thresholds System** berücksichtigen, um produktive und musikalisch sinnvolle Tests zu gewährleisten.
+Aurik-Tests müssen die **15 Musical Goals** (Spec 01) und das **Adaptive Thresholds System** berücksichtigen, um produktive und musikalisch sinnvolle Tests zu gewährleisten.
 
 ### Kernprinzipien
 

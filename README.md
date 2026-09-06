@@ -1,6 +1,6 @@
 # 🎵 Aurik 10 — Intelligentes Musik-Restaurierungs- und Rekonstruktionssystem
 
-**Version:** 10.0.19 | **Status:** ✅ Weltspitze-Execution | **Stand:** §V6-Logging + GUI-Visualisierung + ErrorGuard
+**Version:** 10.0.20 | **Status:** ✅ Weltspitze-Execution | **Stand:** v10.0.20 — Era-/Material-Kalibrierung + Hör-Gates Ebenen 1/2/4
 
 > Normativer Ist-Stand: `.github/specs/`, `.github/copilot-instructions.md`, `CHANGELOG.md`, `denker/README.md`.
 

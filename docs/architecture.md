@@ -1,6 +1,8 @@
 # Aurik Architektur
 
 > §15.7: C4-Architekturdiagramme (Context, Container, Component).
+> ⚠️ **Ergänzungsdokument**: Kanonische Architektur-Übersicht ist `architecture/ARCHITECTURE.md`
+> (verlinkt über `README.md`/`INDEX.md`); bei Abweichung gilt diese.
 
 ## C4 Level 1: System Context
 
@@ -31,7 +33,7 @@ C4Container
         Container(cli, "CLI", "Python", "Kommandozeilen-Interface")
         Container(api, "REST API", "Python/Flask", "HTTP-API für GUI-Integration")
         Container(denker, "Denker", "Python", "Kognitive Orchestrierungsschicht")
-        Container(backend, "Backend Core", "Python", "68-Phasen-Pipeline, DSP, ML")
+        Container(backend, "Backend Core", "Python", "Phasen-Pipeline (69 Dateien), DSP, ML")
         Container(plugins, "Plugin System", "Python", "Plugin-SDK + 58 Plugins")
     }
 
@@ -50,7 +52,7 @@ C4Container
 
 ```mermaid
 C4Component
-    title Component — 68-Phasen-Restaurierungspipeline
+    title Component — Restaurierungspipeline (69 Phasen-Dateien)
 
     Container_Boundary(pipeline, "Pipeline") {
         Component(load, "Phase 01: Load", "Import & Validierung")
@@ -80,8 +82,8 @@ C4Component
 | Konzept | Beschreibung | Spec |
 |---------|-------------|------|
 | **Denker** | Kognitive Orchestrierung: Material-Erkennung → Pipeline-Auswahl → Phasen-Steuerung | §2.1 |
-| **68-Phasen-Pipeline** | Sequenzielle Audio-Verarbeitung: Click Removal → Denoise → EQ → ... → Export | §2.2 |
-| **Musical Goals** | 14 Qualitäts-Ziele (Timbral Fidelity, Artifact Freedom, ...) | §1.2 |
+| **Phasen-Pipeline (69 Dateien)** | Sequenzielle Audio-Verarbeitung: Click Removal → Denoise → EQ → ... → Export | §2.2 |
+| **Musical Goals** | 15 Qualitäts-Ziele (Spec 01) | §1.2 |
 | **Bridge** | API-Schicht: Trennt Frontend von Backend Core (V01-Bypass-Verbot) | §8.1 |
 | **ErrorGuard** | Graceful Degradation bei Phasenfehlern | §15.8 |
 | **Plugin SDK** | ABC-basierte Plugin-Architektur für Drittentwickler | §15.6 |

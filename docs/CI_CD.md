@@ -440,9 +440,9 @@ ACTIONS_RUNNER_DEBUG = true
 
 ```
 Major.Minor.Patch (Semantic Versioning)
-10.0.8 → Major release (breaking changes)
-9.1.0 → Minor release (new features)
-9.0.1 → Patch release (bug fixes)
+10.0.20 → Patch release (bug fixes)
+10.1.0 → Minor release (new features)
+11.0.0 → Major release (breaking changes)
 ```
 
 ### Pre-Release Testing

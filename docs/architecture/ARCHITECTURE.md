@@ -1,10 +1,12 @@
-# Aurik 10.0.0 — Architektur-Überblick
+# Aurik 10 — Architektur-Überblick
 
-**Stand:** Juli 2026
-**Version:** 10.0.8
-**Status:** RELEASE_MUST-konform | §v10 Pleasantness-First aktiv
+**Stand:** 2026-09-06
+**Version:** 10.0.20
+**Status:** RELEASE_MUST-konform | §v10 Pleasantness-First aktiv | Hör-Gates Ebenen 1/2/4 aktiv
 
-Verbindlicher Wahrheitsstand: `.github/specs/01-14` und `CLAUDE.md`.
+> Verbindlicher Wahrheitsstand (normative Kette, `AGENTS.md` §1): `.github/copilot-instructions.md` →
+> `.github/VERBOTEN.md` → `.github/instructions/` (hoerordnung + Domain) → `.github/specs/`
+> (Index: `00_SPEC_INDEX.md`) → `CLAUDE.md`.
 
 ## Kernprinzip (§v10)
 
@@ -15,10 +17,11 @@ Parameter — nicht der erkannte Materialtyp allein.
 
 ## Kernzahlen (aktuell)
 
-- 68 Phasen (Phase 01–66 + Vocal Repair + Glue Stage)
+- 69 Phasen-Dateien (Phase 01–66 + Glue Stage + Interface)
 - 62 DetectionTypes (DefectScanner) — ALLE SNR-adaptiv
 - 62 Kausal-Ursachen (CausalDefectReasoner) — CAUSE_PARAMS SNR-skaliert
-- 14 Musical Goals (Pleasantness-First)
+- 15 Musical Goals (Spec 01) + 2 vokal-exklusive P0-Gates
+- Hör-Gates Ebenen 1/2/4 (level_1_invariants_guard, defect_audibility_gate, vocal_overdrive_guard, einladungs_gate)
 - ~18.400 Tests (511 mit Markern)
 - 3 neue Messfunktionen: `_estimate_local_snr()`, `_measure_spectral_deviation()`, `_measure_harmonic_density()`
 
@@ -41,8 +44,9 @@ Export        -> export_guard() + validate_export_quality() + AudioExporter
 | `DefectScanner` | Defekt-Detektion (62 Typen) |
 | `CausalDefectReasoner` | Kausalkette und Mapping auf Phasen (62 Ursachen) |
 | `GPOptimizer` | Adaptive Staerke-/Parameteroptimierung |
-| `MusicalGoalsChecker` | 14-goal Bewertung |
+| `MusicalGoalsChecker` | 15-Goal-Bewertung |
 | `HolisticPerceptualGate` | HPI/AFG/VQI-basierte Freigabelogik |
+| Hör-Gates E1/2/4 | Level-1-Invarianten, Defect-Audibility, Vocal-Overdrive, Einladungs-Gate (`backend/core/dsp/`) |
 
 ## Datenfluss (vereinfacht)
 

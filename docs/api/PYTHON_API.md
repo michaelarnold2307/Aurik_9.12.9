@@ -1,7 +1,7 @@
-# Aurik 10.0.8 - Python API (Kanonischer Vertrag)
+# Aurik 10 - Python API (Kanonischer Vertrag)
 
-**Version:** 10.0.8  
-**Stand:** Mai 2026  
+**Version:** 10.0.20  
+**Stand:** 2026-09-06  
 **Status:** RELEASE_MUST-konform
 
 Diese Referenz beschreibt ausschliesslich den produktiven Desktop-Release-Pfad.

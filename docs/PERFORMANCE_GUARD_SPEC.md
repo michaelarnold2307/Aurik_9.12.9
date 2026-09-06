@@ -1,18 +1,25 @@
-# PerformanceGuard Specification - Aurik 10.0.8
+# PerformanceGuard Specification - Aurik 10
 
-**Version:** 1.0.0  
+**Version:** 10.0.20 (Doku-Abgleich)  
 **Status:** ✅ Production-Ready (Tested)  
-**Location:** `core/performance_guard.py` (550 lines)
+**Location:** `backend/core/performance_guard.py`
 
 ---
 
 ## 1. Purpose
 
-The **PerformanceGuard** enforces Aurik 10.0.8's **32× RT limit** guarantee:
-- **Real-Time (RT) Factor:** Processing time / audio duration must be ≤3.0
-- **Adaptive Skipping:** Automatically skip low-priority phases if approaching limit
-- **Three Modes:** FAST (1.5× RT), BALANCED (2.4× RT), QUALITY (9× RT, no enforcement)
-- **Performance Reporting:** Detailed metrics on execution time, skipped phases, status
+The **PerformanceGuard** enforces Aurik 10's RT-factor targets per QualityMode:
+- **Real-Time (RT) Factor:** wall_time / audio_duration wird pro Lauf gemessen
+  (Referenzmessung: `scripts/benchmark_effizienz_matrix.py`)
+- **Adaptive Skipping:** Automatisches Überspringen niederpriorer Phasen bei Limit-Nähe
+  (opt-in: `enable_adaptive_skipping=True`)
+- **Mode-Targets:** FAST (8× RT), BALANCED/MAXIMUM (32× RT); `Enforce`-Flag entscheidet
+  Warnung vs. Eingriff
+- **Performance Reporting:** Detaillierte Metriken (wall time, RT-Faktor, skipped phases, RSS)
+
+> ⚠️ Detail-Abschnitte weiter unten können älteren Zwischenständen entsprechen. Maßgeblich ist der Code
+> (`backend/core/performance_guard.py`, `RestorationConfig`/UV3) sowie die normative Kette
+> (`AGENTS.md` §1; Spec-Index: `.github/specs/00_SPEC_INDEX.md`).
 
 ---
 

@@ -332,11 +332,11 @@
 
 - AMD GPU Mixed-Mode: RDNA4-Support, APU-Tier-Erkennung, DirectML (Windows) + ROCm (Linux).
 
-## v10.0.0 (Apr 2026) — Globaler Quality-First-Schalter + 68-Phasen-Audit
+## v10.0.0 (Apr 2026) — Globaler Quality-First-Schalter + Vollphasen-Audit
 
 - `UV3._profiled_phase_call()` injiziert `quality_first_unleashed=True` global in
-  `quality`/`maximum`/studio-Modi — alle 68 Phasen konsistent auf Quality-First-Policy.
-- Neuer 68-Phasen-Policy-Test: `test_quality_first_policy_68_phase_audit.py`.
+  `quality`/`maximum`/studio-Modi — alle Phasenmodule konsistent auf Quality-First-Policy.
+- Neuer Policy-Test für den Vollphasen-Audit: `test_quality_first_policy_68_phase_audit.py`.
 
 ## v10.0.0–19 (Apr 2026) — Quality-First, PLM-Guards, Peak-Guard, Stereo-Fixes
 

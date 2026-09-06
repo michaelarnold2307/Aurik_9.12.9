@@ -1,19 +1,20 @@
-# Aurik 10.0.8 — Pipeline Flow Analysis
+# Aurik 10 — Pipeline Flow Analysis
 
-**Stand:** Mai 2026  
-**Version:** 10.0.8  
-**Status:** 68-Phasen-Defect-First-Pipeline, vollständig implementiert
+**Stand:** 2026-09-06  
+**Version:** 10.0.20  
+**Status:** Defect-First-Pipeline (69 Phasen-Dateien), vollständig implementiert
 
-> Hinweis: Verbindlicher Ist-Stand liegt in `.github/specs/01-14` und `docs/CHANGELOG_HISTORY.md`.
+> Hinweis: Verbindlicher Ist-Stand: normative Kette (`AGENTS.md` §1) — `.github/copilot-instructions.md`,
+> `.github/instructions/`, `.github/specs/` (Index: `00_SPEC_INDEX.md`).
 
 ---
 
 ## Kernprinzip: Defect-First + Kognitive Steuerung
 
 Im Gegensatz zu früheren Versionen (14-Phasen, fixe Reihenfolge) verarbeitet
-Aurik 10.0.8 Audio über eine kognitive Pipeline: erst verstehen (DefectScanner +
+Aurik 10 Audio über eine kognitive Pipeline: erst verstehen (DefectScanner +
 CausalReasoner), dann optimiert intervenieren (GP-Optimizer), dann verifizieren
-(14 Musical Goals via PMGG).
+(15 Musical Goals via PMGG).
 
 ## Signal-Fluss
 
@@ -30,13 +31,13 @@ CausalReasoner), dann optimiert intervenieren (GP-Optimizer), dann verifizieren
 [Material: material-adaptiv] + [62 DetectionTypes (DefectScanner)] + [62 Kausal-Ursachen (CausalDefectReasoner)]
     |
     v
-[GP-Optimizer: 10 Parameter, MOO-Pareto über 14 Ziele]
+[GP-Optimizer: 10 Parameter, MOO-Pareto über 15 Ziele]
     |
     v
 [HPG: Harmonic-Maske fuer OMLSA/DeepFilterNet G_floor-Override]
     |
     v
-[Phasen 01-56, je via PMGG-Gate: Rollback bei Regression]
+[Phasen 01-66 + Glue Stage, je via PMGG-Gate: Rollback bei Regression]
     |
     v
 [EraAuthenticPerceptualCompletion: DDSP bei BW < 10 kHz]
@@ -57,7 +58,7 @@ CausalReasoner), dann optimiert intervenieren (GP-Optimizer), dann verifizieren
 [ExcellenceOptimizer: GP-Fine-Tuning, Physical Ceiling]
     |
     v
-[14 Musical Goals: GoalApplicabilityFilter + GoalPriorityProtocol]
+[15 Musical Goals: GoalApplicabilityFilter + GoalPriorityProtocol]
     |
     v
 [EmotionalArcPreservationMetric: Arousal/Valence Pearson]
@@ -105,8 +106,8 @@ CausalReasoner), dann optimiert intervenieren (GP-Optimizer), dann verifizieren
 | MCD | <= 8.0 dB | <= 3.0 dB |
 | Spectral Coherence | >= 0.60 | >= 0.85 |
 | quality_estimate | >= 0.55 | > 0.85 |
-| Alle 14 Musical Goals | >= Pflicht-Schwellwert | >= Studio-Schwellwert |
+| Alle 15 Musical Goals | >= Pflicht-Schwellwert | >= Studio-Schwellwert |
 
 ---
 
-_Aurik 10.0.0 — Mai 2026_
+_Stand: 2026-09-06 — Aurik 10.0.20_

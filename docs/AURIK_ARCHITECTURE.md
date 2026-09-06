@@ -1,5 +1,9 @@
 # Aurik 10 — Vollständige Systemarchitektur
 
+> ⚠️ **Alternativ-Übersicht**: Kanonische Architektur-Übersicht ist `docs/architecture/ARCHITECTURE.md`
+> (verlinkt über `README.md`/`INDEX.md`). Kennzahlen können hier vom Code abweichen — maßgeblich
+> sind Code und die normative Kette (`AGENTS.md` §1; Spec-Index: `.github/specs/00_SPEC_INDEX.md`).
+
 ## Import → Pre-Analysis → Restauration → Export
 
 ```mermaid
