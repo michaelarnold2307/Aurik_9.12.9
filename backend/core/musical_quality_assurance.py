@@ -747,10 +747,19 @@ class MusicalQualityAssurance:
                 ),
             )
 
-        if current.authenticity < medium_gates.min_authenticity:
+        # §0 Quell-Relativierung (konsistent zu Warmth/Naturalness/Brightness):
+        # Liegt die Authenticity bereits an der QUELLE unter der Schwelle bzw. ist
+        # kein nennenswerter Verlust entstanden, ist das eine Material-Eigenschaft —
+        # kein von Aurik verschuldeter (character lost)-Fall. Der echte Charakter-
+        # Verlust wird separat über den Drop-Limit-Check (check_musical_integrity) geführt.
+        _authenticity_drop_abs = baseline.authenticity - current.authenticity
+        if current.authenticity < medium_gates.min_authenticity and _authenticity_drop_abs > 0.05:
             return (
                 False,
-                f"Authenticity too low: {current.authenticity:.2f} < {medium_gates.min_authenticity:.2f} (character lost)",
+                (
+                    f"Authenticity too low: {current.authenticity:.2f} < {medium_gates.min_authenticity:.2f} "
+                    f"(character lost, drop={_authenticity_drop_abs:.2f})"
+                ),
             )
 
         # Check overprocessing (brightness too high = over-brightened).
@@ -827,10 +836,20 @@ class MusicalQualityAssurance:
         if _is_unknown_medium:
             _mode_min_auth = min(_mode_min_auth, medium_gates.min_authenticity)
 
-        if mode_standards.require_authentic_character and current.authenticity < _mode_min_auth:
+        # §0 Quell-Relativierung wie im Medium-Gate: Nur ein von Aurik verursachter
+        # Authenticity-Verlust (> 0.05) rechtfertigt den Mode-Fail — liegt die Quelle
+        # selbst unter der Schwelle, ist das Material-Eigenschaft.
+        if (
+            mode_standards.require_authentic_character
+            and current.authenticity < _mode_min_auth
+            and (baseline.authenticity - current.authenticity) > 0.05
+        ):
             return (
                 False,
-                f"Authenticity requirement not met: {current.authenticity:.2f} < {_mode_min_auth:.2f}",
+                (
+                    f"Authenticity requirement not met: {current.authenticity:.2f} < {_mode_min_auth:.2f} "
+                    f"(drop={baseline.authenticity - current.authenticity:.2f})"
+                ),
             )
 
         # All gates passed

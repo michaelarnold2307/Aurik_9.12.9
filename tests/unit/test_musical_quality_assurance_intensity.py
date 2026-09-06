@@ -200,3 +200,46 @@ def test_quality_gate_snr_high_baseline_studio_expects_improvement(monkeypatch):
 
     assert gate_ok is False
     assert "SNR too low" in reason
+
+
+def test_quality_gate_does_not_blame_preexisting_low_authenticity(monkeypatch):
+    """§0 Quell-Relativierung: Quelle unter Schwelle + kein Verlust → kein (character lost)."""
+    mqa = MusicalQualityAssurance()
+    baseline = _quality_with_snr(24.0, overall=62.0)
+    baseline.authenticity = 0.72  # historische mp3-Quelle: unter vinyl-Schwelle 0.75
+    current = _quality_with_snr(24.1, overall=62.0)
+    current.authenticity = 0.72  # Restauration verliert NICHTS
+
+    monkeypatch.setattr(mqa.analyzer, "analyze_quality", lambda _audio, _sr: current)
+
+    gate_ok, reason = mqa.check_quality_gate(
+        np.zeros(48000, dtype=np.float32),
+        48000,
+        baseline,
+        MediumType.VINYL_33,
+        ProcessingMode.RESTORATION,
+    )
+
+    assert gate_ok is True, f"Kein Verlust → kein Authenticity-Fail erlaubt: {reason}"
+
+
+def test_quality_gate_authenticity_real_drop_still_fails(monkeypatch):
+    """Echter Charakter-Verlust (Quelle über Schwelle, deutlicher Drop) bleibt Fail."""
+    mqa = MusicalQualityAssurance()
+    baseline = _quality_with_snr(24.0, overall=62.0)
+    baseline.authenticity = 0.78
+    current = _quality_with_snr(24.1, overall=62.0)
+    current.authenticity = 0.70  # −0.08: echter Verlust
+
+    monkeypatch.setattr(mqa.analyzer, "analyze_quality", lambda _audio, _sr: current)
+
+    gate_ok, reason = mqa.check_quality_gate(
+        np.zeros(48000, dtype=np.float32),
+        48000,
+        baseline,
+        MediumType.VINYL_33,
+        ProcessingMode.RESTORATION,
+    )
+
+    assert gate_ok is False
+    assert "Authenticity too low" in reason

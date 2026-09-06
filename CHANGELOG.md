@@ -41,6 +41,12 @@
   längen-kalibriert (`_sep_time_budget_s`: 0.5× RT, Floor 3 s) statt statisch 3 s,
   (c) Test-Drift-Fix: Cache-Reuse-Test nutzt 3.5-s-Fixture (1-s lief seit dem
   <3-s-Guard nie durch den echten Pfad).
+- **MQA-Authenticity-Quell-Relativierung (§0):** „Authenticity too low …
+  (character lost)“ feuerte auch, wenn die QUELLE selbst unter der Schwelle lag
+  und die Restauration nichts verlor (historische mp3-Quelle 0.72 < 0.75) —
+  Warmth/Naturalness/Brightness hatten diesen Quell-Guard längst. Jetzt:
+  Gate nur bei echtem Verlust (> 0.05 Drop), Medium- UND Mode-Gate; der echte
+  Charakter-Verlust bleibt über den Drop-Limit-Check abgedeckt. +2 Regressionstests.
 - **Anti-Fatigue (Hörordnung §6):** „BEST-EFFORT (no corrections possible)“
   behoben — OneTakeExport korrigierte Fatigue nur per blindem High-Shelf,
   während die eigene Korrekturkette (Gain → Limiter → Kompression) die
