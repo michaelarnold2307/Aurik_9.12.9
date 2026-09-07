@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -71,12 +72,12 @@ class VocalSupremacyDecision:
 
 # ── Gewichtung der 6 Dimensionen (psychoakustisch kalibriert) ────────────
 
-_WEIGHT_FORMANT = 0.25   # F1–F3 sind Vokal-Identität
-_WEIGHT_HNR = 0.15       # Rauigkeit ist natürlich, aber weniger kritisch
-_WEIGHT_VIBRATO = 0.15   # Vibrato = Lebendigkeit
-_WEIGHT_BREATH = 0.10    # Atem-Natürlichkeit
-_WEIGHT_SIBILANCE = 0.15 # Sibilanz-Erhalt (Konsonanten)
-_WEIGHT_WARMTH = 0.20    # Stimmwärme (Bark 3–6)
+_WEIGHT_FORMANT = 0.25  # F1–F3 sind Vokal-Identität
+_WEIGHT_HNR = 0.15  # Rauigkeit ist natürlich, aber weniger kritisch
+_WEIGHT_VIBRATO = 0.15  # Vibrato = Lebendigkeit
+_WEIGHT_BREATH = 0.10  # Atem-Natürlichkeit
+_WEIGHT_SIBILANCE = 0.15  # Sibilanz-Erhalt (Konsonanten)
+_WEIGHT_WARMTH = 0.20  # Stimmwärme (Bark 3–6)
 
 
 def _measure_sibilance_preservation(
@@ -120,12 +121,8 @@ def _measure_sibilance_preservation(
     if not np.any(sibilance_mask):
         return True  # Band nicht erreichbar → kein Check nötig
 
-    pre_buf = pre_seg[:n_fft] if len(pre_seg) >= n_fft else np.pad(
-        pre_seg, (0, n_fft - len(pre_seg)), mode="edge"
-    )
-    post_buf = post_seg[:n_fft] if len(post_seg) >= n_fft else np.pad(
-        post_seg, (0, n_fft - len(post_seg)), mode="edge"
-    )
+    pre_buf = pre_seg[:n_fft] if len(pre_seg) >= n_fft else np.pad(pre_seg, (0, n_fft - len(pre_seg)), mode="edge")
+    post_buf = post_seg[:n_fft] if len(post_seg) >= n_fft else np.pad(post_seg, (0, n_fft - len(post_seg)), mode="edge")
 
     spec_pre = np.abs(np.fft.rfft(pre_buf)) ** 2
     spec_post = np.abs(np.fft.rfft(post_buf)) ** 2
@@ -185,12 +182,8 @@ def _measure_warmth_preservation(
     if not np.any(warmth_mask):
         return True
 
-    pre_buf = pre_seg[:n_fft] if len(pre_seg) >= n_fft else np.pad(
-        pre_seg, (0, n_fft - len(pre_seg)), mode="edge"
-    )
-    post_buf = post_seg[:n_fft] if len(post_seg) >= n_fft else np.pad(
-        post_seg, (0, n_fft - len(post_seg)), mode="edge"
-    )
+    pre_buf = pre_seg[:n_fft] if len(pre_seg) >= n_fft else np.pad(pre_seg, (0, n_fft - len(pre_seg)), mode="edge")
+    post_buf = post_seg[:n_fft] if len(post_seg) >= n_fft else np.pad(post_seg, (0, n_fft - len(post_seg)), mode="edge")
 
     spec_pre = np.abs(np.fft.rfft(pre_buf)) ** 2
     spec_post = np.abs(np.fft.rfft(post_buf)) ** 2
@@ -349,7 +342,7 @@ class VocalSupremacyGate:
             if hnr_ok:
                 score += _WEIGHT_HNR
             else:
-                delta = float(hnr_diag.get("delta_hnr", 0.0))
+                delta = float(cast(float, hnr_diag.get("delta_hnr", 0.0)))
                 score += _WEIGHT_HNR * max(0.0, 1.0 - delta / 6.0)
 
             if vibrato_ok:
@@ -368,12 +361,7 @@ class VocalSupremacyGate:
             composite = float(np.clip(score, 0.0, 1.0))
 
             # ── Rollback-Entscheidung ───────────────────────────────────
-            rollback = (
-                formant_rollback or
-                not hnr_ok or
-                not vibrato_ok or
-                composite < 0.6
-            )
+            rollback = formant_rollback or not hnr_ok or not vibrato_ok or composite < 0.6
 
             # Stärke-Scalar: proportional zum Composite-Score
             strength_scalar = float(np.clip(composite, 0.0, 1.0))
@@ -397,8 +385,8 @@ class VocalSupremacyGate:
                     "§0p Vokal-Supremacy-Gate: ROLLBACK empfohlen — score=%.3f, formant=%s, hnr=%s, vibrato=%s",
                     composite,
                     "OK" if formant_ok else f"FAIL ({max_shift_db:.1f} dB)",
-                    "OK" if hnr_ok else f"FAIL (Δ{float(hnr_diag.get('delta_hnr', 0.0)):.1f} dB)",
-                    "OK" if vibrato_ok else f"FAIL ({vibrato_result.depth_reduction_pct:.1f}%)"
+                    "OK" if hnr_ok else f"FAIL (Δ{float(cast(float, hnr_diag.get('delta_hnr', 0.0))):.1f} dB)",
+                    "OK" if vibrato_ok else f"FAIL ({vibrato_result.depth_reduction_pct:.1f}%)",
                 )
 
             return decision

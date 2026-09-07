@@ -358,6 +358,7 @@ class VocalOverprocessingDetector:
 
 # ── Convenience-Funktionen (für Dead-Import-Reparatur) ───────────────
 
+
 def detect_vocal_overprocessing(
     audio: np.ndarray,
     sr: int,
@@ -374,7 +375,10 @@ def detect_vocal_overprocessing(
         VocalOverprocessingResult mit Analyse-Ergebnissen
     """
     detector = VocalOverprocessingDetector()
-    # Verwende sibilance_check als primären Detector (braucht nur ein Signal)
-    return detector.check_sibilance_over_reduction(
-        audio, audio * 0.8, sr, phase_id  # Simuliert pre/post Vergleich
+    # Verwende check_de_essing als primären Detector (braucht pre/post-Signal)
+    return detector.check_de_essing(
+        audio,
+        audio * 0.8,
+        sr,
+        phase_id,  # Simuliert pre/post Vergleich
     )

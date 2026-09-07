@@ -40,6 +40,8 @@ from scipy import signal
 from scipy.ndimage import minimum_filter1d as _min_filter1d_p29  # vectorised sliding-min
 from scipy.signal import lfilter as _lfilter_p29  # vectorised IIR smoothing (Cappé 1994)
 
+logger = logging.getLogger(__name__)
+
 # §DSP-Instructions: MMSE-LSA Gain (Ephraim-Malah 1985) — E1 = exponential integral
 try:
     from scipy.special import exp1 as _scipy_exp1_p29
@@ -58,7 +60,10 @@ try:
         )
 
 except ImportError as _exp1_import_err:  # pragma: no cover
-    logger.debug("§V6 scipy.special.exp1 nicht verfügbar — Identity-Gain Fallback aktiviert (phase_29): %s", _exp1_import_err)
+    logger.debug(
+        "§V6 (copilot-instructions.md) scipy.special.exp1 nicht verfügbar — Identity-Gain Fallback aktiviert (phase_29): %s",
+        _exp1_import_err,
+    )
 
     def _exp1_p29_gain(nu: np.ndarray) -> np.ndarray:  # type: ignore[misc]
         """Fallback: identity = degenerate Wiener gain (scipy.special unavailable)."""
@@ -97,8 +102,6 @@ try:
     _PGHI_AVAILABLE_P29 = True
 except ImportError:  # pragma: no cover
     _PGHI_AVAILABLE_P29 = False
-
-logger = logging.getLogger(__name__)
 
 
 def _get_phase29_npd():

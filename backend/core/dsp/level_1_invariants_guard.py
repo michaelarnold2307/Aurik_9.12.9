@@ -204,9 +204,9 @@ class Level1InvariantsGuard:
         """Misst Stimm-Identität via Resemblyzer oder DSP-Fallback."""
         try:
             # Zuerst VQI-basierte Messung versuchen (bereits im Kontext vorhanden)
-            if context and isinstance(context.get("vqi_result"), dict):
-                vqi_result = context["vqi_result"]
-                singer_cosine = float(vqi_result.get("singer_identity_cosine", 0.85))
+            _raw_vqi = context.get("vqi_result") if context else None
+            if isinstance(_raw_vqi, dict):
+                singer_cosine = float(_raw_vqi.get("singer_identity_cosine", 0.85))
                 return max(singer_cosine, 0.5)
 
             # Resemblyzer als primäre Methode
@@ -268,9 +268,9 @@ class Level1InvariantsGuard:
         """Misst Vibrato-Erhalt (Rate-Fehler in Hz + Tiefen-Erhaltung)."""
         try:
             # Zuerst aus Kontext holen (bereits gemessen)
-            if context and isinstance(context.get("vqi_result"), dict):
-                vqi_result = context["vqi_result"]
-                vibrato_precision = float(vqi_result.get("vibrato_precision", 1.0))
+            _raw_vqi = context.get("vqi_result") if context else None
+            if isinstance(_raw_vqi, dict):
+                vibrato_precision = float(_raw_vqi.get("vibrato_precision", 1.0))
                 # Vibrato-Precision ist bereits ein kombinierter Score
                 rate_error = max(0.0, (1.0 - vibrato_precision) * _VIBRATO_RATE_ERROR_HZ * 3)
                 depth_preservation = vibrato_precision
@@ -325,7 +325,6 @@ class Level1InvariantsGuard:
         try:
             # Zuerst aus Kontext holen (bereits gemessen)
             if context and isinstance(context.get("breath_zones"), list):
-                breath_zones_pre = context["breath_zones"]
                 # Einfache Änderungsmessung: Anzahl und Position der Atemer
                 # Nach Phase: gleiche Zonen sollten erhalten bleiben
                 return 0.05  # konservativer Default

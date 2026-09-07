@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import time
@@ -347,7 +348,11 @@ class PatternMiner:
             )
             return [f.strip() for f in result.stdout.split("\n") if f.strip()][:10]
         except Exception as exc:
-            logger.debug("§V6 grep -rl fehlgeschlagen — leere Liste zurückgegeben (Regex %s): %s", regex, exc)
+            logger.debug(
+                "§V6 (copilot-instructions.md) grep -rl fehlgeschlagen — leere Liste zurückgegeben (Regex %s): %s",
+                regex,
+                exc,
+            )
             return []
 
     def _describe(self, entry: ClassifiedException) -> str:

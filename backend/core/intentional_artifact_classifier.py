@@ -514,6 +514,7 @@ def get_intentional_artifact_classifier() -> IntentionalArtifactClassifier:
 
 # ── Convenience-Funktionen (für Dead-Import-Reparatur) ───────────────
 
+
 def classify_intentional_artifacts(
     audio: np.ndarray,
     sr: int = 48000,
@@ -532,4 +533,6 @@ def classify_intentional_artifacts(
         IntentionalArtifactResult mit Klassifizierung-Ergebnissen
     """
     classifier = get_intentional_artifact_classifier()
-    return classifier.classify(audio, sr, material=material, era_decade=era_decade)
+    # §Signatur-Fix (2026-09-06): classify() erwartet material_type (str) + era_decade —
+    # audio/sr sind Wrapper-API ohne Verwendung in classify().
+    return classifier.classify(material_type=material, era_decade=era_decade)

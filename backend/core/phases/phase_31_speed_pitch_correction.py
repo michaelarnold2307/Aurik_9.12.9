@@ -1326,7 +1326,7 @@ class SpeedPitchCorrectionPhase(PhaseInterface):
             Pitch-korrigiertes Audio gleicher Länge, float64, NaN/Inf-frei.
         """
         if len(audio) == 0:
-            return np.nan_to_num(audio.copy(), nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio.copy(), nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
         sr = int(self.sample_rate)
         dtype = audio.dtype

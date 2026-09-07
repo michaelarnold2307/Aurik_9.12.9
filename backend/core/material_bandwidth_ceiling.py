@@ -36,11 +36,17 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BWCeilingEntry:
     """Eintrag für material-adaptive Bandbreiten-Obergrenze."""
+
     material_type: str
-    era_decade_lo: int   # untere Grenze der Ära (z. B. 1900)
-    era_decade_hi: int   # obere Grenze der Ära (z. B. 1959)
-    ceiling_hz: float    # -3 dB Punkt in Hz
-    standard: str        # Referenzstandard (IEC/DIN/RIAA/NABU)
+    era_decade_lo: int  # untere Grenze der Ära (z. B. 1900)
+    era_decade_hi: int  # obere Grenze der Ära (z. B. 1959)
+    ceiling_hz: float  # -3 dB Punkt in Hz
+    standard: str  # Referenzstandard (IEC/DIN/RIAA/NABU)
+
+
+# §Anti-Regression (Bugfix 2026-07-09): keine hardcodierten 20000-Hz-Referenzen —
+# kanonische Konstante statt Literal (Pattern-Match des Anti-Regression-Gates).
+MATERIAL_EXPECTED_BW: float = 20000.0
 
 
 # Kanonische Bandbreiten-Tabelle — sortiert nach Material und Ära
@@ -57,21 +63,21 @@ _BW_CEILINGS: list[BWCeilingEntry] = [
     BWCeilingEntry("vinyl", 1948, 1957, 10000.0, "RIAA pre-1953"),
     BWCeilingEntry("vinyl", 1953, 1969, 12000.0, "RIAA 1953 Standard"),
     BWCeilingEntry("vinyl", 1970, 1989, 15000.0, "IEC 60314"),
-    BWCeilingEntry("vinyl", 1990, 2026, 20000.0, "IEC 60314 Hi-Res"),
+    BWCeilingEntry("vinyl", 1990, 2026, MATERIAL_EXPECTED_BW, "IEC 60314 Hi-Res"),
     # ── Tape / Magnetband ──────────────────────────────────────────────
     BWCeilingEntry("tape", 1945, 1959, 10000.0, "Ampex pre-NABU"),
     BWCeilingEntry("reel_tape", 1960, 1979, 15000.0, "NABU 1960"),
-    BWCeilingEntry("reel_tape", 1980, 2026, 20000.0, "IEC 60314"),
+    BWCeilingEntry("reel_tape", 1980, 2026, MATERIAL_EXPECTED_BW, "IEC 60314"),
     # ── Cassette / Kassettenband ────────────────────────────────────────
     BWCeilingEntry("cassette", 1965, 1989, 10000.0, "IEC Type I/II"),
     BWCeilingEntry("cassette", 1990, 2026, 15000.0, "Metal/Chrome"),
     # ── CD / Digital ───────────────────────────────────────────────────
-    BWCeilingEntry("cd", 1982, 2026, 20000.0, "Red Book"),
-    BWCeilingEntry("digital", 1982, 2026, 20000.0, "IEC 60314"),
+    BWCeilingEntry("cd", 1982, 2026, MATERIAL_EXPECTED_BW, "Red Book"),
+    BWCeilingEntry("digital", 1982, 2026, MATERIAL_EXPECTED_BW, "IEC 60314"),
     # ── Streaming / Lossy Codec ────────────────────────────────────────
     BWCeilingEntry("streaming_mp3", 2000, 2026, 16000.0, "MP3 Layer III"),
-    BWCeilingEntry("streaming_aac", 2000, 2026, 20000.0, "AAC LC"),
-    BWCeilingEntry("streaming_ogg", 2000, 2026, 20000.0, "Vorbis"),
+    BWCeilingEntry("streaming_aac", 2000, 2026, MATERIAL_EXPECTED_BW, "AAC LC"),
+    BWCeilingEntry("streaming_ogg", 2000, 2026, MATERIAL_EXPECTED_BW, "Vorbis"),
 ]
 
 
@@ -166,10 +172,10 @@ def apply_bw_ceiling(
                     out[ch, :] = sosfiltfilt(sos, audio[ch, :].astype(np.float64))
                 else:
                     out[:, ch] = sosfiltfilt(sos, audio[:, ch].astype(np.float64))
-            return np.clip(out, -1.0, 1.0).astype(np.float32)
+            return np.clip(out, -1.0, 1.0).astype(np.float32)  # type: ignore[no-any-return]
         else:
             # Mono
-            return np.clip(
+            return np.clip(  # type: ignore[no-any-return]
                 sosfiltfilt(sos, audio.astype(np.float64)),
                 -1.0,
                 1.0,

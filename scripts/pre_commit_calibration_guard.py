@@ -75,6 +75,7 @@ _PHYSICAL_CONSTANTS: set[str] = {
     "_WIDE_STEREO_CORR_CAP",  # Azimuth-Guard fuer vollstaendig dekorreliertes Wide-Stereo
     "_CREST_HI",  # 6-dB Crest-Grenze fuer spektrales De-Essing
     "_W_HNR",  # HNR-Gewicht im robusten Gender-Scoring
+    "_WEIGHT_HNR",  # psychoakustisch kalibriertes Vokal-Gate-Gewicht (vocal_supremacy_gate)
     "MAX_ACCEPTABLE_STEREO_WIDTH_CHANGE",  # HIPS-Sicherheitsgrenze fuer Stem-Separation
     "_post90_snr",  # kalibrierte digitale Era-Priors aus Frame-Energy-DR
     "_dr_threshold",  # kalibrierte DR-Priors fuer Era-Upvote

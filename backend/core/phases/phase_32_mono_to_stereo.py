@@ -351,11 +351,11 @@ class MonoToStereoPhaseV2(PhaseInterface):
         if 0.0 < _effective_strength < 1.0:
             pseudo_stereo = audio + _effective_strength * (pseudo_stereo - audio)
 
-        # Step 7: Verify mono compatibility
-        mono_compatible = self._check_mono_compatibility(pseudo_stereo)
+        # Step 7: Verify mono compatibility (LR-Korrelation ≥ 0.5 = mono-kompatibel)
+        correlation_after = self._compute_lr_correlation(pseudo_stereo)
+        mono_compatible = correlation_after >= 0.5
 
         # Step 8: Measure stereo width achieved
-        correlation_after = self._compute_lr_correlation(pseudo_stereo)
         width_achieved = 1.0 - correlation_after
 
         execution_time = time.time() - start_time
@@ -635,7 +635,7 @@ class MonoToStereoPhaseV2(PhaseInterface):
             return enhanced  # type: ignore[no-any-return]
         except Exception as e:
             logger.warning("Verarbeitungsschritt_32_mono_to_stereo.py::_verbessern_hf_content Ersatzpfad: %s", e)
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
         """
         Verify mono compatibility (mono fold-down sounds good).
 

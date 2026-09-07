@@ -698,7 +698,7 @@ class CrackleRemovalPhase(PhaseInterface):
         # --- Normalization ---
         max_val = float(np.abs(audio_48k).max())
         if max_val < 1e-10:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # Silence — return unchanged
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]  # Silence — return unchanged
         audio_norm = (audio_48k / max_val).astype(np.float32)
 
         # --- ONNX inference with fixed-shape chunking (§ml-plugin-SKILL) ---
@@ -2048,6 +2048,7 @@ class CrackleRemovalPhase(PhaseInterface):
 
         try:
             from backend.core.audio_utils import safe_sosfiltfilt as _safe_sosfiltfilt09
+
             hf_before = _safe_sosfiltfilt09(sos, before)
             hf_after = _safe_sosfiltfilt09(sos, after)
         except Exception as e:

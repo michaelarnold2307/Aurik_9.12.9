@@ -159,9 +159,10 @@ class VocalClarityMax:
             # §VQI-Signatur-Fix (2026-09-06): Selbstreferenz-VQI braucht beide
             # Signal-Argumente — der 2-Arg-Aufruf warf TypeError (missing 'sr')
             # und setzte naturalness_ok still auf True (§V6-Silent-Failure).
-            report.vqi_before = compute_vqi(mono, mono, sr)
+            # Rückgabe ist ein Dict — Score über .get("vqi") extrahieren (§Typ-Fix).
+            report.vqi_before = float(compute_vqi(mono, mono, sr).get("vqi", 1.0))
             _vqi_after_mono = np.mean(result, axis=0) if result.ndim == 2 else result
-            report.vqi_after = compute_vqi(_vqi_after_mono, _vqi_after_mono, sr)
+            report.vqi_after = float(compute_vqi(_vqi_after_mono, _vqi_after_mono, sr).get("vqi", 1.0))
             report.naturalness_ok = report.vqi_after >= report.vqi_before - 0.02
         except Exception:
             report.naturalness_ok = True

@@ -1819,7 +1819,7 @@ class VocalEnhancement(PhaseInterface):
         try:
             n = audio.shape[-1] if audio.ndim >= 2 else len(audio)
             if n < 2048:
-                return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+                return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
             _mat = material_type.value if hasattr(material_type, "value") else str(material_type)
 
@@ -1862,7 +1862,7 @@ class VocalEnhancement(PhaseInterface):
             _profile = _CARRIER_PROFILES.get(_mat)
             if _profile is None:
                 # cd_digital, mp3, dat — no carrier formant decay to invert
-                return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+                return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
             # Use mono for level analysis (always), then apply on each channel
             x_mono = safe_to_mono(audio)
@@ -1950,7 +1950,7 @@ class VocalEnhancement(PhaseInterface):
 
         except Exception as _cfd_exc:
             logger.debug("§Hebel-4 _wiederherstellen_carrier_formant_decay fehlgeschlagen (ignoriert): %s", _cfd_exc)
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
     @staticmethod
     def _compute_formant_recovery_guard_profile(
@@ -2057,7 +2057,7 @@ class VocalEnhancement(PhaseInterface):
         """
         n = len(audio)
         if n < 512:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
         # Extract presence band (2–6 kHz)
         # §2.51 Anti-Zeitversatz: sosfiltfilt — Band wird mit (presence_reduced - presence)
@@ -2351,7 +2351,7 @@ class VocalEnhancement(PhaseInterface):
         """
         n = len(audio)
         if n < 512:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
         base_gain_db = config["presence_gain_db"]
         center_freq = 4500.0
@@ -2416,7 +2416,7 @@ class VocalEnhancement(PhaseInterface):
 
         final_gain_db = adapted_gain_db * vibrato_attenuation
         if abs(final_gain_db) < 0.01:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
         # Psychoacoustically-aligned Q: critical bandwidth at 4.5 kHz ≈ 520 Hz
         # Q = center_freq / bandwidth → 4500 / 520 ≈ 8.6 (narrower, perceptually correct)
@@ -2481,7 +2481,7 @@ class VocalEnhancement(PhaseInterface):
         """
         n = len(audio)
         if n < 1024:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
         # §2.8 Primary: Segment-aware breath reduction via BreathDetector
         if _BREATH_DETECTOR_AVAILABLE and _get_breath_detector is not None:
@@ -2525,7 +2525,7 @@ class VocalEnhancement(PhaseInterface):
                     )
                     return controlled
                 # No breath segments found — return unchanged
-                return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+                return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
             except Exception as _bd_err:
                 logger.debug("BreathDetector fehlgeschlagen, Bandpass-Ersatzpfad: %s", _bd_err)
 
@@ -2550,7 +2550,7 @@ class VocalEnhancement(PhaseInterface):
         """
         n = len(audio)
         if n < 512:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
         # Envelope follower with vocal-optimized attack/release
         attack_s = 0.003  # 3 ms — fast enough for consonant transients

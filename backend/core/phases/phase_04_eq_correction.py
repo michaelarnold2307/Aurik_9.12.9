@@ -903,7 +903,7 @@ class EQCorrectionPhase(PhaseInterface):
                     _mat_key = _k
                     break
             else:
-                return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # No profile → bypass
+                return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]  # No profile → bypass
 
         ref_profile = _ERA_OT_PROFILES[_mat_key]
         _band_hz = {"bass": 200.0, "low_mid": 600.0, "mid": 2000.0, "high_mid": 6000.0, "high": 14000.0}
@@ -913,7 +913,7 @@ class EQCorrectionPhase(PhaseInterface):
         mono = np.asarray(mono, dtype=np.float64)
         n_fft = 4096
         if len(mono) < n_fft:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
         win = np.hanning(n_fft)
         spec = np.abs(np.fft.rfft(mono[:n_fft] * win))
         freqs = np.fft.rfftfreq(n_fft, d=1.0 / sample_rate)
@@ -948,7 +948,7 @@ class EQCorrectionPhase(PhaseInterface):
                 eq_corrections[band_name] = correction_db
 
         if not eq_corrections:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # No significant transport shift
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]  # No significant transport shift
 
         # Apply corrections as smooth Butterworth shelving/peaking filters
         result = np.asarray(audio, dtype=np.float64)
@@ -980,7 +980,7 @@ class EQCorrectionPhase(PhaseInterface):
                         result[ch] = lp * gain_lin + (result[ch] - lp)
         except Exception as _filter_exc:
             logger.debug("§C7 Spectral-OT filter nicht blockierend: %s", _filter_exc)
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
         result = np.nan_to_num(result, nan=0.0, posinf=0.0, neginf=0.0)
         return np.clip(result, -1.0, 1.0).astype(audio.dtype)  # type: ignore[no-any-return]
@@ -1212,13 +1212,13 @@ class EQCorrectionPhase(PhaseInterface):
         is outside the known range (> factor-of-2 mismatch).
         """
         if not self.HEAD_BUMP_PROFILES:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
         known_speeds = sorted(self.HEAD_BUMP_PROFILES.keys())
         nearest = min(known_speeds, key=lambda s: abs(s - speed_ips))
         # Skip if the nearest known speed is more than 1.5× away (unknown speed)
         if abs(nearest - speed_ips) / (nearest + 1e-9) > 1.5:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
         f_hz, cut_db, q = self.HEAD_BUMP_PROFILES[nearest]
         return self._apply_peaking_filter(audio, freq=f_hz, Q=q, gain_db=-cut_db, _phase_mode="minimum")

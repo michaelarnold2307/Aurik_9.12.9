@@ -181,7 +181,6 @@ class EinladungsGate:
             # Keine Zonen angegeben → über alle Fenster prüfen
             return float(np.max(roughness_windows))
 
-        window_samples = int(self._window_size_s * sr)
         overlap_samples = int(self._overlap_s * sr)
 
         max_roughness = 0.0
@@ -202,10 +201,24 @@ class EinladungsGate:
             import librosa  # pylint: disable=import-outside-toplevel
 
             # Fluctuation Strength im 40–200 Hz Modulationsbereich
-            # als Roughness-Proxy
-            onset_env = librosa.onset.onset_strength(y=audio, sr=sr)[0]
-            fluctuation = np.abs(np.diff(onset_env))
-            return float(np.mean(fluctuation) * 10.0)  # Skalierung auf [0,1]
+            # als Roughness-Proxy (Zwicker & Fastl 1990): Verhältnis der
+            # Modulationsspektrum-Energie im 40–200-Hz-Band zur Gesamtenergie.
+            # §API-Fix (2026-09-06): onset_strength() liefert 1-D — das alte
+            # „[0]“ machte daraus einen Skalar (np.diff auf Skalar → Exception
+            # → stiller 0.0-Return, §V6 [copilot-instructions.md]); Rohwert×10
+            # verletzte die [0,1]-Skala (sauberer 440-Hz-Sinus → 1.19).
+            # hop=128 → Envelope-Rate 375 Hz → Nyquist 187.5 Hz deckt das Band.
+            _mono_rz = audio.mean(axis=0) if audio.ndim == 2 else audio
+            _hop = 128
+            onset_env = librosa.onset.onset_strength(y=_mono_rz, sr=sr, hop_length=_hop)  # type: ignore[attr-defined]
+            if len(onset_env) < 64:
+                return 0.0
+            _spec = np.abs(np.fft.rfft(onset_env - np.mean(onset_env)))
+            _freqs = np.fft.rfftfreq(len(onset_env), d=1.0 / (sr / _hop))
+            _band = (_freqs >= 40.0) & (_freqs <= 200.0)
+            _band_energy = float(np.sum(_spec[_band] ** 2))
+            _total_energy = float(np.sum(_spec**2)) + 1e-12
+            return float(np.clip(np.sqrt(_band_energy / _total_energy), 0.0, 1.0))
 
         except Exception:
             return 0.0
@@ -222,7 +235,7 @@ class EinladungsGate:
 
             # G-weighting: Frequenzen > 7 kHz stärker gewichten
             g_weights = np.where(freqs > 7000, 1.0, 0.0)
-            weighted_energy = np.sum(S**2 * g_weights)
+            weighted_energy = float(np.sum(S**2 * g_weights))
             total_energy = np.sum(S**2) + 1e-12
 
             sharpness = float(weighted_energy / total_energy)
@@ -311,9 +324,14 @@ def detect_transients(
         mono = audio.mean(axis=0) if audio.ndim == 2 else audio
         threshold_value = float(10.0 ** (threshold_db / 20.0))
 
-        # Onset-Erkennung via spectral flux
-        onset_env = librosa.onset.onset_strength(y=mono, sr=sr)[0]
-        onsets = librosa.find_peaks(onset_env, threshold=threshold_value)
+        # Onset-Erkennung via spectral flux.
+        # §API-Fix (2026-09-06): (a) onset_strength() liefert 1-D — das alte
+        # „[0]“ machte daraus einen Skalar; (b) librosa.find_peaks existiert
+        # nicht → scipy.signal.find_peaks mit height-Threshold.
+        onset_env = librosa.onset.onset_strength(y=mono, sr=sr)  # type: ignore[attr-defined]
+        from scipy.signal import find_peaks  # pylint: disable=import-outside-toplevel
+
+        onsets = find_peaks(onset_env, height=threshold_value)[0]
 
         return list(onsets.astype(int))
 
@@ -402,11 +420,19 @@ def compute_masking_threshold(
 
         # Bark-Skala: ~24 kritische Bänder
         if bark_scale:
-            bark_freqs = librosa.filters.bark(sr=sr, n_fft=S.shape[0], pad_mode="constant")
-            S_bark = np.zeros((bark_freqs.shape[0], S.shape[1]))
-            for i in range(bark_freqs.shape[0]):
-                mask = bark_freqs[i] > 0
-                S_bark[i] = np.mean(S[mask, :], axis=0)
+            # §Bark-Fix (2026-09-06): librosa.filters.bark existiert nicht —
+            # Rectangular-Bark-Filterbank aus BARK_EDGES_HZ (Zwicker 1961).
+            from backend.core.dsp.bark_lufs_util import BARK_EDGES_HZ
+
+            _bark_edges = np.asarray(BARK_EDGES_HZ, dtype=np.float64)
+            _n_bands = max(len(_bark_edges) - 1, 1)
+            bark_freqs = np.zeros((_n_bands, len(freqs)), dtype=bool)
+            for _bi in range(_n_bands):
+                bark_freqs[_bi] = (freqs >= _bark_edges[_bi]) & (freqs < _bark_edges[_bi + 1])
+            S_bark = np.zeros((_n_bands, S.shape[1]))
+            for _bi in range(_n_bands):
+                if np.any(bark_freqs[_bi]):
+                    S_bark[_bi] = np.mean(S[bark_freqs[_bi], :], axis=0)
         else:
             S_bark = S
 
@@ -414,11 +440,11 @@ def compute_masking_threshold(
         # In der Praxis: kritische Bandbreite + simultane/sukzessive Maskierung
         threshold_db = 20.0 * np.log10(np.mean(S_bark**2, axis=1, keepdims=True) + 1e-12) - 12.0
 
-        return threshold_db.flatten()
+        return threshold_db.flatten()  # type: ignore[no-any-return]
 
     except Exception as e:
         logger.warning("Maskierungsschwelle-Berechnung fehlgeschlagen: %s", e)
-        return np.zeros(128)  # Default-Schwelle
+        return np.zeros(128)  # type: ignore[no-any-return]  # Default-Schwelle
 
 
 def is_defect_audible(
@@ -480,7 +506,8 @@ def check_vqi_recovery(
         # §VQI-Signatur-Fix (2026-09-06): compute_vqi(audio_orig, audio_restored, sr) —
         # der 2-Arg-Aufruf warf TypeError (missing 'sr') und lief still in den
         # konservativen Default. Selbstreferenz-VQI wie in phase_66/phase_65.
-        vqi = float(compute_vqi(audio, audio, sr))
+        # Rückgabe ist ein Dict — Score über .get("vqi") extrahieren (§Typ-Fix).
+        vqi = float(compute_vqi(audio, audio, sr).get("vqi", 0.72))
         floor = float(get_vqi_material_floor(material_type))
 
         return vqi, floor

@@ -189,10 +189,7 @@ class ListenerFeedbackLoop:
             Liste der schlechten Segmente (sortiert nach Score aufsteigend).
         """
         with self._lock:
-            bad = [
-                seg for seg in self._segments.values()
-                if seg.user_score is not None and seg.user_score < threshold
-            ]
+            bad = [seg for seg in self._segments.values() if seg.user_score is not None and seg.user_score < threshold]
             bad.sort(key=lambda s: s.user_score or 10.0)
 
             if bad:
@@ -224,7 +221,7 @@ class ListenerFeedbackLoop:
                     needs_rerestoration=False,
                 )
 
-            scores = [seg.user_score for seg in scored]
+            scores = [float(seg.user_score) for seg in scored if seg.user_score is not None]
             mean_score = float(np.mean(scores))
             n_low = sum(1 for s in scores if s < threshold)
 

@@ -532,7 +532,7 @@ class RumbleFilterPhase(PhaseInterface):
                        Falls None, wird 'audio' selbst als Referenz genutzt.
         """
         if gain <= 1.0005:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
         _arr = np.asarray(audio, dtype=np.float32)
         _was_2d = _arr.ndim == 2
         # §V04: Gate-Berechnung auf Pre-Phase-Input (reference), nicht auf HPF-gefiltertes Signal.
@@ -776,6 +776,12 @@ class RumbleFilterPhase(PhaseInterface):
         at every boundary (e.g. vinyl with crackle + wow: 13.2 onsets/s × ±100 ms
         = ~100 % coverage → rumble never removed, transition artefacts everywhere).
         """
+        # §NameError-Fix (2026-09-06): _safe_sosfiltfilt05 war nur im
+        # Quiet-Music-Pfad lokal importiert — hier fehlte der Import.
+        from backend.core.audio_utils import (
+            safe_sosfiltfilt as _safe_sosfiltfilt05,  # pylint: disable=import-outside-toplevel
+        )
+
         # Design Butterworth high-pass
         nyquist = self.sample_rate / 2.0
         normalized_cutoff = cutoff_hz / nyquist

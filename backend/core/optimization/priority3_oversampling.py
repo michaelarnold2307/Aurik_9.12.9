@@ -8,6 +8,7 @@ aliasing artefacts during non-linear processing.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 
 import numpy as np
@@ -104,4 +105,6 @@ class AdaptiveOversamplingProcessor:
         if len(downsampled) < n:
             downsampled = np.pad(downsampled, (0, n - len(downsampled)))
         return downsampled.astype(np.float32)  # type: ignore[no-any-return]
+
+
 logger = logging.getLogger(__name__)

@@ -18,13 +18,13 @@ Psychoakustische Applikation (§musical_goals.instructions.md):
       wobei residuum = original − (vocals + drums + bass + other) (Rekonstruktion)
     - Score ∈ [0, 1]; 1.0 = perfekte Rekonstruktion
 
-GPU-Support: Optional via AURIK_DEMUX_GPU=1 (Default: CPU für Determinismus, §G5)
+GPU-Support: Optional via AURIK_DEMUX_GPU=1 (Default: CPU für Determinismus, §G5 (GEBOTE.md))
 
 Referenzen:
     Défossez (2021): "Music Source Separation in the Waveform Domain"
     https://arxiv.org/abs/2111.02477
 
-Invarianten (§G5, §G8):
+Invarianten (§G5 (GEBOTE.md), §G8 (GEBOTE.md)):
     - Deterministisch: CPU-Inferenz (Default), Optional GPU via Flag
     - Thread-sicher: Singleton mit Double-Checked Locking
     - Vollständig typisiert (PEP 484, kein Any in öffentlichen APIs)
@@ -86,7 +86,7 @@ class SeparationResult:
 
     def reconstruct(self) -> np.ndarray:
         """Rekonstruiert Original: vocals + drums + bass + other."""
-        return np.asarray(self.vocals + self.drums + self.bass + self.other, dtype=np.float32)
+        return np.asarray(self.vocals + self.drums + self.bass + self.other, dtype=np.float32)  # type: ignore[no-any-return]
 
 
 class HtdemucsPlugin:
@@ -115,7 +115,7 @@ class HtdemucsPlugin:
 
         Note:
             Längere Audio (> 343980 samples) wird automatisch mit Chunked Windowing
-            verarbeitet (§G2 Vollständige Defektbehebung).
+            verarbeitet (§G2 (GEBOTE.md) Vollständige Defektbehebung).
         """
         audio = np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
 
@@ -129,7 +129,7 @@ class HtdemucsPlugin:
                 audio_2ch = np.vstack([audio, audio])
             else:
                 audio_2ch = audio
-            orig_shape_mono = (audio.shape[0] == 1)
+            orig_shape_mono = audio.shape[0] == 1
         else:
             raise ValueError(f"Expected audio shape (T,) or (C, T), got {audio.shape}")
 
@@ -147,7 +147,7 @@ class HtdemucsPlugin:
                 "Audio länger als WINDOW_SIZE (%d), nutze Chunked Separation",
                 ChunkedProcessor.WINDOW_SIZE,
             )
-            # Chunked Separation für lange Audio (§G2)
+            # Chunked Separation für lange Audio (§G2 (GEBOTE.md))
             chunker = ChunkedProcessor(self)
             result_48k = chunker.separate_long(audio_48k, sr=48000)
         else:
@@ -163,7 +163,7 @@ class HtdemucsPlugin:
     def _resample_to_48k(self, audio_2ch: np.ndarray, sr: int) -> np.ndarray:
         """Resampling von beliebigem SR zu 48kHz."""
         if sr == 48000:
-            return np.asarray(audio_2ch, dtype=np.float32)
+            return np.asarray(audio_2ch, dtype=np.float32)  # type: ignore[no-any-return]
 
         try:
             julius_forward: Any = import_module("julius")
@@ -175,10 +175,13 @@ class HtdemucsPlugin:
                 julius_forward.resample_frac(
                     julius_forward.ResampleFrac(sr, 48000),
                     input_tensor,
-                ).squeeze(0).cpu().numpy()
+                )
+                .squeeze(0)
+                .cpu()
+                .numpy(),
             )
         except Exception as e:
-            logger.warning("julius Resampling zu 48k fehlgeschlagen, fallback librosa: %s", e)
+            logger.warning("julius Resampling zu 48k fehlgeschlagen, Ersatzpfad librosa: %s", e)
             import librosa
 
             return cast(
@@ -186,7 +189,7 @@ class HtdemucsPlugin:
                 np.stack(
                     [librosa.resample(channel, orig_sr=sr, target_sr=48000) for channel in audio_2ch],
                     axis=0,
-                ).astype(np.float32, copy=False)
+                ).astype(np.float32, copy=False),
             )
 
     def _resample_from_48k(self, result_48k: SeparationResult, sr: int, orig_shape_mono: bool) -> SeparationResult:
@@ -202,13 +205,18 @@ class HtdemucsPlugin:
             stems_sr = []
             for stem in stems_48k:
                 stem_tensor = torch.as_tensor(np.asarray(stem, dtype=np.float32)).unsqueeze(0)
-                stem_rs = julius_reverse.resample_frac(
-                    julius_reverse.ResampleFrac(48000, sr),
-                    stem_tensor,
-                ).squeeze(0).cpu().numpy()
+                stem_rs = (
+                    julius_reverse.resample_frac(
+                        julius_reverse.ResampleFrac(48000, sr),
+                        stem_tensor,
+                    )
+                    .squeeze(0)
+                    .cpu()
+                    .numpy()
+                )
                 stems_sr.append(stem_rs)
         except Exception as e:
-            logger.warning("julius Resampling von 48k fehlgeschlagen, fallback librosa: %s", e)
+            logger.warning("julius Resampling von 48k fehlgeschlagen, Ersatzpfad librosa: %s", e)
             import librosa
 
             stems_48k = [result_48k.vocals, result_48k.drums, result_48k.bass, result_48k.other]
@@ -250,7 +258,6 @@ class HtdemucsPlugin:
         vocals, drums, bass, other = stems_list
         return SeparationResult(vocals, drums, bass, other, sr=48000)
 
-
     def _ensure_model(self) -> None:
         """Lädt Modell lazy (Thread-sicher)."""
         if self._model is not None:
@@ -279,10 +286,10 @@ class HtdemucsPlugin:
                 try:
                     self._model = demucs_pretrained.get_model("htdemucs")
                     self._model_type = "pytorch"
-                    logger.info("HTDemucs PyTorch Model geladen (GPU-enabled)")
+                    logger.info("HTDemucs PyTorch Model geladen (GPU aktiviert)")
                     return
                 except Exception as e:
-                    logger.debug("HTDemucs PyTorch Load fehlgeschlagen, versuche ONNX: %s", e)
+                    logger.debug("HTDemucs PyTorch Laden fehlgeschlagen, versuche ONNX: %s", e)
 
             # Fallback: ONNX
             try:
@@ -341,7 +348,7 @@ class HtdemucsPlugin:
         if orig_length < _FIXED_LENGTH:
             # Pad mit Nullen am Ende
             pad_amount = _FIXED_LENGTH - orig_length
-            audio_padded = np.pad(audio_2ch, ((0, 0), (0, pad_amount)), mode='constant')
+            audio_padded = np.pad(audio_2ch, ((0, 0), (0, pad_amount)), mode="constant")
             trim_to_length = orig_length  # Zurück zur Original-Länge nach Modell
         else:
             # Kürze auf die erforderliche Länge (Mitte behalten)
@@ -353,7 +360,9 @@ class HtdemucsPlugin:
                     "Audio länger als Modellmaximal (%d samples), "
                     "verwende zentrierte %d-Sample-Region. "
                     "Ausgabe wird auf %d samples gekürzt.",
-                    orig_length, _FIXED_LENGTH, _FIXED_LENGTH
+                    orig_length,
+                    _FIXED_LENGTH,
+                    _FIXED_LENGTH,
                 )
 
         # Input: (2, T) → (1, 2, T)

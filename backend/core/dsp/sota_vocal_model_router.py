@@ -239,7 +239,10 @@ class SotaVocalModelRouter:
 
             return float(_psutil.virtual_memory().available / (1024**3))
         except Exception as exc:  # pylint: disable=broad-except
-            logger.debug("§V6 psutil.virtual_memory() nicht verfügbar — None zurückgegeben (Memory-Check): %s", exc)
+            logger.debug(
+                "§V6 (copilot-instructions.md) psutil.virtual_memory() nicht verfügbar — None zurückgegeben (Speicherprüfung): %s",
+                exc,
+            )
             return None
 
     @classmethod
@@ -573,7 +576,7 @@ class SotaVocalModelRouter:
                 from plugins.mp_senet_plugin import get_mp_senet  # pylint: disable=import-outside-toplevel
 
                 _mp_senet = get_mp_senet()
-                _senet_result = _mp_senet.enhance(dfn_result.audio, sr, music_mode=True)
+                _senet_result = _mp_senet.enhance(dfn_result.audio, sr)
                 if hasattr(_senet_result, "audio") and _senet_result.audio is not None:
                     dfn_result.audio = self._coerce_like(_senet_result.audio, reference)
                     dfn_result.model_used += "+mp_senet"
@@ -717,7 +720,11 @@ class SotaVocalModelRouter:
         try:
             arr = np.asarray(candidate, dtype=np.float32)
         except Exception as exc:  # pylint: disable=broad-except
-            logger.debug("§V6 np.asarray(candidate) fehlgeschlagen — Nullen zurückgegeben (Shape %s): %s", ref.shape, exc)
+            logger.debug(
+                "§V6 (copilot-instructions.md) np.asarray(candidate) fehlgeschlagen — Nullen zurückgegeben (Shape %s): %s",
+                ref.shape,
+                exc,
+            )
             return np.zeros_like(ref, dtype=np.float32)  # type: ignore[no-any-return]
 
         arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)

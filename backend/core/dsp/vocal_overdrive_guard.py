@@ -17,7 +17,7 @@ Warum nicht nur Pegel/THD klassisch:
     über das lokale Breitband hinaus an (Excess ≫ 0).
   * Zusätzlich: Clipping-Ratio und Crest-Kollaps in stimmlichen Frames.
 
-Stateless (kein Song-Zustand, §V8/§G1), numpy-only, kostenbegrenzt:
+Stateless (kein Song-Zustand, §V8 (copilot-instructions.md)/§G1 (GEBOTE.md)), numpy-only, kostenbegrenzt:
   * Vorauswahl stimmlicher Kandidaten-Frames über Bandpass-RMS (max. 24),
   * Autokorrelations-F0 nur auf Kandidaten, FFT nur auf ~200-ms-Frames.
 
@@ -97,8 +97,8 @@ def _mono(audio: np.ndarray) -> np.ndarray:
         # Robust gegen (N,2) und (2,N)
         if a.shape[0] == 2 and a.shape[1] != 2:
             a = a.T
-        return a.mean(axis=1)
-    return a
+        return a.mean(axis=1)  # type: ignore[no-any-return]
+    return a  # type: ignore[no-any-return]
 
 
 def _frame_rms_db(x: np.ndarray, sr: int) -> np.ndarray:
@@ -109,7 +109,7 @@ def _frame_rms_db(x: np.ndarray, sr: int) -> np.ndarray:
     for i in range(n):
         seg = x[i * hop : i * hop + flen]
         out[i] = 20.0 * np.log10(float(np.sqrt(np.mean(seg**2)) + 1e-12))
-    return out
+    return out  # type: ignore[no-any-return]
 
 
 def _bandpass(x: np.ndarray, sr: int, lo: float, hi: float) -> np.ndarray:
@@ -120,7 +120,7 @@ def _bandpass(x: np.ndarray, sr: int, lo: float, hi: float) -> np.ndarray:
         sos = butter(4, min(hi, nyq * 0.98) / nyq, btype="lowpass", output="sos")
     else:
         sos = butter(4, [max(lo, 1.0) / nyq, min(hi, nyq * 0.98) / nyq], btype="bandpass", output="sos")
-    return sosfiltfilt(sos, x).astype(np.float32)
+    return sosfiltfilt(sos, x).astype(np.float32)  # type: ignore[no-any-return]
 
 
 def _estimate_f0(x: np.ndarray, sr: int) -> tuple[float | None, float]:
@@ -262,9 +262,7 @@ def measure_vocal_overdrive(
         hop0 = int(_HOP_S * sr)
         nfr = len(rms_db_pre)
         clip_frames_idx = [
-            i
-            for i in range(nfr)
-            if bool(np.any(clip_mask[i * hop0 : min(len(post_m), i * hop0 + flen0)]))
+            i for i in range(nfr) if bool(np.any(clip_mask[i * hop0 : min(len(post_m), i * hop0 + flen0)]))
         ]
         order_pre = np.argsort(-rms_db_pre)
         delta_db = np.abs(rms_db_post - rms_db_pre)
@@ -367,23 +365,29 @@ def measure_vocal_overdrive(
                 # Weiche Korrektur am Lauf-Ende (max. 30 % Original-Anteil), damit
                 # die Entrauschung erhalten bleibt, der Vocal-Drive aber unter die
                 # Hör-Schwelle gedrückt wird.
-                severity = max(
-                    (comb or 0.0) - COMB_EXCESS_MODERATE_DB,
-                    (imd or 0.0) - IMD_EXCESS_FINAL_MODERATE_DB,
-                    (np.log10(max(clip, 1e-9)) - np.log10(VOICED_CLIP_HARD_RATIO)) * 2.0,
-                    (-crest - CREST_COLLAPSE_SEVERE_DB) / 4.0 if crest is not None else 0.0,
-                    0.0,
-                ) / 6.0
+                severity = (
+                    max(
+                        (comb or 0.0) - COMB_EXCESS_MODERATE_DB,
+                        (imd or 0.0) - IMD_EXCESS_FINAL_MODERATE_DB,
+                        (np.log10(max(clip, 1e-9)) - np.log10(VOICED_CLIP_HARD_RATIO)) * 2.0,
+                        (-crest - CREST_COLLAPSE_SEVERE_DB) / 4.0 if crest is not None else 0.0,
+                        0.0,
+                    )
+                    / 6.0
+                )
                 res.blend_factor = float(np.clip(1.0 - 0.6 * severity, _FINAL_BLEND_FLOOR, 0.98))
             else:
                 # Moderater Verstoß → weicher Blend Richtung Pre (max. 70 % Pre).
                 # Severity aus dem stärksten Verstoß (Kamm/IMD/Clipping).
-                severity = max(
-                    (comb or 0.0) - COMB_EXCESS_MODERATE_DB,
-                    (imd or 0.0) - COMB_EXCESS_MODERATE_DB,
-                    (np.log10(max(clip, 1e-9)) - np.log10(VOICED_CLIP_HARD_RATIO)) * 2.0,
-                    0.0,
-                ) / 5.0
+                severity = (
+                    max(
+                        (comb or 0.0) - COMB_EXCESS_MODERATE_DB,
+                        (imd or 0.0) - COMB_EXCESS_MODERATE_DB,
+                        (np.log10(max(clip, 1e-9)) - np.log10(VOICED_CLIP_HARD_RATIO)) * 2.0,
+                        0.0,
+                    )
+                    / 5.0
+                )
                 res.blend_factor = float(np.clip(1.0 - severity, 0.30, 0.90))
         return res
     except Exception as exc:  # Guard darf nie die Pipeline brechen
@@ -406,9 +410,7 @@ def protect_vocal_overdrive(
     Returns:
         (geschütztes Audio, Messergebnis) — bei passed ist das Audio unverändert.
     """
-    res = measure_vocal_overdrive(
-        pre, post, sr, voiced_zones=voiced_zones, vocal_active=vocal_active, mode=mode
-    )
+    res = measure_vocal_overdrive(pre, post, sr, voiced_zones=voiced_zones, vocal_active=vocal_active, mode=mode)
     out = np.asarray(post, dtype=np.float32)
     pre_a = np.asarray(pre, dtype=np.float32)
     # Final-Modus: bis zu 4 Blend-Iterationen, damit die Invariante am Ende
@@ -440,9 +442,7 @@ def protect_vocal_overdrive(
                 "; ".join(res.reasons),
             )
         if _max_iter > 1:
-            res = measure_vocal_overdrive(
-                pre, out, sr, voiced_zones=voiced_zones, vocal_active=vocal_active, mode=mode
-            )
+            res = measure_vocal_overdrive(pre, out, sr, voiced_zones=voiced_zones, vocal_active=vocal_active, mode=mode)
     return out, res
 
 

@@ -1517,6 +1517,7 @@ _CATEGORY_PROXY_FUNCTIONS.update(
 
 # ── Convenience-Funktionen (für Dead-Import-Reparatur) ───────────────
 
+
 def verify_cassette_defects(
     audio_before: np.ndarray,
     audio_after: np.ndarray,
@@ -1534,4 +1535,15 @@ def verify_cassette_defects(
     Returns:
         DefectVerificationResult mit Verifikation-Ergebnissen
     """
-    return verify_defect_segment(audio_before, audio_after, sr, phase_id=phase_id)
+    # §Signatur-Fix (2026-09-06): verify_defect_segment braucht defect_type +
+    # Segment-Grenzen. Wrapper verifiziert das Gesamtsignal (0.0 … Dauer).
+    _total_s = float(max(len(audio_before), len(audio_after))) / max(float(sr), 1.0)
+    return verify_defect_segment(
+        audio_before,
+        audio_after,
+        sr,
+        defect_type="cassette_noise",
+        phase_id=phase_id,
+        location_start_s=0.0,
+        location_end_s=_total_s,
+    )

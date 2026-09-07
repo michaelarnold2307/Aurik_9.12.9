@@ -1356,7 +1356,7 @@ class ClickRemovalPhase(PhaseInterface):
     def _interpolate_linear(self, audio: np.ndarray, start: int, end: int) -> np.ndarray:
         """Linear interpolation for short clicks (1-3 samples)."""
         if start == 0 or end >= len(audio) - 1:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # Can't interpolate at edges
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]  # Can't interpolate at edges
 
         # Interpolate between neighbors
         left_val = audio[start - 1]
@@ -1367,7 +1367,7 @@ class ClickRemovalPhase(PhaseInterface):
         interpolated = np.linspace(left_val, right_val, num_samples + 2)[1:-1]
 
         audio[start : end + 1] = interpolated
-        return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+        return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
     def _interpolate_cubic(self, audio: np.ndarray, start: int, end: int) -> np.ndarray:
         """Cubic spline interpolation for medium clicks (4-10 samples)."""
@@ -1405,7 +1405,7 @@ class ClickRemovalPhase(PhaseInterface):
         interpolated_y = np.clip(interpolated_y, -1.0, 1.0)
 
         audio[start : end + 1] = interpolated_y
-        return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+        return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
     def _interpolate_spectral(self, audio: np.ndarray, start: int, end: int) -> np.ndarray:
         """Spektrale Interpolation für lange Clicks (11–50 Samples).
@@ -1539,11 +1539,18 @@ class ClickRemovalPhase(PhaseInterface):
             audio[start : end + 1] = interpolated
 
         except Exception as exc:
-            logger.debug("§V6 _interpolate_hermite fehlgeschlagen — Cubic-Spline Fallback aktiviert (Range %d-%d): %s", start, end, exc)
+            logger.debug(
+                "§V6 (copilot-instructions.md) _interpolate_hermite fehlgeschlagen — Cubic-Spline Fallback aktiviert (Range %d-%d): %s",
+                start,
+                end,
+                exc,
+            )
             # Graceful Degradation auf Cubic-Spline
             return self._interpolate_cubic(audio, start, end)
 
-        return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+        return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
+
+    def _rbme_interpolate(self, signal: np.ndarray, mask: np.ndarray, n_iter: int = 5) -> np.ndarray:
         """RBME (Roux & Bimbot 2014): Iterative sparse Bayesian click inpainting.
 
         Minimizes: ||x - y||^2 + lambda * ||D x||^2 over missing samples,
@@ -1601,7 +1608,10 @@ class ClickRemovalPhase(PhaseInterface):
             _R = np.array([[_r[abs(i - j)] for j in range(_ar_order)] for i in range(_ar_order)])
             _ar_coeffs = np.linalg.solve(_R + 1e-6 * np.eye(_ar_order), _r[1 : _ar_order + 1])
         except np.linalg.LinAlgError as exc:
-            logger.debug("§V6 AR-Toeplitz-Solve fehlgeschlagen — Ergebnis unverändert zurückgegeben (LinAlgError): %s", exc)
+            logger.debug(
+                "§V6 (copilot-instructions.md) AR-Toeplitz-Solve fehlgeschlagen — Ergebnis unverändert zurückgegeben (LinAlgError): %s",
+                exc,
+            )
             return result  # AR estimation failed → caller falls back to cubic spline
 
         if not np.isfinite(_ar_coeffs).all():

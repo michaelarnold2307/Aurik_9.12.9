@@ -37,6 +37,8 @@ from typing import Any, Optional, cast
 
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 try:
     from backend.core.post_repair_artifact_guard import PostRepairArtifactGuard as _ArtifactGuard
 except Exception:  # pragma: no cover — optional
@@ -154,7 +156,10 @@ def _is_localized_change(pre: np.ndarray, post: np.ndarray, max_fraction: float 
         _n90 = int(np.searchsorted(_cum, _total * 0.9))
         return (_n90 + 1) / max(len(_sorted), 1) < max_fraction
     except Exception as exc:
-        logger.debug("§V6 _temporal_damage_ratio fehlgeschlagen — False zurückgegeben (konservativ): %s", exc)
+        logger.debug(
+            "§V6 (copilot-instructions.md) Temporalschaden-Messung fehlgeschlagen — False zurückgegeben (konservativ): %s",
+            exc,
+        )
         return False
 
 
@@ -206,7 +211,9 @@ def _spectral_damage_db(pre: np.ndarray, post: np.ndarray, sr: int) -> float:
             _deltas.append(abs(10.0 * np.log10(_e_post / _e_pre)))
         return float(np.median(_deltas))
     except Exception:
-        log.warning("§V6 ML→DSP-Fallback: _spectral_median_db fehlgeschlagen → neutraler Return (0.0)")
+        log.warning(
+            "§V6 (copilot-instructions.md) ML→DSP-Fallback: _spectral_median_db fehlgeschlagen → neutraler Return (0.0)"
+        )
         return 0.0
 
 
@@ -243,7 +250,10 @@ def _spectral_bands_over_db(pre: np.ndarray, post: np.ndarray, sr: int, threshol
                 _count += 1
         return _count
     except Exception as exc:
-        logger.debug("§V6 _spectral_damage_bands fehlgeschlagen — 0 zurückgegeben (konservativ): %s", exc)
+        logger.debug(
+            "§V6 (copilot-instructions.md) _spectral_damage_bands fehlgeschlagen — 0 zurückgegeben (konservativ): %s",
+            exc,
+        )
         return 0
 
 
@@ -686,7 +696,9 @@ class CoordinatedRepair:
                                 try:
                                     _guard_peak_delta = max(_guard_peak_delta, abs(float(_v_str.split("_")[-1][:-2])))
                                 except ValueError:
-                                    pass
+                                    logger.debug(
+                                        "§V74 Guard-Peak-Delta nicht parsebar — übersprungen (nicht blockierend)"
+                                    )
                         _is_spectral = any(str(v).startswith(("spectral", "formant_drift")) for v in _violations)
                         if _is_spectral:
                             current_audio = _audio_pre
@@ -917,7 +929,10 @@ class CoordinatedRepair:
             result = pipeline.process(audio, sr, override_strength=strength)
             return cast(np.ndarray, result.audio.astype(np.float32))
         except Exception as exc:
-            logger.debug("§V6 SOTADenoisePipeline fehlgeschlagen — Audio unverändert zurückgegeben: %s", exc)
+            logger.debug(
+                "§V6 (copilot-instructions.md) SOTADenoisePipeline fehlgeschlagen — Audio unverändert zurückgegeben: %s",
+                exc,
+            )
             return audio
 
     def _run_banquet_vinyl(

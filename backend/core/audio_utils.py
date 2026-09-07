@@ -120,6 +120,7 @@ def safe_sosfiltfilt(
     axis: int = -1,
     *,
     chain_depth: int = 1,
+    padlen: int | None = None,
 ) -> np.ndarray:
     """Zero-phase SOS filter with depth-adaptive minimum-phase fallback.
 
@@ -137,6 +138,8 @@ def safe_sosfiltfilt(
         axis: Filter axis
         chain_depth: Transfer-Chain-Tiefe (§v10.131). Default 1 = zero-phase.
                      Bei ≥4 wird minimum-phase (sosfilt) verwendet.
+        padlen: Forward/Backward-Einschwing-Padding für sosfiltfilt
+                (z. B. HPF bei niedrigen Cutoffs — Anti-Pegelexplosion, phase_05).
 
     Returns:
         Gefiltertes Signal (float64 oder wie Input).
@@ -145,7 +148,7 @@ def safe_sosfiltfilt(
 
     if chain_depth >= 4:
         return sosfilt(sos, x, axis=axis)  # type: ignore[no-any-return]
-    return sosfiltfilt(sos, x, axis=axis)  # type: ignore[no-any-return]
+    return sosfiltfilt(sos, x, axis=axis, padlen=padlen)  # type: ignore[no-any-return]
 
 
 def safe_stft(
@@ -180,7 +183,10 @@ def safe_stft(
     try:
         return _scipy_stft(x, fs=fs, window=window, nperseg=_nperseg, noverlap=_noverlap, **kwargs)  # type: ignore[no-any-return]
     except ValueError as exc:
-        logger.debug("§V6 scipy STFT fehlgeschlagen — Minimal-Fallback aktiviert (ValueError): %s", exc)
+        logger.debug(
+            "§V6 (copilot-instructions.md) scipy STFT fehlgeschlagen — Minimal-Ersatzpfad aktiviert (ValueError): %s",
+            exc,
+        )
         # Last resort: minimum viable STFT
         _nperseg = max(2, n)
         _noverlap = _nperseg // 4
@@ -213,7 +219,10 @@ def safe_istft(
     try:
         return _scipy_istft(Zxx, fs=fs, window=window, nperseg=nperseg, noverlap=_noverlap, **kwargs)  # type: ignore[no-any-return]
     except ValueError as exc:
-        logger.debug("§V6 scipy ISTFT fehlgeschlagen — Minimal-Fallback aktiviert (ValueError): %s", exc)
+        logger.debug(
+            "§V6 (copilot-instructions.md) scipy ISTFT fehlgeschlagen — Minimal-Ersatzpfad aktiviert (ValueError): %s",
+            exc,
+        )
         _noverlap = nperseg // 4
         return _scipy_istft(Zxx, fs=fs, window="hann", nperseg=nperseg, noverlap=_noverlap)  # type: ignore[no-any-return]
 
@@ -380,7 +389,10 @@ def _edge_channel_views(audio: np.ndarray) -> list[np.ndarray]:
             np.asarray(right, dtype=np.float32),
         ]
     except ValueError as exc:
-        logger.debug("§V6 stereo_channel_view fehlgeschlagen — Mono-Fallback aktiviert (ValueError): %s", exc)
+        logger.debug(
+            "§V6 (copilot-instructions.md) stereo_channel_view fehlgeschlagen — Mono-Ersatzpfad aktiviert (ValueError): %s",
+            exc,
+        )
         return [safe_to_mono(arr)]
 
 

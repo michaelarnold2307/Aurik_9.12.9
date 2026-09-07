@@ -561,7 +561,7 @@ def _soft_knee_clip(x: np.ndarray, knee_db: float = 6.0) -> np.ndarray:
         return x
     overshoot_db = 20.0 * np.log10(peak / 1.0)
     gain = 1.0 / (1.0 + np.exp(-overshoot_db / knee_db))
-    return x * gain
+    return x * gain  # type: ignore[no-any-return]
 
 
 # ── End of file ───────────────────────────────────────────────────────────────

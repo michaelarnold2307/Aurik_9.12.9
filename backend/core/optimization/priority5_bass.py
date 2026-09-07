@@ -8,6 +8,8 @@ character of the source material.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from scipy.signal import butter, sosfiltfilt
 
@@ -118,4 +120,6 @@ class PhaseCoherentBassProcessor:
 
         out = np.clip(np.nan_to_num(enhanced, nan=0.0, posinf=0.0, neginf=0.0), -1.0, 1.0)
         return out.astype(np.float32)  # type: ignore[no-any-return]
+
+
 logger = logging.getLogger(__name__)

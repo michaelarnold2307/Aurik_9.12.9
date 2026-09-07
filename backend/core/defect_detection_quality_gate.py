@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
+
 
 @dataclass(frozen=True)
 class DefectExpectation:
@@ -177,6 +179,7 @@ def evaluate_defect_detection_gate(
 
 # ── Convenience-Funktionen (für Dead-Import-Reparatur) ───────────────
 
+
 def validate_defect_detection(
     audio: np.ndarray,
     sr: int = 48000,
@@ -204,8 +207,8 @@ def validate_defect_detection(
         false_positive_total=0,
         required_locality_total=0,
         detected_locality_total=0,
-        fail_reasons=tuple(),
-        case_failures=[],
+        fail_reasons=(),
+        case_failures={},
     )
 
 

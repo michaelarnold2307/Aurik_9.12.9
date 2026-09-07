@@ -33,16 +33,59 @@ logger = logging.getLogger(__name__)
 # 24 kritische Bänder bis 22 kHz — für Maskierungsschwelle-Berechnung
 
 _BARK_BAND_EDGES_HZ: list[float] = [
-    0.0, 100.0, 200.0, 300.0, 400.0, 500.0, 630.0, 770.0, 920.0,
-    1080.0, 1270.0, 1500.0, 1750.0, 2050.0, 2400.0, 2800.0, 3300.0,
-    3900.0, 4600.0, 5500.0, 6700.0, 8200.0, 10100.0, 12700.0, 16000.0
+    0.0,
+    100.0,
+    200.0,
+    300.0,
+    400.0,
+    500.0,
+    630.0,
+    770.0,
+    920.0,
+    1080.0,
+    1270.0,
+    1500.0,
+    1750.0,
+    2050.0,
+    2400.0,
+    2800.0,
+    3300.0,
+    3900.0,
+    4600.0,
+    5500.0,
+    6700.0,
+    8200.0,
+    10100.0,
+    12700.0,
+    16000.0,
 ]
 
 # JND pro Bark-Band (psychoakustisch kalibriert nach Zwicker & Fastl 1999)
 _JND_PER_BAND_DB: list[float] = [
-    3.0, 2.5, 2.0, 1.8, 1.5, 1.3, 1.2, 1.0, 0.9,
-    0.8, 0.7, 0.6, 0.6, 0.5, 0.5, 0.4, 0.4,
-    0.4, 0.3, 0.3, 0.3, 0.2, 0.2, 0.2
+    3.0,
+    2.5,
+    2.0,
+    1.8,
+    1.5,
+    1.3,
+    1.2,
+    1.0,
+    0.9,
+    0.8,
+    0.7,
+    0.6,
+    0.6,
+    0.5,
+    0.5,
+    0.4,
+    0.4,
+    0.4,
+    0.3,
+    0.3,
+    0.3,
+    0.2,
+    0.2,
+    0.2,
 ]
 
 
@@ -103,7 +146,7 @@ def _compute_bark_energy(
         bark_energy[band_idx] = np.sum(spectrum[mask])
 
     # Nach dBFS konvertieren (mit Floor gegen Division durch Null)
-    return 10.0 * np.log10(bark_energy + 1e-20)
+    return 10.0 * np.log10(bark_energy + 1e-20)  # type: ignore[no-any-return]
 
 
 def _check_masking_threshold(

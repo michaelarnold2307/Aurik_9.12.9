@@ -140,11 +140,9 @@ def _is_singmos_source_capped(source_singmos: float | None, current_singmos: flo
 
     Liegt schon die QUELLE unter 2.5 und hat die Restauration nichts verloren
     (≤ 0.10 Drop), ist der Wert Material-Ceiling, keine Aurik-Verschlechterung
-    (§V7 Ursache statt Symptom; §G4-Intent = Schutz vor Naturalness-Verlust).
+    (§V7 [copilot-instructions.md, Workaround-Verbot] Ursache statt Symptom; §G4-Intent = Schutz vor Naturalness-Verlust).
     """
-    return bool(
-        source_singmos is not None and source_singmos < 2.5 and current_singmos >= (source_singmos - 0.10)
-    )
+    return bool(source_singmos is not None and source_singmos < 2.5 and current_singmos >= (source_singmos - 0.10))
 
 
 @dataclass
@@ -1698,7 +1696,10 @@ class UnifiedRestorerV3:
         try:
             from backend.core.calibration_context import CalibrationContext
         except ImportError as e:
-            logger.debug("§V6 CalibrationContext-Import fehlgeschlagen — None zurückgegeben: %s", e)
+            logger.debug(
+                "§V6 [copilot-instructions.md, Silent-Failure-Verbot] CalibrationContext-Import fehlgeschlagen — None zurückgegeben: %s",
+                e,
+            )
             return None
         _rctx = getattr(self, "_restoration_context", {}) or {}
         return CalibrationContext(
@@ -5723,9 +5724,7 @@ class UnifiedRestorerV3:
                         _sep_exc,
                     )
                     # Fallback to MS-ratio heuristic if HTDemucs unavailable
-                    _sep_fidelity_score = UnifiedRestorerV3._compute_ms_ratio_separation_proxy(
-                        audio, material_type
-                    )
+                    _sep_fidelity_score = UnifiedRestorerV3._compute_ms_ratio_separation_proxy(audio, material_type)
             else:
                 # Proxy mode: use DSP-based MS-ratio heuristic (fast, no ML)
                 _sep_fidelity_score = UnifiedRestorerV3._compute_ms_ratio_separation_proxy(audio, material_type)
@@ -9919,7 +9918,7 @@ class UnifiedRestorerV3:
             logger.debug("§CHT-1 CumulativeHallucinationTracker nicht blockierend: %s", _cht_exc)
             self._restoration_context.setdefault("_cht_instance", None)
 
-        # §G5 Deterministischer Seed-Manager — Session starten für reproduzierbare Ergebnisse
+        # §G5 [copilot-instructions.md, Determinismus] Deterministischer Seed-Manager — Session starten für reproduzierbare Ergebnisse
         try:
             from backend.core.seed_manager import get_seed_manager
 
@@ -9937,12 +9936,12 @@ class UnifiedRestorerV3:
             _master_seed = _sm.start_session(song_id=_song_id_for_seed, master_seed=_seed_override)
             self._restoration_context["_seed_manager"] = _sm
             logger.debug(
-                "§G5 Seed-Manager: Session=%s Master-Seed=%d — deterministische Reproduzierbarkeit aktiv",
+                "§G5 [copilot-instructions.md, Determinismus] Seed-Manager: Session=%s Master-Seed=%d — deterministische Reproduzierbarkeit aktiv",
                 _song_id_for_seed,
                 _master_seed,
             )
         except Exception as _sm_exc:
-            logger.debug("§G5 Seed-Manager nicht blockierend: %s", _sm_exc)
+            logger.debug("§G5 [copilot-instructions.md, Determinismus] Seed-Manager nicht blockierend: %s", _sm_exc)
             self._restoration_context.setdefault("_seed_manager", None)
 
         # §0p Vibrato-Detektor — era-spezifische Vibrato-Rate für Vocal-Guards
@@ -10398,7 +10397,7 @@ class UnifiedRestorerV3:
             except Exception as _ast_ctx_exc:
                 logger.debug("AST Instrument Context nicht verfügbar: %s", _ast_ctx_exc)
 
-            # §G1 Song-Isolation Guard: Material MUSS zu diesem Punkt bekannt sein.
+            # §G1 [copilot-instructions.md, Song-Isolation] Song-Isolation Guard: Material MUSS zu diesem Punkt bekannt sein.
             # Wenn alle Detektoren fehlgeschlagen sind, ist das ein Warnfall —
             # DefectScanner muss dann zu UNKNOWN fallback, was weniger präzise ist.
             if _classified_material is None:
@@ -13878,6 +13877,14 @@ class UnifiedRestorerV3:
         except Exception:
             logger.debug("wiederherstellen: silent except suppressed", exc_info=True)
 
+        # §Fix (2026-09-06): Mid-flow Diagnose-Metadaten (Einladungs-Gate,
+        # Anti-Fatigue, Wohlklang-Ordnung, …) — restore() baut das finale
+        # RestorationResult erst spät; diese Blöcke referenzierten `result`
+        # vor jeder Zuweisung (NameError → stilles Verschlucken,
+        # §V6 [copilot-instructions.md, Silent-Failure-Verbot]).
+        # Sammel-Dict, wird nach der finalen Konstruktion gemerged.
+        _flow_meta: dict[str, object] = {}
+
         # §AH VocalClarityMax — Gesangs-Klarheit
         # §v10.15: PostGate-verifiziert
         try:
@@ -13931,7 +13938,7 @@ class UnifiedRestorerV3:
         except Exception as _polish_exc:
             logger.debug("§v10.0.5 FinalPolish not verfuegbar: %s", _polish_exc)
 
-        # §Anti-Fatigue-Pass (Hörordnung §6/§V7): komponenten-getriebene
+        # §Anti-Fatigue-Pass (Hörordnung §6/§V7 [copilot-instructions.md, Workaround-Verbot]): komponenten-getriebene
         # Hörermüdungs-Prävention VOR dem Export-Gate — Do-No-Harm.
         try:
             from backend.core.anti_fatigue_pass import anti_fatigue_pass as _afp_uv3
@@ -13945,12 +13952,11 @@ class UnifiedRestorerV3:
                     _afp_res.after,
                     _afp_res.reason,
                 )
-                if hasattr(result, "metadata") and isinstance(result.metadata, dict):
-                    result.metadata["anti_fatigue"] = {
-                        "before": _afp_res.before,
-                        "after": _afp_res.after,
-                        "reason": _afp_res.reason,
-                    }
+                _flow_meta["anti_fatigue"] = {
+                    "before": _afp_res.before,
+                    "after": _afp_res.after,
+                    "reason": _afp_res.reason,
+                }
         except Exception as _afp_exc:
             logger.debug("§Anti-Fatigue nicht blockierend: %s", _afp_exc)
 
@@ -14939,8 +14945,8 @@ class UnifiedRestorerV3:
                     _wo_audit = getattr(_fc_chain, "last_wohlklang_audit", None) or getattr(
                         self, "_last_wohlklang_audit", None
                     )
-                    if _wo_audit and hasattr(result, "metadata") and isinstance(result.metadata, dict):
-                        result.metadata["wohlklang_ordnung"] = dict(_wo_audit)
+                    if _wo_audit:
+                        _flow_meta["wohlklang_ordnung"] = dict(_wo_audit)
                         if _wo_audit.get("status") == "VIOLATION":
                             logger.warning(
                                 "§Ebene-3 Audit: Wohlklang-Ordnungs-Verstoß dokumentiert — %s",
@@ -16135,8 +16141,7 @@ class UnifiedRestorerV3:
             # ExzellenzDenker-Nachbesserung auf unerreichbare Ziele mehr aus.
             if _pqs_result is not None and _pqs_result.pqs_mos < _mos_t:
                 logger.info(
-                    "PQS-MOS=%.2f < Material-Floor %.1f — Korrektur wird im ExzellenzDenker "
-                    "(Stufe 7) behandelt",
+                    "PQS-MOS=%.2f < Material-Floor %.1f — Korrektur wird im ExzellenzDenker (Stufe 7) behandelt",
                     _pqs_result.pqs_mos,
                     _mos_t,
                 )
@@ -18676,6 +18681,7 @@ class UnifiedRestorerV3:
                 # JND-Offsets kanonisch in backend/core/defect_audibility_gate.py
                 # (m1 Hörbarkeits-Gate — eine Quelle für Schwelle & Lauf-Ende-Bericht).
                 from backend.core.defect_audibility_gate import MATERIAL_JND_OFFSET as _MATERIAL_JND_OFFSET
+
                 _chain_depth = int(getattr(self, "_transfer_chain_depth", 1) or 1)
                 _depth_offset = (_chain_depth - 1) * 0.01  # tiefere Kette = mehr Maskierung
                 _AUDIBLE_THRESHOLD = float(
@@ -19173,11 +19179,7 @@ class UnifiedRestorerV3:
                     _wk_fin = np.asarray(restored_audio, dtype=np.float32).copy()
                     _wk_ref_a = np.asarray(_eg_ref_fin, dtype=np.float32)
                     if _wk_fin.shape != _wk_ref_a.shape:
-                        if (
-                            _wk_fin.ndim == 2
-                            and _wk_ref_a.ndim == 2
-                            and _wk_fin.shape == _wk_ref_a.shape[::-1]
-                        ):
+                        if _wk_fin.ndim == 2 and _wk_ref_a.ndim == 2 and _wk_fin.shape == _wk_ref_a.shape[::-1]:
                             _wk_ref_a = _wk_ref_a.T
                         else:
                             _wk_ref_a = None
@@ -19186,15 +19188,11 @@ class UnifiedRestorerV3:
                         for _wkf_i in range(5):
                             if _eg_result.gate_passed:
                                 break
-                            _wk_fin = np.clip(
-                                (0.90 * _wk_fin + 0.10 * _wk_ref_a).astype(np.float32), -1.0, 1.0
-                            )
+                            _wk_fin = np.clip((0.90 * _wk_fin + 0.10 * _wk_ref_a).astype(np.float32), -1.0, 1.0)
                             _eg_result = _check_eg(_wk_fin, _sr_eg, voiced_zones=_voiced_zones)
                             _eg_corrected = True
                         if _eg_corrected:
                             restored_audio = _wk_fin
-                            if hasattr(result, "audio") and result.audio is not None:
-                                result.audio = _wk_fin
                             if _eg_result.gate_passed:
                                 logger.info(
                                     "§Ebene-4 Wohlklang-Korrektur aktiv: Einladungs-Gate nach "
@@ -19202,12 +19200,10 @@ class UnifiedRestorerV3:
                                 )
                             else:
                                 logger.warning(
-                                    "§Ebene-4 Wohlklang-Korrektur: Gate nach max. 5 Blends "
-                                    "weiterhin verletzt — %s",
+                                    "§Ebene-4 Wohlklang-Korrektur: Gate nach max. 5 Blends weiterhin verletzt — %s",
                                     "; ".join(_eg_result.failure_reasons),
                                 )
-                            if hasattr(result, "metadata") and isinstance(result.metadata, dict):
-                                result.metadata["einladungs_gate_corrected"] = True
+                            _flow_meta["einladungs_gate_corrected"] = True
                 except Exception as _eg_corr_exc:
                     logger.debug("§Ebene-4 Wohlklang-Korrektur nicht blockierend: %s", _eg_corr_exc)
 
@@ -19217,29 +19213,24 @@ class UnifiedRestorerV3:
                     "; ".join(_eg_result.failure_reasons),
                 )
                 # Metadaten für Diagnose speichern
-                if hasattr(result, "metadata") and isinstance(result.metadata, dict):
-                    result.metadata["einladungs_gate_passed"] = False
-                    result.metadata["einladungs_roughness_mean"] = round(_eg_result.roughness_mean, 4)
-                    result.metadata["einladungs_roughness_max_voiced"] = round(
-                        _eg_result.roughness_max_in_voiced, 4
-                    )
-                    result.metadata["einladungs_sharpness_jump"] = round(_eg_result.sharpness_max_jump, 4)
-                    result.metadata["einladungs_loudness_mean"] = round(_eg_result.loudness_mean, 4)
-                    result.metadata["einladungs_failure_reasons"] = list(_eg_result.failure_reasons)
+                _flow_meta["einladungs_gate_passed"] = False
+                _flow_meta["einladungs_roughness_mean"] = round(_eg_result.roughness_mean, 4)
+                _flow_meta["einladungs_roughness_max_voiced"] = round(_eg_result.roughness_max_in_voiced, 4)
+                _flow_meta["einladungs_sharpness_jump"] = round(_eg_result.sharpness_max_jump, 4)
+                _flow_meta["einladungs_loudness_mean"] = round(_eg_result.loudness_mean, 4)
+                _flow_meta["einladungs_failure_reasons"] = list(_eg_result.failure_reasons)
             else:
                 logger.debug("§Ebene-4 Einladungs-Gate erfüllt (positiver Wohlklang)")
-                if hasattr(result, "metadata") and isinstance(result.metadata, dict):
-                    result.metadata["einladungs_gate_passed"] = True
+                _flow_meta["einladungs_gate_passed"] = True
 
         except Exception as _eg_exc:
             logger.debug("§Ebene-4 Einladungs-Gate nicht blockierend: %s", _eg_exc)
             # Fehler sichtbar machen (vorher stiller AssertionError bei sr != 48000):
             # Telemetrie statt Schweigen, damit der Wohlklang-Pfad nachweisbar läuft.
             try:
-                if hasattr(result, "metadata") and isinstance(result.metadata, dict):
-                    result.metadata["einladungs_gate_error"] = f"{type(_eg_exc).__name__}: {_eg_exc}"[:200]
+                _flow_meta["einladungs_gate_error"] = f"{type(_eg_exc).__name__}: {_eg_exc}"[:200]
             except Exception:
-                pass
+                logger.debug("Einladungs-Gate-Fehler-Metadaten nicht setzbar (nicht blockierend)")
 
         try:
             from backend.core.holistic_perceptual_gate import get_holistic_gate as _get_hg
@@ -20110,9 +20101,7 @@ class UnifiedRestorerV3:
             from backend.core.dsp.einladungs_gate import trigger_recovery_cascade as _trigger_rec
 
             # Material-Typ für Floor-Bestimmung holen
-            _mat_type = str(
-                (getattr(self, "_restoration_context", None) or {}).get("material_type", "unknown")
-            ).lower()
+            _mat_type = str((getattr(self, "_restoration_context", None) or {}).get("material_type", "unknown")).lower()
 
             _vqi_score, _floor = _check_vqi_rec(restored_audio, sample_rate, _mat_type)
 
@@ -20129,21 +20118,21 @@ class UnifiedRestorerV3:
                 if isinstance(getattr(self, "_restoration_context", None), dict):
                     self._restoration_context["vqi_recovery_active"] = True
                     self._restoration_context["vqi_deficit_db"] = _recovery_params.get("vqi_deficit_db", 0.0)
-                    self._restoration_context["vocal_boost_factor"] = _recovery_params.get(
-                        "recovery_boost_factor", 1.0
-                    )
+                    self._restoration_context["vocal_boost_factor"] = _recovery_params.get("recovery_boost_factor", 1.0)
             else:
-                logger.debug("§VQI-Recovery: Score=%.3f ≥ Floor=%.3f (material=%s) — OK", _vqi_score, _floor, _mat_type)
+                logger.debug(
+                    "§VQI-Wiederherstellung: Score=%.3f ≥ Floor=%.3f (material=%s) — OK", _vqi_score, _floor, _mat_type
+                )
 
         except Exception as _vqi_rec_exc:
-            logger.debug("§VQI-Recovery nicht blockierend: %s", _vqi_rec_exc)
+            logger.debug("§VQI-Wiederherstellung nicht blockierend: %s", _vqi_rec_exc)
 
         # §HPI Referenz-Memory Update (relaxed): Aktualisiert GP-Memory wenn HPI > 0.05
         # UND artifact_freedom ≥ 0.92 (statt 0.95 für historische Aufnahmen).
         try:
             from backend.core.dsp.einladungs_gate import should_update_hpi_reference as _should_update
 
-            if _should_update(_hpi_result.hpi, _artifact_freedom_for_hpi):
+            if _hpi_result is not None and _should_update(_hpi_result.hpi, _artifact_freedom_for_hpi):
                 # GP-Memory aktualisieren mit aktuellem Audio als Referenz
                 self._gp_memory_reference = restored_audio.copy()
                 logger.info(
@@ -20154,12 +20143,12 @@ class UnifiedRestorerV3:
             else:
                 logger.debug(
                     "§HPI Referenz-Memory NICHT aktualisiert: HPI=%.4f AF=%.4f",
-                    _hpi_result.hpi,
+                    _hpi_result.hpi if _hpi_result is not None else -1.0,
                     _artifact_freedom_for_hpi,
                 )
 
         except Exception as _gp_mem_exc:
-            logger.debug("§HPI Referenz-Memory Update nicht blockierend: %s", _gp_mem_exc)
+            logger.debug("§HPI Referenz-Memory-Aktualisierung nicht blockierend: %s", _gp_mem_exc)
 
         # Zentrale Gate-Klassifikation (A/B/C) für deterministische Endentscheidung + Telemetrie.
         _quality_gate_registry = self._classify_quality_gate_events(
@@ -22405,7 +22394,7 @@ class UnifiedRestorerV3:
                     4,
                 )
             except Exception as _ph_t_exc:
-                logger.debug("phase_pipeline_s nicht berechenbar: %s", _ph_t_exc)
+                logger.debug("Pipeline-Phasen-Laufzeit nicht berechenbar: %s", _ph_t_exc)
         result = RestorationResult(
             audio=restored_audio,
             config=self.config,
@@ -22989,6 +22978,12 @@ class UnifiedRestorerV3:
             era_decade=(_era_result.decade if _era_result is not None else None),
         )
 
+        # §Fix (2026-09-06): Mid-flow Diagnose-Metadaten (Einladungs-Gate,
+        # Anti-Fatigue, Wohlklang-Ordnung, …) in das finale Ergebnis mergen —
+        # vorher gingen sie durch NameError still verloren
+        # (§V6 [copilot-instructions.md, Silent-Failure-Verbot]).
+        result.metadata.update(_flow_meta)
+
         # §2.13 Künstler-Signatur nach Restaurierung aktualisieren und speichern
         if _artist_id is not None:
             try:
@@ -23068,6 +23063,8 @@ class UnifiedRestorerV3:
         try:
             from backend.core.dsp.vocal_overdrive_guard import (
                 protect_vocal_overdrive as _vo_final_protect,
+            )
+            from backend.core.dsp.vocal_overdrive_guard import (
                 vocal_drive_telemetry as _vo_final_telemetry,
             )
 
@@ -23076,9 +23073,7 @@ class UnifiedRestorerV3:
             _vo_final_rctx = _vo_final_rctx if isinstance(_vo_final_rctx, dict) else {}
             _vo_final_sing = float(_vo_final_rctx.get("panns_singing", 0.0) or 0.0)
             _vo_final_active = bool(
-                _vo_final_rctx.get("is_vocal")
-                or _vo_final_rctx.get("vocal_active")
-                or _vo_final_sing >= 0.15
+                _vo_final_rctx.get("is_vocal") or _vo_final_rctx.get("vocal_active") or _vo_final_sing >= 0.15
             )
             if _vo_final_ref is not None and _vo_final_active:
                 _vo_final_post = np.asarray(restored_audio, dtype=np.float32)
@@ -23102,7 +23097,7 @@ class UnifiedRestorerV3:
                 if hasattr(result, "metadata") and isinstance(result.metadata, dict):
                     result.metadata.update(_vo_final_telemetry(_vo_final_res))
         except Exception as _vo_final_exc:
-            logger.debug("§Ebene-0 Vocal-Overdrive-Final-Check nicht blockierend: %s", _vo_final_exc)
+            logger.debug("§Ebene-0 Vocal-Overdrive-Final-Prüfung nicht blockierend: %s", _vo_final_exc)
 
         # §Ebene-2 Hörbarkeits-Gate (backend/core/defect_audibility_gate.py;
         # Hörordnung §4 „Reparatur gilt als abgeschlossen, wenn der Defekt unter
@@ -23477,7 +23472,10 @@ class UnifiedRestorerV3:
         try:
             from backend.core.pipeline_budget_controller import PipelineBudgetController
         except ImportError as e:
-            logger.debug("§V6 PipelineBudgetController-Import fehlgeschlagen — leeres Progress-Dict zurückgegeben: %s", e)
+            logger.debug(
+                "§V6 (copilot-instructions.md) PipelineBudgetController-Import fehlgeschlagen — leeres Progress-Dict zurückgegeben: %s",
+                e,
+            )
             return {"current": 0, "total": 0, "name": "", "elapsed_non_exempt_s": 0.0}
         if not hasattr(self, "_pbc") or self._pbc is None:
             return {"current": 0, "total": 0, "name": "", "elapsed_non_exempt_s": 0.0}
@@ -34230,7 +34228,11 @@ class UnifiedRestorerV3:
                             try:
                                 return int(float(_val.strip()))
                             except ValueError as e:
-                                logger.debug("§V6 _safe_optional_int: String-to-int Konversion fehlgeschlagen für '%s' — None zurückgegeben: %s", _val, e)
+                                logger.debug(
+                                    "§V6 (copilot-instructions.md) _safe_optional_int: String-to-int Konversion fehlgeschlagen für '%s' — None zurückgegeben: %s",
+                                    _val,
+                                    e,
+                                )
                                 return None
                         return None
 
@@ -34324,7 +34326,11 @@ class UnifiedRestorerV3:
                             try:
                                 return int(float(_val.strip()))
                             except ValueError as e:
-                                logger.debug("§V6 _safe_optional_int_vnh: String-to-int Konversion fehlgeschlagen für '%s' — None zurückgegeben: %s", _val, e)
+                                logger.debug(
+                                    "§V6 (copilot-instructions.md) _safe_optional_int_vnh: String-to-int Konversion fehlgeschlagen für '%s' — None zurückgegeben: %s",
+                                    _val,
+                                    e,
+                                )
                                 return None
                         return None
 
@@ -34952,9 +34958,7 @@ class UnifiedRestorerV3:
                         _vo_pma = getattr(self, "_phase_metadata_accumulator", None)
                         if isinstance(_vo_pma, dict):
                             _vo_per = list(_vo_pma.get("vocal_drive_phase_events") or [])
-                            _vo_per.append(
-                                {"phase": str(_pid_guards), "reasons": list(_vo_res.reasons)}
-                            )
+                            _vo_per.append({"phase": str(_pid_guards), "reasons": list(_vo_res.reasons)})
                             _vo_pma["vocal_drive_phase_events"] = _vo_per[-20:]
 
             except Exception as _vo_exc:
@@ -35003,9 +35007,7 @@ class UnifiedRestorerV3:
                                 break
                             _wk4_violated = True
                             if _wk4_i < 2:
-                                _wk4_cur = np.clip(
-                                    (0.5 * _wk4_cur + 0.5 * _wk4_pre).astype(np.float32), -1.0, 1.0
-                                )
+                                _wk4_cur = np.clip((0.5 * _wk4_cur + 0.5 * _wk4_pre).astype(np.float32), -1.0, 1.0)
                             else:
                                 _wk4_cur = np.asarray(_wk4_pre, dtype=np.float32).copy()
                                 _wk4_reverted = True
@@ -36077,7 +36079,10 @@ class UnifiedRestorerV3:
                 phase_human_name_with_icon,
             )
         except ImportError as e:
-            logger.debug("§V6 phase_names-Import fehlgeschlagen — lokale Fallback-Funktion verwendet: %s", e)
+            logger.debug(
+                "§V6 [copilot-instructions.md, Silent-Failure-Verbot] Phasen-Namens-Import fehlgeschlagen — lokale Ersatzfunktion verwendet: %s",
+                e,
+            )
 
             def phase_human_name(phase_id: str) -> str:
                 return phase_id
@@ -39242,7 +39247,9 @@ class UnifiedRestorerV3:
                         phase_id,
                     )
 
-                phase_start = self.performance_guard.start_phase(phase_id) if self.performance_guard else time.monotonic()
+                phase_start = (
+                    self.performance_guard.start_phase(phase_id) if self.performance_guard else time.monotonic()
+                )
                 # §Wall-Time-Budget: _wall_phase_start nutzt time.monotonic() — kompatibel
                 # mit time.perf_counter() UND time.time()-Fallback. start_phase() gibt
                 # perf_counter() zurück (Systemuptime), time.time() ist Unix-Epoch —
@@ -42855,7 +42862,7 @@ class UnifiedRestorerV3:
                                     )
                                 else:
                                     current_audio = np.clip(_pre_phase_audio_2_61.copy(), -1.0, 1.0)
-                                    logger.info("§CHT-2 Rollback Fallback: Audio auf pre-phase audio")
+                                    logger.info("§CHT-2 Rollback-Ersatz: Audio auf Phasen-Anfang zurückgesetzt")
                             else:
                                 logger.debug(
                                     "§CHT-2 nach Glue Stage: Score=%.3f <= CRITICAL=%.2f — OK",
@@ -43738,7 +43745,7 @@ class UnifiedRestorerV3:
         return RestorationResult(
             audio=opt_result.audio,
             config=self.config,
-            material_type=self.config.material_type,
+            material_type=self.config.material_type or MaterialType.UNKNOWN,
             defect_scores=dict(getattr(self, "_defect_result_scores", {}) or {}),
             total_time_seconds=time.monotonic() - t0,
             metadata={
@@ -43830,7 +43837,10 @@ class UnifiedRestorerV3:
                     break
             return all_resolved
         except Exception as e:
-            logger.debug("§V6 _should_skip_resolved_phase fehlgeschlagen — False zurückgegeben (Phase wird ausgeführt): %s", e)
+            logger.debug(
+                "§V6 (copilot-instructions.md) _should_skip_resolved_phase fehlgeschlagen — False zurückgegeben (Phase wird ausgeführt): %s",
+                e,
+            )
             return False
 
     def _should_skip_masked_phase(self, phase_id: str) -> bool:
@@ -43897,7 +43907,10 @@ class UnifiedRestorerV3:
                 return True
             return False
         except Exception as e:
-            logger.debug("§V6 _should_skip_masked_phase fehlgeschlagen — False zurückgegeben (Phase wird ausgeführt): %s", e)
+            logger.debug(
+                "§V6 (copilot-instructions.md) _should_skip_masked_phase fehlgeschlagen — False zurückgegeben (Phase wird ausgeführt): %s",
+                e,
+            )
             return False
 
     def _should_skip_absent_defect_phase(self, phase_id: str) -> bool:
@@ -43978,7 +43991,10 @@ class UnifiedRestorerV3:
                 )
             return all_absent
         except Exception as e:
-            logger.debug("§V6 _should_skip_absent_defect_phase fehlgeschlagen — False zurückgegeben (Phase wird ausgeführt): %s", e)
+            logger.debug(
+                "§V6 (copilot-instructions.md) _should_skip_absent_defect_phase fehlgeschlagen — False zurückgegeben (Phase wird ausgeführt): %s",
+                e,
+            )
             return False
 
     @staticmethod
@@ -44023,7 +44039,10 @@ class UnifiedRestorerV3:
             if not isinstance(_conf, (int, float)):
                 _conf = getattr(self, "_song_calibration_profile", {}).get("pipeline_confidence")
         except Exception as e:
-            logger.debug("§V6 Material-Confidence-Lesen fehlgeschlagen — False zurückgegeben (Phase wird ausgeführt): %s", e)
+            logger.debug(
+                "§V6 (copilot-instructions.md) Material-Confidence-Lesen fehlgeschlagen — False zurückgegeben (Phase wird ausgeführt): %s",
+                e,
+            )
             return False
         if not isinstance(_conf, (int, float)):
             return False
@@ -44068,7 +44087,10 @@ class UnifiedRestorerV3:
             if not isinstance(_conf, (int, float)):
                 _conf = getattr(self, "_song_calibration_profile", {}).get("pipeline_confidence")
         except Exception as e:
-            logger.debug("§V6 _strip_low_confidence_phases: Confidence-Lesen fehlgeschlagen — ungefilterte Phasenliste zurückgegeben: %s", e)
+            logger.debug(
+                "§V6 (copilot-instructions.md) _strip_low_confidence_phases: Confidence-Lesen fehlgeschlagen — ungefilterte Phasenliste zurückgegeben: %s",
+                e,
+            )
             return phases
         if not isinstance(_conf, (int, float)):
             return phases
@@ -44137,7 +44159,10 @@ class UnifiedRestorerV3:
                 )
             return _stripped
         except Exception as e:
-            logger.debug("§V6 Verarbeitungsschritt-Effectiveness fehlgeschlagen — ungefilterte Phasenliste zurückgegeben: %s", e)
+            logger.debug(
+                "§V6 (copilot-instructions.md) Verarbeitungsschritt-Effectiveness fehlgeschlagen — ungefilterte Phasenliste zurückgegeben: %s",
+                e,
+            )
             return phases
 
     @staticmethod
@@ -44505,7 +44530,11 @@ class UnifiedRestorerV3:
                     try:
                         return _b3_copy.deepcopy(obj)
                     except (TypeError, ValueError, AttributeError) as e:
-                        logger.debug("§V6 _safe_deepcopy: deepcopy fehlgeschlagen — str() zurückgegeben für %s: %s", type(obj).__name__, e)
+                        logger.debug(
+                            "§V6 (copilot-instructions.md) _safe_deepcopy: deepcopy fehlgeschlagen — str() zurückgegeben für %s: %s",
+                            type(obj).__name__,
+                            e,
+                        )
                         return str(obj)
 
             _frozen_calib = _safe_deepcopy(getattr(self, "_song_calibration_profile", None) or {})
@@ -44956,5 +44985,8 @@ def _compute_blind_reference(
                 return slice_candidate
         return None
     except Exception as e:
-        logger.debug("§V6 BlindInternalReference fehlgeschlagen — None zurückgegeben (kein A/B-Segment): %s", e)
+        logger.debug(
+            "§V6 (copilot-instructions.md) BlindInternalReference fehlgeschlagen — None zurückgegeben (kein A/B-Segment): %s",
+            e,
+        )
         return None

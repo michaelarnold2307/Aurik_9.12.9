@@ -60,6 +60,25 @@
   lief nie, stiller konservativer Default 0.72/0.72, (b) `vocal_clarity_max`
   VQI-Naturalness-Check → `naturalness_ok` wurde still auf True gesetzt (§V6).
   Beide auf Selbstreferenz-VQI `(x, x, sr)` korrigiert (Repo-Konvention phase_65/66).
+- **Mypy Real-Bug-Gate SOTA-Cleanup (2026-09-07):** alle 144 Fehlercodes der
+  Release-Layer auf 0 gebracht — darunter echte Laufzeit-Bugs: fehlende
+  `import logging`/`import numpy`-Zeilen in 8 neuen Modulen (ImportError beim
+  ersten Import), `_rbme_interpolate`-Methodenkopf in phase_01 verloren
+  (AttributeError bei jedem mittellangen Klick — Rumpf hing als toter Code),
+  `_safe_sosfiltfilt05` ohne lokalen Import in phase_05 (NameError),
+  `librosa.find_peaks`/`librosa.filters.bark` existieren nicht (Einladungs-Gate-
+  Roughness/Maskierung liefen nie, §V6), `onset_strength()[0]`-Skalar-Bug,
+  `restore()`-Metadaten schrieben in undefiniertes `result` (NameError →
+  Einladungs-/Anti-Fatigue-/Wohlklang-Diagnosen gingen still verloren — jetzt
+  `_flow_meta`-Sammler + Merge), Signatur-Bugs in 7 Convenience-Wrappern
+  (intentional_artifact_classifier, cassette_defect_verifier, powr_dither,
+  sota_vocal_model_router, vocal_overprocessing_detector, phase_07,
+  phase_32), logger-vor-Definition in phase_20/29, plus 48 no-any-return-
+  Ignores nach Repo-Muster. Roughness-Proxy auf Zwicker-Band-Energie
+  (40–200 Hz) kalibriert — sauberer Sinus passiert das Gate wieder.
+  Verifikation: Mypy-Gate 0 Fehler, 8118 Unit-Tests grün (3 vorbestehende
+  Failures, identisch bei 6ab7394f), 105 Phasen-/Gate-Tests, alle Pre-Commit-
+  Datei-Gates grün.
 - **Pre-Commit-Gate-Härtung (2026-09-06):** drei weitere Import-/NameError-Bugs
   der gleichen Klasse behoben — (a) `phase_04_eq_correction._apply_peaking_filter`
   nutzte `_safe_sosfiltfilt04` ohne lokalen Import (NameError bei jedem

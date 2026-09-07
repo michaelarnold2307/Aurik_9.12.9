@@ -436,7 +436,11 @@ class SpectralRepair(PhaseInterface):
 
             return float(get_bw_ceiling_hz(mat_key))
         except ImportError as exc:
-            logger.debug("§V6 carrier_transfer_characteristics.get_bw_ceiling_hz nicht verfügbar — Fallback-Werte aktiviert (Material %s): %s", mat_key, exc)
+            logger.debug(
+                "§V6 (copilot-instructions.md) carrier_transfer_characteristics.get_bw_ceiling_hz nicht verfügbar — Fallback-Werte aktiviert (Material %s): %s",
+                mat_key,
+                exc,
+            )
             # Fallback: kanonische Werte (IEC 60094-1)
             _fallback: dict[str, float] = {
                 "shellac": 8000.0,
@@ -890,7 +894,7 @@ class SpectralRepair(PhaseInterface):
                         _plm23.set_active("Apollo", True)  # §4.6b: protect from eviction during inference
                     except Exception:
                         logger.warning(
-                            "§V6 Phase-23 Apollo lifecycle guard failed → no eviction protection: %s",
+                            "§V6 (copilot-instructions.md) Phase-23 Apollo lifecycle guard failed → no eviction protection: %s",
                             str(Exception),
                         )
                         _plm23 = None
@@ -1820,7 +1824,7 @@ class SpectralRepair(PhaseInterface):
         if np.sum(defect_mask) == 0:
             # No defects detected
             _report(100.0, "Keine Defekte")
-            return np.nan_to_num(audio, nan=0.0)
+            return np.nan_to_num(audio, nan=0.0)  # type: ignore[no-any-return]
 
         # Calculate defect severity for adaptive ML decision
         defect_severity = float(np.sum(defect_mask) / defect_mask.size)
@@ -1887,12 +1891,12 @@ class SpectralRepair(PhaseInterface):
                 # Zwei Durchläufe kosten ~650s bei marginalem Nutzen — überspringe Wiederholung.
                 if self._flashsr_pass_count >= 1 and self._flashsr_last_bw_gain_hz < 500.0:
                     logger.info(
-                    "Verarbeitungsschritt_23 FlashSR Early-Exit: letzter BW-Gewinn=%.0f Hz < 500 Hz → "
-                    "überspringe Pass #%d (kein signifikanter Gewinn erwartet)",
-                    self._flashsr_last_bw_gain_hz,
-                    self._flashsr_pass_count + 1,
-                )
-                return np.nan_to_num(audio, nan=0.0)
+                        "Verarbeitungsschritt_23 FlashSR Early-Exit: letzter BW-Gewinn=%.0f Hz < 500 Hz → "
+                        "überspringe Pass #%d (kein signifikanter Gewinn erwartet)",
+                        self._flashsr_last_bw_gain_hz,
+                        self._flashsr_pass_count + 1,
+                    )
+                return np.nan_to_num(audio, nan=0.0)  # type: ignore[no-any-return]
                 # ML-based repair with FlashSR
                 log_mode_decision("phase_23", True, f"Defect severity: {defect_severity:.2%}")
                 _report(55.0, "FlashSR")
@@ -1913,7 +1917,7 @@ class SpectralRepair(PhaseInterface):
                     )
                 except Exception:
                     logger.warning(
-                        "§V6 Phase-23 FlashSR BW-Messung fehlgeschlagen (unkritisch): %s",
+                        "§V6 (copilot-instructions.md) Phase-23 FlashSR BW-Messung fehlgeschlagen (unkritisch): %s",
                         str(Exception),
                     )
                     pass  # Non-blocking
@@ -2347,7 +2351,7 @@ class SpectralRepair(PhaseInterface):
         """
         _ = defect_mask
         if flashsr is None:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
         # §4.6b PLM Active-Guard — prevents Emergency-Eviction during FlashSR inference
         _plm23_asr = None
@@ -2358,7 +2362,7 @@ class SpectralRepair(PhaseInterface):
             logger.debug("_repair_with_flashsr: silent except suppressed", exc_info=True)
         try:
             if not self._has_sufficient_ml_headroom(audio, sample_rate):
-                return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+                return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
             # use the IDENTICAL strip offset → no inter-channel lag possible.
             _asr23_total_n = audio.shape[-1] if np.asarray(audio).ndim == 2 else len(np.asarray(audio))
             _asr23_ctx_n = min(int(1.0 * sample_rate), _asr23_total_n // 4)
@@ -2450,13 +2454,13 @@ class SpectralRepair(PhaseInterface):
                         "FlashSR repair received unsupported audio shape %s — falling back to passthrough",
                         audio_arr.shape,
                     )
-                    return np.nan_to_num(audio, nan=0.0)
+                    return np.nan_to_num(audio, nan=0.0)  # type: ignore[no-any-return]
             else:
                 logger.warning(
                     "FlashSR repair received unsupported audio shape %s — falling back to passthrough",
                     audio_arr.shape,
                 )
-                return np.nan_to_num(audio, nan=0.0)
+                return np.nan_to_num(audio, nan=0.0)  # type: ignore[no-any-return]
 
             # §0a / §6.2c BW-Ceiling Hard-Cap: FlashSR generiert bis 48 kHz/2 = 24 kHz.
             # Bei analogen Trägern mit physikalischem BW-Limit muss HF abgeschnitten werden
@@ -2502,7 +2506,7 @@ class SpectralRepair(PhaseInterface):
         except Exception as e:
             logger.warning("FlashSR processing fehlgeschlagen (DSP Ersatzpfad aktiv): %s", e)
             # Fallback to DSP (will be handled by caller)
-            return np.nan_to_num(audio, nan=0.0)
+            return np.nan_to_num(audio, nan=0.0)  # type: ignore[no-any-return]
         finally:
             if _plm23_asr is not None:
                 try:

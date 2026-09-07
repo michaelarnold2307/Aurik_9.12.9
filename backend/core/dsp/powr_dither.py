@@ -20,6 +20,7 @@ Autor: Aurik 10.0.20 — August 2026
 
 from __future__ import annotations
 
+import itertools
 import logging
 from typing import cast
 
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 # Werte < 1.0 = weniger Rauschen (bessere Maskierung)
 # Werte > 1.0 = mehr Rauschen (HF-Kompensation)
 POWR_TYPE3_SHAPING: list[float] = [
-    0.95,  #   0–100 Hz   — Tiefbass (leicht reduziert)
+    0.95,  # 0–100 Hz — Tiefbass (leicht reduziert)
     0.90,  # 100–200 Hz   — Bass
     0.80,  # 200–400 Hz   — Untere Mitten
     0.60,  # 400–800 Hz   — Mitten (reduziert)
@@ -67,7 +68,7 @@ def _generate_noise_shaping_filter(sample_rate: int, fft_size: int) -> np.ndarra
     freqs = np.fft.rfftfreq(fft_size, d=1.0 / sample_rate)
     filter_response = np.ones(len(freqs), dtype=np.float64)
 
-    for i, (lo, hi) in enumerate(zip(POWR3_BAND_EDGES[:-1], POWR3_BAND_EDGES[1:])):
+    for i, (lo, hi) in enumerate(itertools.pairwise(POWR3_BAND_EDGES)):
         if i >= len(POWR_TYPE3_SHAPING):
             break
         mask = (freqs >= lo) & (freqs < hi)
@@ -184,21 +185,22 @@ def _apply_powr_mono(
     return cast(np.ndarray, result.astype(np.float32))
 
 
-def quantize_to_int(audio: np.ndarray, bit_depth: int = 16) -> np.ndarray:
+def quantize_to_int(audio: np.ndarray, bit_depth: int = 16, sample_rate: int = 48000) -> np.ndarray:
     """Quantisiert float-Audio auf Integer (16-bit oder 24-bit).
 
-    §V5: Dither wird vor der Quantisierung angewendet (POW-r Type 3 primär, TPDF Fallback).
+    §V5 (copilot-instructions.md): Dither wird vor der Quantisierung angewendet (POW-r Type 3 primär, TPDF Fallback).
 
     Args:
         audio: Float32/64 Audio, Wertebereich [−1, +1]
         bit_depth: 16 oder 24
+        sample_rate: Sample-Rate in Hz (für POW-r Noise-Shaping)
 
     Returns:
         np.int16 oder np.int32 (24-bit in 32-bit Container)
     """
-    # §V5: Dither vor Quantisierung anwenden
+    # §V5 (copilot-instructions.md): Dither vor Quantisierung anwenden
     try:
-        dithered = apply_powr_dither(audio, bit_depth=bit_depth)
+        dithered = apply_powr_dither(audio, sample_rate, bit_depth=bit_depth)
     except Exception:
         # TPDF-Fallback: zwei unabhängige U[−0.5,+0.5] summiert
         rng = np.random.default_rng(42)

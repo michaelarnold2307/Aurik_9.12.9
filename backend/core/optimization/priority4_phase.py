@@ -8,6 +8,8 @@ inter-band phase alignment.
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from scipy.signal import firwin, lfilter
 
@@ -111,4 +113,6 @@ class MultibandPhaseCoherenceEnhancer:
             filtered = x.copy()
 
         return filtered  # type: ignore[no-any-return]
+
+
 logger = logging.getLogger(__name__)

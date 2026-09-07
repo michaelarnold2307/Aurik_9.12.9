@@ -465,7 +465,7 @@ class HumRemovalPhase(PhaseInterface):
             _chroma_p = float(np.dot(_chroma_orig / _norm_o, _chroma_res / _norm_r))
         except Exception:
             logger.warning(
-                "§V6 Phase-02 chroma preservation metric failed → assume perfect (chroma_p=1.0): %s",
+                "§V6 [copilot-instructions.md, Silent-Failure-Verbot] Phase-02 chroma preservation metric failed → assume perfect (chroma_p=1.0): %s",
                 str(Exception),
             )
             _chroma_p = 1.0
@@ -729,7 +729,7 @@ class HumRemovalPhase(PhaseInterface):
 
             _pcal = get_protection_calibration()
         except Exception as _pe:
-            logger.warning("uncalibrated fallback: hum-budget — %s", _pe)
+            logger.warning("Ersatzpfad unkalibriert: Hum-Kontingent — %s", _pe)
             _pcal = None
         hum_budget = initial_hum_energy * float(getattr(_pcal, "hum_budget_factor", 1.5)) + 1e-12
         removed_energy = 0.0
@@ -806,7 +806,7 @@ class HumRemovalPhase(PhaseInterface):
 
         # Clamp to valid range
         if w0 <= 0 or w0 >= 1:
-            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)
+            return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]
 
         # Design notch filter
         b, a = signal.iirnotch(w0, q_factor, fs=self.sample_rate)
@@ -834,9 +834,9 @@ class HumRemovalPhase(PhaseInterface):
             else:
                 filtered = safe_filtfilt(b, a, audio)
         except Exception:
-            # Fallback to forward filter if filtfilt fails (§V6)
+            # Fallback to forward filter if filtfilt fails (§V6 [copilot-instructions.md, Silent-Failure-Verbot])
             logger.warning(
-                "§V6 Phase-02 safe_filtfilt failed → signal.lfilter fallback: %s",
+                "§V6 [copilot-instructions.md, Silent-Failure-Verbot] Phase-02 safe_filtfilt failed → signal.lfilter fallback: %s",
                 str(Exception),
             )
             if audio.ndim == 2:

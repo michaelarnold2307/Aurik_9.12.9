@@ -8,6 +8,7 @@ Simple publish/subscribe message bus for intra-process module communication.
 from __future__ import annotations
 
 import contextlib
+import logging
 import threading
 from collections.abc import Callable
 from typing import Any
@@ -87,4 +88,6 @@ def get_module_communication_bus() -> ModuleCommunicationBus:
             if _module_communication_bus_instance is None:
                 _module_communication_bus_instance = ModuleCommunicationBus()
     return _module_communication_bus_instance
+
+
 logger = logging.getLogger(__name__)
