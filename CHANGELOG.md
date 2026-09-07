@@ -51,6 +51,34 @@
   verbleibende Kostenblock sind die ERB-Per-Event-FFTs (n_fft variabel pro
   Segment — Grid-Änderung = gleiche Semantik-Frage wie beim Batch).
 
+### 🔍 ClosedLoop-No-Op-Diagnose + Hörbarkeits-Gate-Kopplung + Chunk-Varianz (2026-09-06)
+
+- **§2.46g Strength-Envelope-Transparenz:** `compute_strength_envelope` loggt
+  bei leerem Locations-Set jetzt WARNING statt DEBUG — das uniforme
+  Floor-Envelope (μ=0.060 σ=0.000 im Produktionslauf) macht die Phasen-Strecke
+  global zum No-Op (ActiveIntervention lehnte jede Phase korrekt ab, 42
+  Restdefekte blieben unbehandelt). Die Ursache (Locations-/Salienz-Verlust
+  aus dem Cache) wird damit in jedem Lauf sichtbar statt still degradiert.
+- **§2.46g Hörbarkeits-Gate im Endverdikt:** `hoerbarkeits_gate_passed`/
+  `n_audible_unmasked` werden in `_flow_meta` abgelegt; ein nicht bestandenes
+  Hörbarkeits-Gate degradiert QUALITY-GUARANTEED-Verdikte jetzt genauso wie
+  Einladungs-Gate und Ebene-3-Wohlklang-Ordnung (⚠️ PERCEPTUAL PASS).
+  Produktionsbefund: „34 unmaskierte Restdefekt-Typen, keine Reduktion
+  erzielt“ → trotzdem „✓ QUALITY GUARANTEED“.
+- **§2.46g Chunk-Varianz-Monitoring:** MQA-Block sammelt pro Chunk
+  MUSHRA/HPI/Naturalness (Ring-Puffer 32); ab 2 Chunks wird die Streuung
+  geloggt und bei naturalness-Δ > 0.10 gewarnt (Produktionsbefund: Chunk 0
+  naturalness 0.82 vs. Chunk 2 0.66 bei MUSHRA 80.8).
+- **Dokumentiert (Untersuchungsergebnis):** Der ClosedLoop-Hold (Δ ≥ 0.08
+  erhöht erst) ist korrekt — die Phasen liefen wegen des degenerierten
+  Envelopes mit ~0.05–0.10 Stärke; ActiveIntervention lehnte deshalb jede
+  Änderung ab. Die „Performance Guard deaktiviert via config“-Zeile stammt
+  aus der Wegwerf-UV3-Instanz des PhaseInteractionDenkers (by design); der
+  echte UV3-Guard läuft mit Enforce=False (Wall-Clock-Watchdog erzwingt).
+  Nächster messbarer Schritt: CREPE-Pitch (phase_31, ~40 s/Chunk × 8) und
+  VocalFocusAnalyzer (~60 s/Chunk × 8) auf Song-Level-Caching — ca. 13 min
+  Einsparung pro 224-s-Song, ohne Hör-Semantik-Änderung.
+
 ### 🛠️ Restaurations-Lauf-Analyse — Hör-Gate-Verdrahtung + Phantom-Reparaturen (2026-09-06)
 
 - **§2.46g phase_56 Material-BW-Ceiling:** `_detect_band_gaps` scante den vollen

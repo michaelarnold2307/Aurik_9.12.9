@@ -114,7 +114,16 @@ def compute_strength_envelope(
     envelope = np.full(n_frames, min_strength, dtype=np.float64)
 
     if not defect_locations:
-        logger.debug("§2.71: Keine Defekt-Locations → uniform floor=%.3f", min_strength)
+        # §2.46g (2026-09-06): WARNING statt DEBUG — ein uniformes Floor-Envelope
+        # bei leerem Locations-Set macht die Phasen-Strecke global zum No-Op
+        # (Produktionsbefund: μ=0.060 σ=0.000, ActiveIntervention lehnte jede
+        # Phase ab, 42 Restdefekte blieben unbehandelt). Ursache ist meist ein
+        # verlorener Locations-/Salienz-Transport aus dem Cache — sichtbar machen.
+        logger.warning(
+            "§2.71: Keine Defekt-Locations → uniform floor=%.3f (Envelope degeneriert; "
+            "Phasen laufen mit Minimal-Stärke — bitte Cached-Scan-Salienz/Locations prüfen)",
+            min_strength,
+        )
         return cast(np.ndarray, (np.asarray(envelope, dtype=np.float32)))
 
     sev_map = dict(defect_severity_map or {})

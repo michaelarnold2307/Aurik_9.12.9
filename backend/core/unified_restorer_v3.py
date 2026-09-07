@@ -23213,6 +23213,12 @@ class UnifiedRestorerV3:
                 chain_depth=_ag_depth,
             )
             log_audibility_report(_ag_report)
+            # §2.46g (2026-09-06): Gate-Befund für die Endverdikt-Kopplung ablegen —
+            # ein nicht bestandenes Hörbarkeits-Gate mit n_audible_unmasked > 0
+            # degradiert QUALITY-GUARANTEED-Verdikte (siehe MQA-Kopplung).
+            if isinstance(_flow_meta, dict):
+                _flow_meta["hoerbarkeits_gate_passed"] = bool(_ag_report.gate_passed)
+                _flow_meta["hoerbarkeits_gate_unmasked_types"] = int(_ag_report.n_audible_unmasked)
             # m1b: hörbar gebliebene, nachbehandlungswürdige Typen gezielt in die
             # Stufe-2-Refinement-Queue (KMV) stellen — nur Typen mit sicherer
             # Phasen-Zuordnung, kein blindes Wiederholen der Gesamtkette.
@@ -26284,6 +26290,8 @@ class UnifiedRestorerV3:
                             _hoer_demote = True
                     if _flow_meta.get("einladungs_gate_passed") is False:
                         _hoer_demote = True
+                    if _flow_meta.get("hoerbarkeits_gate_passed") is False:
+                        _hoer_demote = True
                 _inv_ctx = (self._restoration_context or {}).get("inviting_gate") or {}
                 if isinstance(_inv_ctx, dict) and _inv_ctx.get("passed") is False:
                     _hoer_demote = True
@@ -26299,6 +26307,54 @@ class UnifiedRestorerV3:
                     )
             except Exception as _hd_exc:
                 logger.debug("§2.46g Hör-Gate-Verdikt-Kopplung nicht blockierend: %s", _hd_exc)
+
+            # §2.46g (2026-09-06) Chunk-Varianz-Monitoring: Pro Chunk werden
+            # MUSHRA/HPI/Naturalness gesammelt; die Zusammenfassung wächst mit
+            # jedem Chunk (Chunked-Streaming: 8×restore auf derselben Instanz)
+            # und deckt nach dem letzten Chunk den ganzen Song ab.
+            # Produktionsbefund: Chunk 0 naturalness 0.82 vs. Chunk 2 0.66 bei
+            # MUSHRA 80.8 — unbeobachtete Streuung zwischen Chunks.
+            try:
+                _cq_log = getattr(self, "_chunk_quality_log", None)
+                if _cq_log is None:
+                    _cq_log = []
+                    self._chunk_quality_log = _cq_log
+                _cq_nat = float(
+                    getattr(getattr(_mqa_report, "output_quality", None), "naturalness", -1.0) or -1.0
+                )
+                _cq_log.append(
+                    {
+                        "mushra": round(float(_mqa_mushra_local), 2),
+                        "hpi": round(float(_mqa_hpi_local), 3),
+                        "naturalness": round(_cq_nat, 3),
+                        "natural_sound": bool(_mqa_report.natural_sound),
+                    }
+                )
+                if len(_cq_log) > 32:
+                    _cq_log.pop(0)  # Ring-Puffer: keine unbegrenzte Historie
+                if len(_cq_log) >= 2:
+                    _nats = [float(c["naturalness"]) for c in _cq_log if c["naturalness"] >= 0.0]
+                    _mushs = [float(c["mushra"]) for c in _cq_log if c["mushra"] > 0.0]
+                    if _nats:
+                        _nat_spread = max(_nats) - min(_nats)
+                        logger.info(
+                            "§2.46g Chunk-Varianz: %d Chunks | naturalness %.3f..%.3f (Δ=%.3f) | MUSHRA %.0f..%.0f",
+                            len(_cq_log),
+                            min(_nats),
+                            max(_nats),
+                            _nat_spread,
+                            min(_mushs) if _mushs else 0.0,
+                            max(_mushs) if _mushs else 0.0,
+                        )
+                        if _nat_spread > 0.10:
+                            logger.warning(
+                                "§2.46g Chunk-Varianz WARNUNG: naturalness-Streuung %.3f über 10%% — "
+                                "einzelne Chunks klingen möglicherweise unnatürlicher als der Rest "
+                                "(Chunk-Level-Review/Rollback empfohlen)",
+                                _nat_spread,
+                            )
+            except Exception as _cqv_exc:
+                logger.debug("§2.46g Chunk-Varianz-Monitoring nicht blockierend: %s", _cqv_exc)
 
             # §GEBOT-G52/G54: RestorationQualityIndex — PRIMÄRER Quality-Gate
             # RQI misst echte Restaurierungs-Verbesserung, nicht Ähnlichkeit zum Original.
