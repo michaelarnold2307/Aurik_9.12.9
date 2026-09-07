@@ -10,6 +10,7 @@
 | M | .gitignore | modifiziert |
 | M | TASK_CHANGES.md | modifiziert |
 | M | backend/core/unified_restorer_v3.py | modifiziert |
+| M | backend/core/musical_goals/musical_goals_metrics.py | modifiziert |
 | M | backend/core/residuum_masking.py | modifiziert |
 | M | conftest.py | modifiziert |
 | ?? | tests/unit/test_b3_full_song_defect_merge.py | ungetrackt |
@@ -46,4 +47,10 @@
   wurden stets deselektiert (§v10.700 Phase E war nie ausführbar). Fix: normalisierte Namen.
   Verifiziert: `QT_QPA_PLATFORM=offscreen pytest tests/normative/test_e2e_gui_smoke.py
   --run-gui-tests --run-heavy-tests` → 4/4 passed.
+- **measure_all-Timeout verwirft fertige Messwerte (Matrix-Befund Punkt 2)**: Der kooperative
+  15-s-Check lief NACH der Messung und überschrieb den ECHTEN separation_fidelity-Wert mit
+  neutral 0.5 — der §m2-Cache blieb leer, alle Folge-Calls fielen auf den Proxy
+  („Kontingent erschöpft“ ~20×/Chunk). Fix: abgeschlossene Messwerte werden nie verworfen
+  (Warn-Log statt Überschreiben); neutral 0.5 nur wenn kein Wert vorliegt. Proxy-Label
+  ehrlich benannt (SDR-Kohärenz-Proxy ist ein echter Messwert).
 

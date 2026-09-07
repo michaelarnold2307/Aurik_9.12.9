@@ -3758,7 +3758,7 @@ class SeparationFidelityMetric:
                 _prior = None
             if _prior is None:
                 logger.warning(
-                    "separation_fidelity: HTDemucs-Mess-Kontingent erschöpft (2/Lauf, §m2) → neutraler Proxy"
+                    "separation_fidelity: HTDemucs-Mess-Kontingent erschöpft (2/Lauf, §m2) → SDR-Kohärenz-Proxy (echter Messwert)"
                 )
                 return self._separation_fidelity_proxy(restored, reference, sr, min_len)
             logger.warning(
@@ -4649,10 +4649,22 @@ class MusicalGoalsChecker:
                     scores[goal_name] = 0.0
             _dt = time.perf_counter() - _t0
             # §v10.17: Per-Goal-Timeout (15s). Ein Goal (z.B. authentizitaet mit MERT, 114s)
-            # darf nicht ALLE anderen Goals killen. Bei Timeout → neutral 0.5 statt Gesamtausfall.
+            # darf nicht ALLE anderen Goals killen. WICHTIG (Fix 2026-09-07): Der Check
+            # läuft kooperativ NACH der Messung — er kann nichts unterbrechen. Ein
+            # abgeschlossener Messwert wird daher NIE verworfen: separation_fidelity
+            # hat ein eigenes Budget (60-s-Floor §Separation-SOTA) + §m2-Kontingent
+            # + Inhalts-Cache; verwirft man den 26-s-Messwert, bleibt der Cache leer
+            # und alle Folge-Calls fallen auf den Proxy (Produktionsbefund).
             if _dt > 15.0:
-                logger.error("measure_all: goal=%s Zeitlimit after %.1fs — using neutral 0.5", goal_name, _dt)
-                scores[goal_name] = 0.5
+                if scores.get(goal_name) is None:
+                    logger.error("measure_all: goal=%s Zeitlimit after %.1fs — using neutral 0.5", goal_name, _dt)
+                    scores[goal_name] = 0.5
+                else:
+                    logger.warning(
+                        "measure_all: goal=%s langsam (%.1fs) — echter Messwert bleibt erhalten (kein Verwerfen)",
+                        goal_name,
+                        _dt,
+                    )
             elif _dt > 8.0:  # §v10.0.4: 5.0→8.0 — waerme-Spektralanalyse auf 225s dauert 6.1s
                 logger.warning("measure_all: goal=%s took %.1f s", goal_name, _dt)
             else:
