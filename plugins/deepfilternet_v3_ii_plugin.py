@@ -113,6 +113,8 @@ class DeepFilterNetV3Plugin:
         self._enc: Any = None
         self._dec: Any = None
         self._erb_dec: Any = None
+        # Fixe Zeitdimension des enc-Exports (None = dynamisch → Ganzsignal-Pfad).
+        self._enc_time_frames: int | None = None
         self._current_energy_bias_db: float = 0.0  # §0j (dsp.instructions.md); Default §v10.15/§v10.19
         self._try_load(d)
 
@@ -156,6 +158,24 @@ class DeepFilterNetV3Plugin:
             self._enc = ort.InferenceSession(os.path.join(d, "enc.onnx"), sess_options=opts, providers=prov)
             self._dec = ort.InferenceSession(os.path.join(d, "dec.onnx"), sess_options=opts, providers=prov)
             self._erb_dec = ort.InferenceSession(os.path.join(d, "erb_dec.onnx"), sess_options=opts, providers=prov)
+            # §Fixed-T-Export (2026-09-07): Manche ONNX-Exporte fixieren die
+            # Zeitdimension (T=100). Aus den Session-Metadaten lesen — bei
+            # dynamischem T bleibt der Ganzsignal-Pfad unverändert (keine
+            # Seiteneffekte für andere Exporte).
+            self._enc_time_frames = None
+            try:
+                for _inp in self._enc.get_inputs():
+                    if _inp.name == "feat_spec" and len(_inp.shape) > 2:
+                        _t_dim = _inp.shape[2]
+                        if isinstance(_t_dim, int) and _t_dim > 0:
+                            self._enc_time_frames = int(_t_dim)
+                            logger.info(
+                                "deepfilternet_v3_ii_plugin: enc-Zeitdimension fixiert auf T=%d → Chunked-Inferenz",
+                                _t_dim,
+                            )
+                            break
+            except Exception:
+                self._enc_time_frames = None
             logger.info("deepfilternet_v3_ii_plugin: ONNX models geladen from: %s", d)
             try:
                 from backend.core.plugin_lifecycle_manager import register_plugin as _reg_plm
@@ -368,42 +388,48 @@ class DeepFilterNetV3Plugin:
         return cast(np.ndarray, (np.clip(gain + (1.0 - gain) * (1.0 - _bias_lin), 0.0, 1.0)))
 
     def _infer_onnx(self, mono: np.ndarray) -> np.ndarray:
-        """Vollständige 3-Modell ONNX-Inferenz-Pipeline."""
+        """Vollständige 3-Modell ONNX-Inferenz-Pipeline (chunked bei fixem T)."""
         feat_erb, feat_spec, spec_cx = self._compute_features(mono)
+        S = spec_cx.shape[1]
 
         try:
-            # Encoder
-            enc_out = self._enc.run(None, {"feat_erb": feat_erb, "feat_spec": feat_spec})
-            # enc outputs: e0,e1,e2,e3,emb,c0,lsnr (Reihenfolge per Modell)
-            e0, e1, e2, e3 = enc_out[0], enc_out[1], enc_out[2], enc_out[3]
-            emb = enc_out[4]
-            c0 = enc_out[5]
-
-            # ERB-Dekoder → Maske [1,1,S,32]
-            erb_out = self._erb_dec.run(None, {"emb": emb, "e3": e3, "e2": e2, "e1": e1, "e0": e0})
-            erb_mask = erb_out[0]  # [1,1,S,32]
-
-            # Haupt-Dekoder → DF-Koeffizienten + alpha
-            dec_out = self._dec.run(None, {"emb": emb, "c0": c0})
-            coefs = dec_out[0]  # [B, S, 96, 10]
-            alpha = dec_out[1]  # sigmoid
-
-            # ERB-Maske zurück auf FFT-Bins interpolieren
-            m = erb_mask[0, 0, :, :]  # [S, 32]
-            # Mappe ERB → linear (inverse des Filterbank-Produkts)
-            gain_lin = _ERB_FB.T @ m.T  # [481, S]
-            gain_lin = np.clip(gain_lin, 0.0, 1.0)
-            # §0j (dsp.instructions.md): Energy-Bias auf der Gain-Maske
-            # anwenden (ONNX-Graph bietet keinen Noise-Floor-Input).
-            gain_lin = self._apply_energy_bias_to_gain(gain_lin, float(getattr(self, "_current_energy_bias_db", 0.0)))
-
-            # ERB-Gain anwenden
-            spec_filtered = spec_cx * gain_lin
-
-            # DF-Filter anwenden
-            coefs_np = coefs[0] if coefs.ndim == 4 else coefs
-            alpha_np = alpha
-            spec_filtered = self._apply_df_filter(spec_filtered, coefs_np, alpha_np)
+            _t_fixed = self._enc_time_frames
+            if _t_fixed is None or _t_fixed >= S:
+                # Dynamisches T oder kurzes Signal → Ganzsignal-Pfad (unverändert).
+                spec_filtered = self._infer_spectral_chunk(feat_erb, feat_spec, spec_cx)
+            else:
+                # §Fixed-T-Export: 50-%-Überlappung + Hann-OLA im Spektralbereich.
+                # Rand-Chunk wird mit dem letzten Frame gepolstert (kein Zero-Pad,
+                # das die ERB-Features verzerren würde); der gepolsterte Anteil
+                # wird nach der Inferenz verworfen.
+                step = max(1, _t_fixed // 2)
+                spec_filtered = np.zeros_like(spec_cx)
+                wsum = np.zeros(S, dtype=np.float32)
+                win_w = np.hanning(_t_fixed).astype(np.float32)
+                pos = 0
+                while pos < S:
+                    end = min(pos + _t_fixed, S)
+                    l = end - pos
+                    ch_erb = feat_erb[:, :, pos:end, :]
+                    ch_spec = feat_spec[:, :, pos:end, :]
+                    if l < _t_fixed:
+                        pad = _t_fixed - l
+                        ch_erb = np.concatenate([ch_erb, np.repeat(ch_erb[:, :, -1:, :], pad, axis=2)], axis=2)
+                        ch_spec = np.concatenate([ch_spec, np.repeat(ch_spec[:, :, -1:, :], pad, axis=2)], axis=2)
+                    spec_chunk = self._infer_spectral_chunk(ch_erb, ch_spec, spec_cx[:, pos:end])
+                    spec_chunk = spec_chunk[:, :l]
+                    # Rand-Chunks (Signal-Anfang/-Ende) mit FLACHEM Fenster —
+                    # Hann wäre am Chunk-Rand 0 und würde den ersten/letzten
+                    # Frame nullen (kein zweiter Chunk deckt ihn ab).
+                    if pos == 0 or end >= S:
+                        w = np.ones(l, dtype=np.float32)
+                    else:
+                        w = win_w[:l]
+                    spec_filtered[:, pos:end] += spec_chunk * w
+                    wsum[pos:end] += w
+                    pos += step
+                wsum = np.where(wsum < 1e-8, 1.0, wsum)
+                spec_filtered /= wsum
 
         except Exception as exc:
             logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
@@ -432,6 +458,48 @@ class DeepFilterNetV3Plugin:
         out /= win_sum
         out = np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
         return out[: len(mono)].astype(np.float32)  # type: ignore[no-any-return]
+
+    def _infer_spectral_chunk(
+        self,
+        feat_erb: np.ndarray,
+        feat_spec: np.ndarray,
+        spec_cx: np.ndarray,
+    ) -> np.ndarray:
+        """Enc → erb_dec/dec → Gain + Deep-Filter für EINEN Zeit-Chunk.
+
+        Gemeinsamer Kern für Ganzsignal- und Chunked-Pfad (identische Semantik).
+        """
+        # Encoder
+        enc_out = self._enc.run(None, {"feat_erb": feat_erb, "feat_spec": feat_spec})
+        # enc outputs: e0,e1,e2,e3,emb,c0,lsnr (Reihenfolge per Modell)
+        e0, e1, e2, e3 = enc_out[0], enc_out[1], enc_out[2], enc_out[3]
+        emb = enc_out[4]
+        c0 = enc_out[5]
+
+        # ERB-Dekoder → Maske [1,1,S,32]
+        erb_out = self._erb_dec.run(None, {"emb": emb, "e3": e3, "e2": e2, "e1": e1, "e0": e0})
+        erb_mask = erb_out[0]  # [1,1,S,32]
+
+        # Haupt-Dekoder → DF-Koeffizienten + alpha
+        dec_out = self._dec.run(None, {"emb": emb, "c0": c0})
+        coefs = dec_out[0]  # [B, S, 96, 10]
+        alpha = dec_out[1]  # sigmoid
+
+        # ERB-Maske zurück auf FFT-Bins interpolieren
+        m = erb_mask[0, 0, :, :]  # [S, 32]
+        # Mappe ERB → linear (inverse des Filterbank-Produkts)
+        gain_lin = _ERB_FB.T @ m.T  # [481, S]
+        gain_lin = np.clip(gain_lin, 0.0, 1.0)
+        # §0j (dsp.instructions.md): Energy-Bias auf der Gain-Maske
+        # anwenden (ONNX-Graph bietet keinen Noise-Floor-Input).
+        gain_lin = self._apply_energy_bias_to_gain(gain_lin, float(getattr(self, "_current_energy_bias_db", 0.0)))
+
+        # ERB-Gain anwenden
+        spec_filtered = spec_cx * gain_lin
+
+        # DF-Filter anwenden
+        coefs_np = coefs[0] if coefs.ndim == 4 else coefs
+        return self._apply_df_filter(spec_filtered, coefs_np, alpha)
 
     @staticmethod
     def _estimate_input_snr_db(mono: np.ndarray, frame_len: int = 2048, hop: int = 512) -> float:

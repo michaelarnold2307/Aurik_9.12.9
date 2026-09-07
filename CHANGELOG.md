@@ -116,6 +116,16 @@
   Hörschwelle → Skip, laute → Eingriff) belegt die Grenze. (c) Wohlklang-
   Blend als pure, testbare Funktion `_compute_wohlklang_blend` extrahiert +
   5 Unit-Tests (Identität s=0/1, Mittelpunkt, Clip-Invariante, dtype-Erhalt).
+- **DeepFilterNet-V3-II Fixed-T-Export (2026-09-07):** Der enc-ONNX-Export
+  fixiert die Zeitdimension (T=100) — Ganzsignal-Feeds warfen
+  InvalidArgument („index 2: Got 2999, Expected 100“) und fielen still in den
+  DSP-Ersatzpfad. Fix ohne Seiteneffekte: Die Zeitdimension wird aus den
+  Session-Metadaten gelesen — bei dynamischem T bleibt der Ganzsignal-Pfad
+  unverändert; bei fixem T wird mit 50 % Überlappung gechunkt und im
+  Spektralbereich per Hann-OLA gemischt (Rand-Chunks mit flachem Fenster,
+  Tail mit letztem Frame gepolstert statt Zero-Pad). 4 Unit-Tests belegen
+  Transparenz: Ein transparenter Spektral-Kern reproduziert im Chunked-Pfad
+  das Ganzsignal-Ergebnis bit-exakt.
 - **Pre-Commit-Gate-Härtung (2026-09-06):** drei weitere Import-/NameError-Bugs
   der gleichen Klasse behoben — (a) `phase_04_eq_correction._apply_peaking_filter`
   nutzte `_safe_sosfiltfilt04` ohne lokalen Import (NameError bei jedem
