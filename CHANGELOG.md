@@ -102,6 +102,20 @@
   (6) MDX23C-2-Stem-Adapter ehrlich (inst/3-Verteilung, reconstruct = Input).
   Synergie: Gates, Early-Termination und Blend-Entscheidung lesen dieselbe
   billige Repräsentation. +7 Frame-Unit-Tests, 88 Gate/Phasen-Tests grün.
+- **Offene Punkte der 6-Muster-Roadmap geschlossen (2026-09-07):** (a) Die
+  kanonischen Referenz-Metriken aus artifact_freedom_gate — Roughness in asper
+  (Hilbert-Hüllkurve, 15–300 Hz, 1.5e-3-Kalibrierung) und Sharpness in acum
+  (Bismarck/DIN 45692 Bark-Zentroid mit g(z)) — sind exakt (identische
+  Mathematik) in den gemeinsamen Frame als `roughness_asper`/
+  `sharpness_acum` migriert; artifact_freedom_gate delegiert dorthin, die 27
+  Referenz-Tests bleiben ohne Wert-Drift grün; die drei toten einladungs_gate-
+  Proxy-Wrapper wurden entfernt. (b) Audibility-Floor: `is_below_masking`
+  fällt nie unter die absolute Hörschwelle (−95 dBFS) — eine isolierte Linie
+  kann sich nicht mehr selbst „maskieren“ (Self-Referenz-Bug der vereinfachten
+  Schwelle); deterministischer Maskierungs-Grenztest (leise Linie unter
+  Hörschwelle → Skip, laute → Eingriff) belegt die Grenze. (c) Wohlklang-
+  Blend als pure, testbare Funktion `_compute_wohlklang_blend` extrahiert +
+  5 Unit-Tests (Identität s=0/1, Mittelpunkt, Clip-Invariante, dtype-Erhalt).
 - **Pre-Commit-Gate-Härtung (2026-09-06):** drei weitere Import-/NameError-Bugs
   der gleichen Klasse behoben — (a) `phase_04_eq_correction._apply_peaking_filter`
   nutzte `_safe_sosfiltfilt04` ohne lokalen Import (NameError bei jedem

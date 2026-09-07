@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from scipy.ndimage import uniform_filter1d
+from scipy.signal import hilbert
 
 from backend.core.audio_utils import safe_stft
 from backend.core.dsp.bark_lufs_util import BARK_EDGES_HZ
@@ -44,6 +45,8 @@ _MASKING_SPREAD_DB = 12.0
 _DEFAULT_AUDIBILITY_MARGIN_DB = 6.0
 # Hüllkurven-Glättung für Roughness: ~133 ms MA bei Envelope-Rate 375 Hz
 _ENV_SMOOTH_SAMPLES = 50
+# Absolute Hörschwelle als Maskierungs-Floor (≈ 0 dB SPL Referenz, Ruhe)
+_ABSOLUTE_MASKING_FLOOR_DB = -95.0
 
 
 @dataclass
@@ -165,7 +168,9 @@ class PsychoacousticFrame:
         power = float(np.mean(self.stft_mag[mask, :] ** 2))
         return float(10.0 * np.log10(power + 1e-12))
 
-    def is_below_masking(self, energy_dbfs: float, lo_hz: float, hi_hz: float, margin_db: float = _DEFAULT_AUDIBILITY_MARGIN_DB) -> bool:
+    def is_below_masking(
+        self, energy_dbfs: float, lo_hz: float, hi_hz: float, margin_db: float = _DEFAULT_AUDIBILITY_MARGIN_DB
+    ) -> bool:
         """True, wenn *energy_dbfs* unter der Maskierungsschwelle des Bandes + Marge liegt.
 
         Hörordnung §4: Reparatur gilt als abgeschlossen, wenn der Defekt unter der
@@ -175,13 +180,135 @@ class PsychoacousticFrame:
         idx = np.where((centers >= lo_hz) & (centers <= hi_hz))[0]
         if len(idx) == 0:
             idx = np.array([0])
-        threshold = float(np.mean(self.masking_threshold_db[idx]))
+        # Maskierung kann nicht unter die absolute Hörschwelle fallen — sonst
+        # würde eine isolierte Linie sich selbst „maskieren“ (self-referenz).
+        threshold = max(float(np.mean(self.masking_threshold_db[idx])), _ABSOLUTE_MASKING_FLOOR_DB)
         return bool(energy_dbfs <= threshold + margin_db)
 
 
 def _bark_centers_hz() -> np.ndarray:
     edges = np.asarray(BARK_EDGES_HZ, dtype=np.float64)
     return 0.5 * (edges[:-1] + edges[1:])  # type: ignore[no-any-return]
+
+
+# ── Kanonische Referenz-Metriken (aus artifact_freedom_gate migriert) ────────
+# Exakt dieselbe Mathematik wie die test-gepinnten Implementierungen — nun an
+# EINER Stelle, von allen Gates gemeinsam genutzt (§Muster 1, kein Wert-Drift).
+
+_BARK_CENTERS_REF_HZ = np.array(
+    [
+        50,
+        150,
+        250,
+        350,
+        450,
+        570,
+        700,
+        840,
+        1000,
+        1170,
+        1370,
+        1600,
+        1850,
+        2150,
+        2500,
+        2900,
+        3400,
+        4000,
+        4800,
+        5800,
+        7000,
+        8500,
+        10500,
+        13500,
+    ],
+    dtype=np.float64,
+)
+_BARK_VALUES_REF = np.array(
+    [
+        0.5,
+        1.5,
+        2.5,
+        3.5,
+        4.5,
+        5.5,
+        6.5,
+        7.5,
+        8.5,
+        9.5,
+        10.5,
+        11.5,
+        12.5,
+        13.5,
+        14.5,
+        15.5,
+        16.5,
+        17.5,
+        18.5,
+        19.5,
+        20.5,
+        21.5,
+        22.5,
+        23.5,
+    ],
+    dtype=np.float64,
+)
+_ROUGHNESS_CALIB_ASPER = 1.5e-3  # ~1 asper bei 70-Hz-AM, 60 dB SPL, 100 % AM
+
+
+def roughness_asper(audio: np.ndarray, sr: int) -> float:
+    """Kanonische Roughness in asper (Zwicker 1991, Hilbert-Hüllkurve).
+
+    Modulationsband-Energie 15–300 Hz der Hilbert-Hüllkurve, kalibriert auf
+    1.5e-3 (Referenz: 1 kHz-Ton, 60 dB SPL, 100 % AM bei 70 Hz), Cap [0, 10].
+    """
+    if len(audio) < int(0.1 * sr):
+        return 0.0
+    audio_arr = np.asarray(audio, dtype=np.float64)
+    analytic = np.asarray(hilbert(audio_arr), dtype=np.complex128)
+    envelope = np.asarray(np.abs(analytic), dtype=np.float64)
+    envelope -= np.mean(envelope)
+    env_fft = np.abs(np.fft.rfft(envelope))
+    env_freqs = np.fft.rfftfreq(len(envelope), d=1.0 / sr)
+    mask = (env_freqs >= 15.0) & (env_freqs <= 300.0)
+    if not np.any(mask):
+        return 0.0
+    am_energy = float(np.sum(env_fft[mask] ** 2)) / max(len(audio), 1)
+    roughness = float(am_energy / (_ROUGHNESS_CALIB_ASPER + 1e-12))
+    return max(0.0, min(roughness, 10.0))
+
+
+def sharpness_acum(audio: np.ndarray, sr: int) -> float:
+    """Kanonische Sharpness in acum (Bismarck 1974 / DIN 45692, Bark-Zentroid).
+
+    0.11 × ∫ N'(z)·g(z)·z dz / ∫ N'(z) dz über 24 kritische Bänder mit
+    g(z) = 1 für z ≤ 16, sonst 0.066·exp(0.171·z); Cap [0, 10].
+    """
+    if len(audio) < int(0.05 * sr):
+        return 0.0
+
+    def _g(z: float) -> float:
+        return 1.0 if z <= 16.0 else 0.066 * np.exp(0.171 * z)
+
+    n_fft = min(4096, len(audio))
+    win = np.hanning(n_fft).astype(np.float32)
+    mag = np.abs(np.fft.rfft(audio[:n_fft] * win))
+    freqs = np.fft.rfftfreq(n_fft, d=1.0 / sr)
+
+    band_edges = np.append(_BARK_CENTERS_REF_HZ, 16000.0)
+    bandwidths = np.diff(band_edges)
+    n_prime = np.zeros(len(_BARK_CENTERS_REF_HZ), dtype=np.float64)
+    for i, (f_c, bw_hz) in enumerate(zip(_BARK_CENTERS_REF_HZ, bandwidths)):
+        mask = (freqs >= f_c - bw_hz / 2) & (freqs < f_c + bw_hz / 2)
+        n_prime[i] = float(np.sum(mag[mask] ** 2))
+
+    total_n = float(np.sum(n_prime))
+    if total_n < 1e-12:
+        return 0.0
+    g_weights = np.array([_g(z) for z in _BARK_VALUES_REF], dtype=np.float64)
+    weighted_sum = float(np.sum(n_prime * g_weights * _BARK_VALUES_REF))
+    sharpness = 0.11 * weighted_sum / total_n
+    return max(0.0, min(sharpness, 10.0))
 
 
 def build_psychoacoustic_frame(audio: np.ndarray, sr: int) -> PsychoacousticFrame:

@@ -16,7 +16,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import numpy as np
-from scipy.signal import hilbert
 
 from backend.core.defect_scanner import MaterialType  # §v10.113
 from backend.core.phase_ontology import (
@@ -1587,32 +1586,12 @@ class ArtifactFreedomGate:
         """
         if len(audio) < int(0.1 * sr):
             return 0.0
-
         try:
-            # Temporal envelope via Hilbert transform
-            audio_arr = np.asarray(audio, dtype=np.float64)
-            analytic = np.asarray(hilbert(audio_arr), dtype=np.complex128)
-            envelope = np.asarray(np.abs(analytic), dtype=np.float64)
+            # §Muster 1: kanonische Implementierung im gemeinsamen
+            # psychoakustischen Frame (identische Mathematik, eine Quelle).
+            from backend.core.dsp.psychoacoustic_frame import roughness_asper
 
-            # Normalise envelope to remove DC (absolute level)
-            envelope -= np.mean(envelope)
-
-            # FFT of envelope to get modulation spectrum
-            env_fft = np.abs(np.fft.rfft(envelope))
-            env_freqs = np.fft.rfftfreq(len(envelope), d=1.0 / sr)
-
-            # Integrate energy in 15–300 Hz band (roughness band)
-            mask = (env_freqs >= 15.0) & (env_freqs <= 300.0)
-            if not np.any(mask):
-                return 0.0
-
-            am_energy = float(np.sum(env_fft[mask] ** 2)) / max(len(audio), 1)
-
-            # Calibrate: empirical scaling → ~1.0 asper for typical steady-state 70 Hz AM
-            # am_energy_ref at 60 dB SPL, f_AM=70 Hz, 100% AM, sr=48000 ≈ 1.5e-3
-            _ROUGHNESS_CALIB = 1.5e-3
-            roughness = float(am_energy / (_ROUGHNESS_CALIB + 1e-12))
-            return max(0.0, min(roughness, 10.0))  # cap at 10 asper
+            return roughness_asper(audio, sr)
         except Exception as e:
             logger.warning("artifact_freedom_gate.py::_berechnen_roughness_zwicker Ersatzpfad: %s", e)
             return 0.0
@@ -1627,94 +1606,11 @@ class ArtifactFreedomGate:
             return 0.0
 
         try:
-            # Bark-scale centre frequencies for 24 critical bands
-            bark_centers_hz = np.array(
-                [
-                    50,
-                    150,
-                    250,
-                    350,
-                    450,
-                    570,
-                    700,
-                    840,
-                    1000,
-                    1170,
-                    1370,
-                    1600,
-                    1850,
-                    2150,
-                    2500,
-                    2900,
-                    3400,
-                    4000,
-                    4800,
-                    5800,
-                    7000,
-                    8500,
-                    10500,
-                    13500,
-                ],
-                dtype=np.float64,
-            )
-            # Corresponding Bark values (Traunmüller 1990)
-            bark_values = np.array(
-                [
-                    0.5,
-                    1.5,
-                    2.5,
-                    3.5,
-                    4.5,
-                    5.5,
-                    6.5,
-                    7.5,
-                    8.5,
-                    9.5,
-                    10.5,
-                    11.5,
-                    12.5,
-                    13.5,
-                    14.5,
-                    15.5,
-                    16.5,
-                    17.5,
-                    18.5,
-                    19.5,
-                    20.5,
-                    21.5,
-                    22.5,
-                    23.5,
-                ],
-                dtype=np.float64,
-            )
+            # §Muster 1: kanonische Implementierung im gemeinsamen
+            # psychoakustischen Frame (identische Mathematik, eine Quelle).
+            from backend.core.dsp.psychoacoustic_frame import sharpness_acum
 
-            # Bismarck weighting function
-            def _g(z: float) -> float:
-                return 1.0 if z <= 16.0 else 0.066 * np.exp(0.171 * z)
-
-            # Compute band energies via FFT
-            n_fft = min(4096, len(audio))
-            win = np.hanning(n_fft).astype(np.float32)
-            mag = np.abs(np.fft.rfft(audio[:n_fft] * win))
-            freqs = np.fft.rfftfreq(n_fft, d=1.0 / sr)
-
-            # Specific loudness proxy: power per Bark band (unnormalized)
-            N_prime = np.zeros(len(bark_centers_hz))
-            for i, (f_c, bw_hz) in enumerate(zip(bark_centers_hz, np.diff(np.append(bark_centers_hz, 16000.0)))):
-                mask = (freqs >= f_c - bw_hz / 2) & (freqs < f_c + bw_hz / 2)
-                N_prime[i] = float(np.sum(mag[mask] ** 2))
-
-            total_N = float(np.sum(N_prime))
-            if total_N < 1e-12:
-                return 0.0
-
-            g_weights = np.array([_g(z) for z in bark_values])
-            weighted_sum = float(np.sum(N_prime * g_weights * bark_values))
-
-            # Bismarck formula: 0.11 × ∫ N'(z)·g(z)·z dz / ∫ N'(z) dz
-            sharpness = 0.11 * weighted_sum / total_N
-
-            return max(0.0, min(sharpness, 10.0))  # cap at 10 acum
+            return sharpness_acum(audio, sr)
         except Exception as e:
             logger.warning("artifact_freedom_gate.py::_g Ersatzpfad: %s", e)
             return 0.0

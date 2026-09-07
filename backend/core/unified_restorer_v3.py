@@ -145,6 +145,21 @@ def _is_singmos_source_capped(source_singmos: float | None, current_singmos: flo
     return bool(source_singmos is not None and source_singmos < 2.5 and current_singmos >= (source_singmos - 0.10))
 
 
+def _compute_wohlklang_blend(
+    original: np.ndarray,
+    first_run: np.ndarray,
+    strength_multiplier: float,
+) -> np.ndarray:
+    """Output-Blend der Wohlklang-Garantie (§Muster 3, erste Ordnung).
+
+    Reduzierte Pipeline-Stärke s entspricht näherungsweise
+    Original + s·(Erstlauf − Original); Clip auf [−1, 1] und dtype-Erhalt
+    garantieren die Pipeline-Invariante (kein Pegel-/Typ-Leck).
+    """
+    blend = original + strength_multiplier * (first_run - original)
+    return np.clip(blend, -1.0, 1.0).astype(first_run.dtype)  # type: ignore[no-any-return]
+
+
 @dataclass
 class RestorationResult:
     """Ergebnis der Restoration (Spec §2.1 / §2.2)."""
@@ -23442,8 +23457,9 @@ class UnifiedRestorerV3:
             try:
                 from backend.core.mert_mushra_proxy import estimate_mushra_proxy as _estimate_mushra_blend
 
-                _wm_blend = audio + self._wohlklang_strength_multiplier * (self._wohlklang_best_audio - audio)
-                _wm_blend = np.clip(_wm_blend, -1.0, 1.0).astype(self._wohlklang_best_audio.dtype)
+                _wm_blend = _compute_wohlklang_blend(
+                    audio, self._wohlklang_best_audio, self._wohlklang_strength_multiplier
+                )
                 _blend_proxy = _estimate_mushra_blend(audio, _wm_blend, sr=sample_rate)
                 _blend_mushra = float(getattr(_blend_proxy, "proxy_score", 0.0) or 0.0)
                 if _blend_mushra >= _wm_threshold:
