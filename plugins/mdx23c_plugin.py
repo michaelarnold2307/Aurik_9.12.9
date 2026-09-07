@@ -17,7 +17,10 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from plugins.htdemucs_plugin import SeparationResult
 
 import numpy as np
 
@@ -518,6 +521,20 @@ class MDX23CPlugin:
     def __init__(self, **_kwargs: object) -> None:
         if _kwargs:
             logger.debug("MDX23CPlugin: ignoring legacy kwargs: %s", list(_kwargs.keys()))
+
+    # Facade-Kompatibilität: htdemucs_plugin.get_htdemucs_plugin() routet hierher
+    # und musical_goals_metrics prüft dieses Attribut für den Warm-up-Pfad.
+    _model_type: str = "mdx23c"
+
+    def separate(self, audio: np.ndarray, sr: int) -> SeparationResult:
+        """Drop-In-kompatibel zu HtdemucsPlugin.separate() — 4-Stem-Ergebnis."""
+        from plugins.htdemucs_plugin import SeparationResult  # lazy: vermeidet Import-Zyklus
+
+        vocals = self.process(audio, sr, stem="vocals")
+        drums = self.process(audio, sr, stem="drums")
+        bass = self.process(audio, sr, stem="bass")
+        other = self.process(audio, sr, stem="other")
+        return SeparationResult(vocals=vocals, drums=drums, bass=bass, other=other, sr=sr)
 
     def process(
         self,

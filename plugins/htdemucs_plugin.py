@@ -38,7 +38,10 @@ import os
 import threading
 from importlib import import_module
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from plugins.mdx23c_plugin import MDX23CPlugin
 
 import numpy as np
 
@@ -48,7 +51,7 @@ logger = logging.getLogger(__name__)
 _DEMUX_GPU_ENABLED = os.getenv("AURIK_DEMUX_GPU", "").lower() in ("1", "true", "yes")
 
 # Singleton
-_INSTANCE_HOLDER: dict[str, HtdemucsPlugin | None] = {"plugin": None}
+_INSTANCE_HOLDER: dict[str, object] = {"plugin": None}
 _singleton_lock = threading.Lock()
 
 
@@ -403,12 +406,19 @@ class HtdemucsPlugin:
                     logger.debug("HTDemucs Model entladen")
 
 
-def get_htdemucs_plugin() -> HtdemucsPlugin:
-    """Gibt HTDemucs-Singleton zurück (Double-Checked Locking)."""
+def get_htdemucs_plugin() -> MDX23CPlugin:
+    """Facade (P1-Migration): routet auf MDX23CPlugin als primären Separator.
+
+    Der Funktionsname bleibt für API-Kompatibilität bestehen; der primäre
+    Separator ist seit der P1-Migration MDX23C (htdemucs_6s bleibt nur als
+    experimentelles Manifest-Modell mit DSP-Fallback).
+    """
+    from plugins.mdx23c_plugin import MDX23CPlugin  # pylint: disable=import-outside-toplevel
+
     if _INSTANCE_HOLDER["plugin"] is None:
         with _singleton_lock:
             if _INSTANCE_HOLDER["plugin"] is None:
-                _INSTANCE_HOLDER["plugin"] = HtdemucsPlugin()
+                _INSTANCE_HOLDER["plugin"] = MDX23CPlugin()
     plugin = _INSTANCE_HOLDER["plugin"]
     assert plugin is not None
-    return plugin
+    return cast(MDX23CPlugin, plugin)

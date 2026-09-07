@@ -55,7 +55,7 @@ MODEL_ZOO: list[ModelEntry] = [
         purpose="repair",
         input_shapes="IN input [1, duration, 60, 384] → OUT 5-dim",
         status="active",
-        notes="BS-RoFormer. Stem-aware Repair-Flow integriert (Rev. 2026-08-17): SLR-1-Pre-Phase (UV3) + Phase 66 Stem-Targeted-NR + StemRemixBalancer (Spec §1.4/§2.8, Quell-LUFS-korrekter Re-Mix mit Soft-Knee-Peak-Schutz).",
+        notes="BS-Roformer (bs_roformer_plugin). Stem-aware Repair-Flow integriert (Rev. 2026-08-17): SLR-1-Pre-Phase (UV3) + Phase 66 Stem-Targeted-NR + StemRemixBalancer (Spec §1.4/§2.8, Quell-LUFS-korrekter Re-Mix mit Soft-Knee-Peak-Schutz).",
     ),
     ModelEntry(
         name="mdx23c",
@@ -112,7 +112,7 @@ def probe_models() -> dict[str, str]:
     results: dict[str, str] = {}
     for entry in MODEL_ZOO:
         path = _PROJECT / entry.path
-        if not path.exists() or not path.suffix == ".onnx":
+        if not path.exists() or path.suffix != ".onnx":
             results[entry.name] = "missing" if not path.exists() else "non_onnx"
             continue
         try:

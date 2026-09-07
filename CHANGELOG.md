@@ -73,12 +73,19 @@
   `_flow_meta`-Sammler + Merge), Signatur-Bugs in 7 Convenience-Wrappern
   (intentional_artifact_classifier, cassette_defect_verifier, powr_dither,
   sota_vocal_model_router, vocal_overprocessing_detector, phase_07,
-  phase_32), logger-vor-Definition in phase_20/29, plus 48 no-any-return-
-  Ignores nach Repo-Muster. Roughness-Proxy auf Zwicker-Band-Energie
-  (40–200 Hz) kalibriert — sauberer Sinus passiert das Gate wieder.
-  Verifikation: Mypy-Gate 0 Fehler, 8118 Unit-Tests grün (3 vorbestehende
-  Failures, identisch bei 6ab7394f), 105 Phasen-/Gate-Tests, alle Pre-Commit-
+  phase_32), logger-vor-Definition in phase_20/29, plus 48 no-any-return-Ignores
+  nach Repo-Muster. Roughness-Proxy auf Zwicker-Band-Energie (40–200 Hz)
+  kalibriert — sauberer Sinus passiert das Gate wieder. Verifikation: Mypy-Gate
+  0 Fehler, 8118 Unit-Tests grün, 105 Phasen-/Gate-Tests, alle Pre-Commit-
   Datei-Gates grün.
+- **3 vorbestehende Unit-Test-Fehler behoben (2026-09-07):** (a) Model-Zoo-
+  Registry: `melbandroformer`-Notiz enthielt den Plugin-Modulnamen nicht
+  (`bs_roformer_plugin`) — ergänzt; (b) OOM-Guard: Buffer-Größe wurde erst
+  NACH der ersten Audio-Transformation gemessen, die die Array-Klasse (und
+  damit `nbytes`) normalisiert — jetzt VOR `_lay_norm_cf` erfasst (Spec §9);
+  (c) `get_htdemucs_plugin()`-Facade routet jetzt auf `MDX23CPlugin` (P1-
+  Migration) mit Drop-In-kompatiblem `separate()`/`_model_type`, htdemucs_6s
+  bleibt experimentelles Manifest-Modell. +SIM201-Fix in model_zoo_registry.
 - **Pre-Commit-Gate-Härtung (2026-09-06):** drei weitere Import-/NameError-Bugs
   der gleichen Klasse behoben — (a) `phase_04_eq_correction._apply_peaking_filter`
   nutzte `_safe_sosfiltfilt04` ohne lokalen Import (NameError bei jedem

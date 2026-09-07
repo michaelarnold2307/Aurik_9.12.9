@@ -7754,6 +7754,11 @@ class UnifiedRestorerV3:
             logger.info("🎵 Chunked-Streaming: %.1fs Audio → RAM O(1)", _n_total / sample_rate)
             return self._restore_chunked(audio, sample_rate, progress_callback, **kwargs)
 
+        # §OOM-Guard-Fix (2026-09-07): Buffer-Größe VOR der ersten Transformation
+        # erfassen — _lay_norm_cf()/astype() normalisieren die Array-Klasse und
+        # würden die ursprüngliche nbytes-Sicht verlieren (Spec §9: max. 4 GB).
+        _input_buffer_bytes = int(getattr(audio, "nbytes", int(audio.size) * audio.dtype.itemsize))
+
         start_time = time.monotonic()
         # §0c: Reset graceful-stop for new song — previous watchdog signal must not bleed over.
         self._graceful_stop_event.clear()
@@ -8225,7 +8230,7 @@ class UnifiedRestorerV3:
         # ── OOM-Guard: Audio-Buffer-Größe gegen RAM-Budget prüfen ────────────
         # Spec §9: Audio-Buffer max. 4 GB.  Intermediate STFTs/copies multiplizieren
         # den Bedarf ~5× → effektives Limit: ~800 MB Audio-Input bei 32 GB RAM.
-        _audio_bytes = audio.nbytes
+        _audio_bytes = _input_buffer_bytes
         _MAX_AUDIO_BUFFER_BYTES = 4 * 1024**3  # 4 GB absolute Obergrenze (Spec §9)
         if _audio_bytes > _MAX_AUDIO_BUFFER_BYTES:
             raise MemoryError(
