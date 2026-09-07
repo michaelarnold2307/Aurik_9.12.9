@@ -950,8 +950,11 @@ class EQCorrectionPhase(PhaseInterface):
         if not eq_corrections:
             return np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0)  # type: ignore[no-any-return]  # No significant transport shift
 
-        # Apply corrections as smooth Butterworth shelving/peaking filters
-        result = np.asarray(audio, dtype=np.float64)
+        # Apply corrections as smooth Butterworth shelving/peaking filters.
+        # §Muster 5: float32-native — Shelving-Filter (1. Ordnung) sind in float32
+        # numerisch stabil; float64-Rundungsreisen verdoppelten nur den
+        # Speicherdurchsatz und erzwangen eine zweite Quantisierung.
+        result = np.asarray(audio, dtype=np.float32)
         try:
             from scipy.signal import butter  # pylint: disable=import-outside-toplevel
 

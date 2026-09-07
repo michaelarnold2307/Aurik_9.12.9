@@ -720,6 +720,26 @@ class HumRemovalPhase(PhaseInterface):
             for harmonic_freq in hum_info["harmonics"]:
                 initial_hum_energy += self._measure_hum_at_freq(audio, harmonic_freq)  # type: ignore[assignment]
 
+        # §Muster 2: Audibility-Early-Termination (Hörordnung §4). Liegt der Hum
+        # unter der Maskierungsschwelle (Musik maskiert die Linien), ist er
+        # unhörbar → Budget 0 → keine Notch-Entfernung (schont Signal, spart DSP).
+        _audibility_skip_02 = False
+        try:
+            from backend.core.dsp.psychoacoustic_frame import build_psychoacoustic_frame as _build_paf_02
+
+            _hum_freqs_02 = [float(h) for info in harmonic_data for h in info.get("harmonics", [])]
+            _frame_02 = _build_paf_02(audio, self.sample_rate)
+            _hum_dbfs_02 = _frame_02.line_energy_dbfs(_hum_freqs_02, width_hz=2.0)
+            if _frame_02.is_below_masking(_hum_dbfs_02, 30.0, 400.0, margin_db=6.0):
+                _audibility_skip_02 = True
+                logger.info(
+                    "Verarbeitungsschritt_02 Audibility-Early-Termination: Hum %.1f dBFS "
+                    "unter Maskierungsschwelle → kein Eingriff (Hörordnung §4)",
+                    _hum_dbfs_02,
+                )
+        except Exception as _aud02_exc:
+            logger.debug("Audibility-Prüfung Verarbeitungsschritt_02 nicht verfügbar: %s", _aud02_exc)
+
         # §v10.998: Hum-Budget — die Notch-Kette darf NIE mehr Band-Energie
         # entfernen als der Hum selbst (×Faktor aus der zentralen Kalibrierung,
         # §V25–§V28). Überschreitet die kumulierte Entfernung das Budget, wird
@@ -732,6 +752,8 @@ class HumRemovalPhase(PhaseInterface):
             logger.warning("Ersatzpfad unkalibriert: Hum-Kontingent — %s", _pe)
             _pcal = None
         hum_budget = initial_hum_energy * float(getattr(_pcal, "hum_budget_factor", 1.5)) + 1e-12
+        if _audibility_skip_02:
+            hum_budget = 0.0  # Audibility-Entscheidung übersteuert das Kalibrierungs-Budget
         removed_energy = 0.0
 
         # Apply notch filter for each harmonic
@@ -790,7 +812,11 @@ class HumRemovalPhase(PhaseInterface):
         # Calculate reduction
         reduction_db = 10 * np.log10((initial_hum_energy + 1e-10) / (final_hum_energy + 1e-10))
 
-        stats = {"harmonics_removed": total_harmonics_removed, "reduction_db": reduction_db}
+        stats = {
+            "harmonics_removed": total_harmonics_removed,
+            "reduction_db": reduction_db,
+            "audibility_skip": _audibility_skip_02,
+        }
 
         return result, stats
 

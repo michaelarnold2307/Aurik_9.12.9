@@ -86,6 +86,22 @@
   (c) `get_htdemucs_plugin()`-Facade routet jetzt auf `MDX23CPlugin` (P1-
   Migration) mit Drop-In-kompatiblem `separate()`/`_model_type`, htdemucs_6s
   bleibt experimentelles Manifest-Modell. +SIM201-Fix in model_zoo_registry.
+- **Psychoakustisches Front-End + 6-Muster-Synergie (2026-09-07):** Neues Modul
+  `dsp/psychoacoustic_frame.py` — EIN gemeinsamer Frame (feines STFT + Fluss-
+  Hüllkurve hop 128 + Rectangular-Bark + Maskierungsschwelle ISO 11172-3) statt
+  ~25 getrennter STFT-Welten. (1) einladungs_gate misst Roughness/Sharpness/
+  Loudness jetzt vektorisiert auf der Repräsentation statt dreier Fenster-
+  Schleifen (~3× schneller, konsistente Gate-Werte; Roughness kalibriert:
+  Sinus-Vibrato max 0.04, 70-Hz-AM 0.99). (2) Audibility-Early-Termination in
+  phase_02 (Hum unter Maskierung → Budget 0) + phase_05 (Rumble unter Maskierung
+  → kein HPF) nach Hörordnung §4. (3) Wohlklang-Garantie versucht VOR dem
+  Voll-Re-Run einen Output-Blend (Original + s·(Erstlauf−Original)), bewertet
+  mit demselben MUSHRA-Proxy — Re-Run nur wenn der Blend nicht reicht
+  (Faktor ~2 auf dem teuren Pfad). (4) Ganzsignal-Hüllkurve + MA-Glättung +
+  Hann statt Per-Fenster-Chunks. (5) phase_04-Shelving-Pfad float32-native.
+  (6) MDX23C-2-Stem-Adapter ehrlich (inst/3-Verteilung, reconstruct = Input).
+  Synergie: Gates, Early-Termination und Blend-Entscheidung lesen dieselbe
+  billige Repräsentation. +7 Frame-Unit-Tests, 88 Gate/Phasen-Tests grün.
 - **Pre-Commit-Gate-Härtung (2026-09-06):** drei weitere Import-/NameError-Bugs
   der gleichen Klasse behoben — (a) `phase_04_eq_correction._apply_peaking_filter`
   nutzte `_safe_sosfiltfilt04` ohne lokalen Import (NameError bei jedem

@@ -362,6 +362,41 @@ class RumbleFilterPhase(PhaseInterface):
                 },
             )
 
+        # §Muster 2: Audibility-Early-Termination (Hörordnung §4). Rumble ist
+        # detektiert, liegt aber unter der Maskierungsschwelle → unhörbar → kein
+        # HPF-Eingriff (schont Bass-Körper, spart DSP-Zeit). Rumble-dBFS =
+        # Band-dBFS + 10·log10(Energie-Anteil) aus derselben Repräsentation.
+        try:
+            from backend.core.dsp.psychoacoustic_frame import build_psychoacoustic_frame as _build_paf_05
+
+            _frame_05 = _build_paf_05(audio, sample_rate)
+            _band_hi_05 = float(params["cutoff_hz"]) * 2.0
+            _rumble_dbfs_05 = _frame_05.band_energy_dbfs(0.0, _band_hi_05) + 10.0 * np.log10(
+                max(float(rumble_energy_ratio), 1e-12)
+            )
+            if _frame_05.is_below_masking(_rumble_dbfs_05, 0.0, _band_hi_05, margin_db=6.0):
+                _audio_skip_05 = np.clip(np.nan_to_num(audio, nan=0.0, posinf=0.0, neginf=0.0), -1.0, 1.0)
+                logger.info(
+                    "Verarbeitungsschritt_05 Audibility-Early-Termination: Rumble %.1f dBFS "
+                    "unter Maskierungsschwelle → kein HPF-Eingriff (Hörordnung §4)",
+                    _rumble_dbfs_05,
+                )
+                return create_phase_result(
+                    audio=_restore_layout_05(_audio_skip_05),
+                    modifications={"rumble_filtered": False, "reason": "audibility_skip"},
+                    warnings=[],
+                    metadata={
+                        "algorithm": "none",
+                        "rumble_energy_ratio": rumble_energy_ratio,
+                        "material_type": material_type,
+                        "phase_locality_factor": phase_locality_factor,
+                        "effective_strength": _effective_strength,
+                        "execution_time_seconds": time.time() - start_time,
+                    },
+                )
+        except Exception as _aud05_exc:
+            logger.debug("Audibility-Prüfung Verarbeitungsschritt_05 nicht verfügbar: %s", _aud05_exc)
+
         # Step 2: Dynamic cutoff adaptation (content-aware)
         adapted_cutoff = self._adapt_cutoff_dynamic(
             audio, params["cutoff_hz"], rumble_energy_ratio, params["dynamic_adapt"]

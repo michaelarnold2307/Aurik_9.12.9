@@ -23431,6 +23431,54 @@ class UnifiedRestorerV3:
             _retry_kwargs = dict(kwargs)
             if _precomputed_phase_plan:
                 _retry_kwargs["precomputed_phase_plan"] = list(_precomputed_phase_plan)
+
+            # §Muster 3: Blending-Versuch VOR dem Voll-Re-Run. Reduzierte
+            # Pipeline-Stärke entspricht in erster Näherung einem Output-Blend
+            # Original + s·(Erstlauf − Original). Der Blend wird mit demselben
+            # MUSHRA-Proxy bewertet; nur wenn er NICHT reicht, folgt der teure
+            # Voll-Re-Run (Synergie: billige Re-Evaluierung statt 60-Phasen-Doppellauf).
+            _blend_attempt_ok = False
+            _blend_audio: np.ndarray | None = None
+            try:
+                from backend.core.mert_mushra_proxy import estimate_mushra_proxy as _estimate_mushra_blend
+
+                _wm_blend = audio + self._wohlklang_strength_multiplier * (self._wohlklang_best_audio - audio)
+                _wm_blend = np.clip(_wm_blend, -1.0, 1.0).astype(self._wohlklang_best_audio.dtype)
+                _blend_proxy = _estimate_mushra_blend(audio, _wm_blend, sr=sample_rate)
+                _blend_mushra = float(getattr(_blend_proxy, "proxy_score", 0.0) or 0.0)
+                if _blend_mushra >= _wm_threshold:
+                    _blend_attempt_ok = True
+                    _blend_audio = _wm_blend
+                    logger.info(
+                        "⚡ Wohlklang-Garantie: Blend-Versuch MUSHRA %.1f ≥ %.0f — "
+                        "Voll-Re-Run übersprungen (Performance-Faktor ~2)",
+                        _blend_mushra,
+                        _wm_threshold,
+                    )
+                else:
+                    logger.info(
+                        "⚡ Wohlklang-Garantie: Blend-Versuch MUSHRA %.1f < %.0f — Voll-Re-Run folgt",
+                        _blend_mushra,
+                        _wm_threshold,
+                    )
+            except Exception as _blend_exc:
+                logger.debug("Wohlklang-Blend nicht verfügbar: %s", _blend_exc)
+
+            if _blend_attempt_ok and _blend_audio is not None:
+                result = RestorationResult(
+                    audio=_blend_audio,
+                    config=result.config,
+                    material_type=result.material_type,
+                    defect_scores=dict(result.defect_scores),
+                    phases_executed=list(result.phases_executed),
+                    total_time_seconds=result.total_time_seconds,
+                    rt_factor=result.rt_factor,
+                    quality_estimate=result.quality_estimate,
+                    warnings=list(result.warnings),
+                    metadata=dict(result.metadata),
+                )
+                return result
+
             _retry_result = self.restore(audio, sample_rate, progress_callback, **_retry_kwargs)
             self._wohlklang_strength_multiplier = 1.0  # Reset
             _retry_mushra = float(getattr(self, "_mqa_mushra", 0.0) or 0.0)

@@ -104,22 +104,15 @@ class EinladungsGate:
             if mono.size < int(self._window_size_s * sr):
                 return _fallback
 
-            # ── Fenster-basierte Messungen ──────────────────────────────────
-            window_samples = int(self._window_size_s * sr)
-            overlap_samples = int(self._overlap_s * sr)
+            # ── Muster 1+4: EIN gemeinsamer psychoakustischer Frame statt drei
+            # getrennter Fenster-Schleifen mit je eigener STFT. Fenster werden auf
+            # der Repräsentation geschnitten (vektorisiert, konsistente Werte).
+            from backend.core.dsp.psychoacoustic_frame import build_psychoacoustic_frame
 
-            roughness_windows = []
-            sharpness_windows = []
-            loudness_windows = []
-
-            for i in range(0, len(mono), overlap_samples):
-                chunk = mono[i : i + window_samples]
-                if len(chunk) < window_samples // 2:
-                    break
-
-                roughness_windows.append(self._compute_roughness_zwicker(chunk, sr))
-                sharpness_windows.append(self._compute_sharpness_bismarck(chunk, sr))
-                loudness_windows.append(self._compute_loudness_erb(chunk, sr))
+            _frame = build_psychoacoustic_frame(mono, sr)
+            roughness_windows = _frame.roughness_windows(self._window_size_s, self._overlap_s)
+            sharpness_windows = _frame.sharpness_windows(self._window_size_s, self._overlap_s)
+            loudness_windows = _frame.loudness_windows(self._window_size_s, self._overlap_s)
 
             if not roughness_windows:
                 return _fallback
