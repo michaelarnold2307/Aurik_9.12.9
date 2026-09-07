@@ -145,6 +145,51 @@ def _is_singmos_source_capped(source_singmos: float | None, current_singmos: flo
     return bool(source_singmos is not None and source_singmos < 2.5 and current_singmos >= (source_singmos - 0.10))
 
 
+def _b3_merge_full_song_defect_types(
+    defect_result: object,
+    full_song_types: set[str],
+) -> set[str]:
+    """§v10.702 B3-Phase-2 (§G137): Fehlende Full-Song-Defekttypen als Presence-Stubs ergänzen.
+
+    BUG-FIX (2026-09-08): ``defect_result.scores`` ist mit DefectType-ENUM-Keys
+    belegt, ``full_song_types`` enthält Strings. Ohne Key-Normalisierung sah die
+    Mengen-Differenz ALLE vorhandenen Typen als „fehlend“ an und überschrieb
+    deren Scores (inkl. Locations) mit 0.06-Stubs ohne Locations → Strength-
+    Envelope degenerierte (μ=0.060 σ=0.000) und alle Phasen liefen mit Floor-
+    Stärke (No-Op-Kaskade, Produktionsbefund §2.71).
+
+    Returns:
+        Menge der tatsächlich ergänzten Typen (Strings), leer wenn nichts fehlte.
+    """
+    if not full_song_types or not hasattr(defect_result, "scores"):
+        return set()
+    _existing = {getattr(_dt, "value", None) or str(_dt) for _dt in defect_result.scores.keys()}
+    _missing = full_song_types - _existing
+    if not _missing:
+        return set()
+
+    from backend.core.defect_scanner import DefectScore as _B3_DS_EARLY
+    from backend.core.defect_scanner import DefectType as _B3_DT
+
+    for _b3_mt in _missing:
+        # §v10.14: scan_defect_presence() returns set[str]; DefectScore
+        # expects DefectType enum. Normalisiere über getattr-Fallback.
+        # Typ: Any — der Fallback lässt unbekannte Strings als Key durch.
+        _b3_dt: Any = _b3_mt
+        if isinstance(_b3_mt, str):
+            try:
+                _b3_dt = _B3_DT(_b3_mt)
+            except (ValueError, KeyError):
+                _b3_dt = _b3_mt  # Fallback: String durchlassen
+        defect_result.scores[_b3_dt] = _B3_DS_EARLY(
+            defect_type=_b3_dt,
+            severity=0.06,
+            confidence=0.30,
+            metadata={"source": "b3_full_song_presence_scan"},
+        )
+    return _missing
+
+
 def _compute_wohlklang_blend(
     original: np.ndarray,
     first_run: np.ndarray,
@@ -8905,9 +8950,7 @@ class UnifiedRestorerV3:
                     "vinyl": 1950,
                     "cassette": 1963,
                 }
-                _analog_years = [
-                    _ANALOG_INTRO_YEARS[str(m)] for m in _eff_chain if _ANALOG_INTRO_YEARS.get(str(m))
-                ]
+                _analog_years = [_ANALOG_INTRO_YEARS[str(m)] for m in _eff_chain if _ANALOG_INTRO_YEARS.get(str(m))]
                 if _era_result is not None and getattr(_era_result, "confidence", 0) <= 0.60 and _analog_years:
                     try:
                         from backend.core.era_classifier import EraResult as _EraResult
@@ -10820,9 +10863,7 @@ class UnifiedRestorerV3:
                     "§9.1c PerceptualSalience: gecachte Salienz-Metadaten übernommen (keine Re-Annotation, §2.46g)"
                 )
             else:
-                logger.warning(
-                    "§9.1c PerceptualSalience: Audio leer — Salienz-Annotation übersprungen (§2.46g)"
-                )
+                logger.warning("§9.1c PerceptualSalience: Audio leer — Salienz-Annotation übersprungen (§2.46g)")
         except Exception as _pse_exc:
             logger.debug("PerceptualSalienceEstimator nicht verfügbar: %s", _pse_exc)
 
@@ -10872,31 +10913,14 @@ class UnifiedRestorerV3:
         # (UV3 autonom + Denker-Plan) die vollständige Defektliste sehen.
         _b3_full_dt = kwargs.get("_b3_full_song_defect_types")
         if _b3_full_dt:
-            _b3_missing = _b3_full_dt - set(defect_result.scores.keys())
+            # Key-Normalisierung (ENUM↔String) + Locations-Schutz in
+            # _b3_merge_full_song_defect_types (Modul-Helper, Regressionstest-geprüft).
+            _b3_missing = _b3_merge_full_song_defect_types(defect_result, _b3_full_dt)
             if _b3_missing:
-                from backend.core.defect_scanner import DefectScore as _B3_DS_EARLY
-
-                for _b3_mt in _b3_missing:
-                    # §v10.14: scan_defect_presence() returns set[str]; DefectScore
-                    # expects DefectType enum. Normalisiere über getattr-Fallback.
-                    _b3_dt = _b3_mt
-                    if isinstance(_b3_mt, str):
-                        try:
-                            from backend.core.defect_scanner import DefectType as _B3_DT
-
-                            _b3_dt = _B3_DT(_b3_mt)
-                        except (ValueError, KeyError):
-                            _b3_dt = _b3_mt  # Fallback: String durchlassen
-                    defect_result.scores[_b3_dt] = _B3_DS_EARLY(
-                        defect_type=_b3_dt,
-                        severity=0.06,
-                        confidence=0.30,
-                        metadata={"source": "b3_full_song_presence_scan"},
-                    )
                 logger.info(
                     "§B3-Verarbeitungsschritt-2 Early-Merge: %d Defekttypen aus Full-Song-Scan ergänzt: %s",
                     len(_b3_missing),
-                    sorted(getattr(_b3_mt, "value", str(_b3_mt)) for _b3_mt in _b3_missing),
+                    sorted(_b3_missing),
                 )
 
         _cb(10, "Defekte werden kartiert …")
@@ -13957,6 +13981,9 @@ class UnifiedRestorerV3:
         # §V6 [copilot-instructions.md, Silent-Failure-Verbot]).
         # Sammel-Dict, wird nach der finalen Konstruktion gemerged.
         _flow_meta: dict[str, object] = {}
+        # Instanz-Spiegel: _collect_reporting_analytics (eigene Methode, kein
+        # Zugriff auf diesen Funktions-Scope) liest die Hör-Gate-Flags von hier.
+        self._flow_meta = _flow_meta
 
         # §AH VocalClarityMax — Gesangs-Klarheit
         # §v10.15: PostGate-verifiziert
@@ -26281,6 +26308,7 @@ class UnifiedRestorerV3:
             # trotzdem „✓ QUALITY GUARANTEED“ im Fazit.
             try:
                 _hoer_demote = False
+                _flow_meta = getattr(self, "_flow_meta", None) or {}
                 if isinstance(_flow_meta, dict):
                     _wo_audit = _flow_meta.get("wohlklang_ordnung")
                     if isinstance(_wo_audit, dict):
@@ -26302,9 +26330,7 @@ class UnifiedRestorerV3:
                     )
                     _mqa_result["quality_guaranteed"] = False
                     _mqa_result["hoer_gate_demoted"] = True
-                    logger.warning(
-                        "§2.46g MQA-Verdikt durch Hör-Gates degradiert (Einladungs-Gate/Ebene-3)"
-                    )
+                    logger.warning("§2.46g MQA-Verdikt durch Hör-Gates degradiert (Einladungs-Gate/Ebene-3)")
             except Exception as _hd_exc:
                 logger.debug("§2.46g Hör-Gate-Verdikt-Kopplung nicht blockierend: %s", _hd_exc)
 
@@ -26319,9 +26345,7 @@ class UnifiedRestorerV3:
                 if _cq_log is None:
                     _cq_log = []
                     self._chunk_quality_log = _cq_log
-                _cq_nat = float(
-                    getattr(getattr(_mqa_report, "output_quality", None), "naturalness", -1.0) or -1.0
-                )
+                _cq_nat = float(getattr(getattr(_mqa_report, "output_quality", None), "naturalness", -1.0) or -1.0)
                 _cq_log.append(
                     {
                         "mushra": round(float(_mqa_mushra_local), 2),
@@ -38568,17 +38592,51 @@ class UnifiedRestorerV3:
 
         # §7.6 / §9.1: Defect-Locations für gezielte Phasenverarbeitung extrahieren
         # + maximale Severity für adaptive Chunk-Größe
+        # §2.46g (2026-09-06): Audio-Dauer früh berechnen — benötigt für Fallback-Locations
+        # bei stationären Defekten (Hum, Rauschen) die keine diskreten Events haben.
+        _audio_duration_s = max(1e-6, float(audio.shape[-1]) / float(sample_rate))
+
         _defect_locations: dict[str, list[tuple[float, float]]] = {}
         _defect_severity_map: dict[str, float] = {}
         _defect_saliency_map: dict[str, float] = {}
         _defect_event_metadata: dict[str, dict] = {}  # §9.1d: per-Event-Metadaten für Phasen
         _defect_location_coverage_map: dict[str, float] = {}
         _max_defect_severity: float = 0.0
+
+        # Stationäre Defekttypen die keine diskreten Events haben — bei Severity > 0
+        # wird eine Fallback-Location über die gesamte Audiodauer erstellt (§2.46g).
+        _STATIONARY_DEFECTS: frozenset[str] = frozenset(
+            {
+                "hum",
+                "hiss",
+                "noise_level",
+                "low_freq_rumble",
+                "high_freq_noise",
+                "bias_error",
+                "dolby_nr_mismatch",
+                "riaa_curve_error",
+                "generation_loss",
+                "modulation_noise",
+                "speed_calibration_error",
+                "hf_remanence_loss",
+            }
+        )
+
         if defect_result is not None and hasattr(defect_result, "scores"):
             for _dt, _ds in defect_result.scores.items():
                 _dt_key = _dt.value if hasattr(_dt, "value") else str(_dt)
+                _has_severity = hasattr(_ds, "severity") and float(getattr(_ds, "severity", 0.0)) > 0.01
                 if hasattr(_ds, "locations") and _ds.locations:
                     _defect_locations[_dt_key] = list(_ds.locations)
+                elif _has_severity and _dt_key in _STATIONARY_DEFECTS:
+                    # §2.46g Fallback: Stationäre Defekte ohne Events erhalten
+                    # Location über gesamte Dauer — verhindert degeneriertes Envelope
+                    _defect_locations[_dt_key] = [(0.0, _audio_duration_s)]
+                    logger.debug(
+                        "§2.46g %s: keine Events → Fallback-Location [0.0, %.1fs] (stationärer Defekt)",
+                        _dt_key,
+                        _audio_duration_s,
+                    )
                 # §9.1d: Event-Metadaten (Magnitudelisten etc.) für per-Event-Stärke in Phasen
                 if hasattr(_ds, "metadata") and isinstance(_ds.metadata, dict) and _ds.metadata:
                     _defect_event_metadata[_dt_key] = dict(_ds.metadata)

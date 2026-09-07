@@ -93,9 +93,7 @@ def _stft_magnitude_db(x: np.ndarray, sr: int) -> tuple[np.ndarray, np.ndarray]:
     # wie der frühere Per-Frame-rfft → bit-identisches Ergebnis, ~N× schneller.
     # (Produktionsbefund: ~50 rfft-Aufrufe pro Event-Kontext, GIL-gebunden.)
     _x8 = np.ascontiguousarray(x, dtype=np.float64)
-    frames = np.lib.stride_tricks.as_strided(
-        _x8, shape=(n_frames, _N_FFT), strides=(hop * _x8.itemsize, _x8.itemsize)
-    )
+    frames = np.lib.stride_tricks.as_strided(_x8, shape=(n_frames, _N_FFT), strides=(hop * _x8.itemsize, _x8.itemsize))
     mag = np.abs(np.fft.rfft(frames * win, axis=1))
     frames_db = 20.0 * np.log10(mag + 1e-12)
     return frames_db, freqs
@@ -264,15 +262,15 @@ def estimate_residuum_salience_batch(
 
     # Bark-Bin-Indizes einmalig aufbauen (identisch zu _to_bark_bands)
     _bin_idx_per_band = [
-        np.where((freqs >= _BARK_EDGES_HZ[b]) & (freqs < _BARK_EDGES_HZ[b + 1]))[0]
-        for b in range(len(_BARK_CENTERS))
+        np.where((freqs >= _BARK_EDGES_HZ[b]) & (freqs < _BARK_EDGES_HZ[b + 1]))[0] for b in range(len(_BARK_CENTERS))
     ]
 
     def _bands_of_frames(sel_frames: np.ndarray) -> np.ndarray:
         if sel_frames.size == 0:
-            return np.full(len(_BARK_CENTERS), -120.0, dtype=np.float64)
+            _empty: np.ndarray = np.full(len(_BARK_CENTERS), -120.0, dtype=np.float64)
+            return _empty
         _sub = full_frames_db[sel_frames, :]
-        _bands = np.zeros(len(_BARK_CENTERS), dtype=np.float64)
+        _bands: np.ndarray = np.zeros(len(_BARK_CENTERS), dtype=np.float64)
         for b in range(len(_BARK_CENTERS)):
             _bins = _bin_idx_per_band[b]
             if _bins.size > 0:

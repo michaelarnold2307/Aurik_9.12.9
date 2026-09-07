@@ -165,3 +165,6 @@ reports/
 
 # §v10.101 SOTA modules
 backend/core/dsp/__pycache__/
+
+# Kun runtime UI state
+.kun-canvas/
