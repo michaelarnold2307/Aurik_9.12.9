@@ -403,11 +403,16 @@ class PerceptualSalienceEstimator:
                 else:
                     erb_anns = all_anns
 
-                # §2.46h (2026-09-06) MESSUNG: Parallelisierung dieser Schleife ist
-                # kontraproduktiv (gemessen 0.72× — die innere Arbeit ist GIL-
-                # gebundener Python-Code: _to_bark_bands-Schleifen und kleine FFTs
-                # releasen den GIL nicht lange genug, Thread-Overhead dominiert).
-                # Der SOTA-Ausbau ist VEKTORISIERUNG (STFT-Batching), nicht Threading.
+                # §2.46h (2026-09-06) MESSUNG: Threading dieser Schleife ist
+                # kontraproduktiv (gemessen 0.72×). Auch der Batch-STFT-Pfad
+                # (estimate_residuum_salience_batch) wurde gemessen: 1.8× schneller,
+                # ABER er ändert die Maskierungs-Klassifikation deutlich
+                # (mean |ΔSalienz| = 0.20, 978→790 „maskiert“ von 1000 Events) —
+                # die alte Konkatenat-Semantik trägt einen Selbst-Maskierungs-Bias,
+                # deren Korrektur eine HÖR-ENTSCHEIDUNG ist und Golden-Set-
+                # Validierung braucht. Bis dahin bleibt der Per-Event-Pfad Default;
+                # der Batch liegt als getesteter, nicht-default Pfad in
+                # residuum_masking.estimate_residuum_salience_batch vor.
                 for ann in erb_anns:
                     erb_result = erb_model.compute_masking_threshold(
                         mono,
@@ -741,15 +746,17 @@ class PerceptualSalienceEstimator:
         hop_samples = max(1, int(self._HOP_S * sr))
 
         n_frames = max(1, (len(mono) - win_samples) // hop_samples + 1)
-        loudness = np.full(n_frames, -100.0, dtype=np.float64)
-
-        for i in range(n_frames):
-            start = i * hop_samples
-            end = start + win_samples
-            if end > len(mono):
-                break
-            rms = np.sqrt(np.mean(mono[start:end] ** 2) + 1e-12)
-            loudness[i] = 20.0 * np.log10(max(rms, 1e-10))
+        # §2.46h (2026-09-06) Vektorisierung: Strided-Fenster statt Python-Loop.
+        # np.mean/sq/rt/log10 pro Zeile identisch zur früheren Per-Frame-Schleife
+        # (gleiche Elemente, gleiche Reihenfolge) → bit-identisch, kein GIL-Hotspot
+        # mehr bei 44k Frames (224s-Song).
+        _mono8 = np.ascontiguousarray(mono, dtype=np.float64)
+        _frames = np.lib.stride_tricks.as_strided(
+            _mono8, shape=(n_frames, win_samples), strides=(hop_samples * _mono8.itemsize, _mono8.itemsize)
+        )
+        _rms = np.sqrt(np.mean(_frames * _frames, axis=1) + 1e-12)
+        loudness = 20.0 * np.log10(np.maximum(_rms, 1e-10))
+        loudness = np.asarray(loudness, dtype=np.float64)
 
         return loudness  # type: ignore[no-any-return]
 

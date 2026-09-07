@@ -27,6 +27,30 @@
   Carrier-First-Kettenordnung (`transfer_chain[0]` = Primary, Folgeglieder
   chronologisch) jetzt bindend dokumentiert; Drift-Baseline nachgezogen.
 
+### 🚀 Salience-Strecke vektorisiert — STFT-Batching + Bark-Cache (2026-09-06)
+
+- **§2.46h `_stft_magnitude_db` (residuum_masking):** Python-Frame-Loop
+  (~50 rfft(4096)-Aufrufe pro Event-Kontext) → strided-batch rfft über alle
+  Frames in einem Aufruf. **Bit-identisch** (pocketfft transformiert jede Zeile
+  mit identischem Algorithmus; Regressionstest belegt maxdiff=0.0).
+- **§2.46h `_to_bark_bands`:** Bark-Bin-Indizes einmalig gecacht statt 28×
+  Frequenz-Vergleichs-Masken pro Aufruf (1708 Aufrufe im 20s-Scan) —
+  Median-Mathematik unverändert, **bit-identisch** (Test).
+- **§2.46h `_compute_loudness_profile` (perceptual_salience):** Strided-Fenster
+  statt Python-Frame-Loop (44k Frames bei 224s-Song) — **bit-identisch**
+  (Test maxdiff=0.0).
+- **§2.46h `estimate_residuum_salience_batch` (neu, nicht-default):** EIN
+  Full-Audio-STFT (n_fft=4096) statt 2 STFTs pro Event. Gemessen: **1.8×**
+  schneller (1000 Events/60s: 2.98s→1.63s), deterministisch (§G5), aber
+  **mean |ΔSalienz| = 0.20** und Maskierungs-Klassifikation 978→790 von 1000
+  Events — die alte Konkatenat-Semantik trägt einen Selbst-Maskierungs-Bias,
+  dessen Korrektur eine HÖR-ENTSCHEIDUNG ist und Golden-Set-Validierung
+  braucht. Der Per-Event-Pfad bleibt Default; der Batch liegt als getesteter
+  Pfad vor (Fallback für ≤1 Event exakt identisch).
+- **Messung:** annotate_defect_scores (60s, 7461 Events) 28.9s; der
+  verbleibende Kostenblock sind die ERB-Per-Event-FFTs (n_fft variabel pro
+  Segment — Grid-Änderung = gleiche Semantik-Frage wie beim Batch).
+
 ### 🛠️ Restaurations-Lauf-Analyse — Hör-Gate-Verdrahtung + Phantom-Reparaturen (2026-09-06)
 
 - **§2.46g phase_56 Material-BW-Ceiling:** `_detect_band_gaps` scante den vollen
