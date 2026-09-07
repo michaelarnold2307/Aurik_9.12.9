@@ -137,6 +137,15 @@
   nur die ERZEUGUNG neuer Burst-Artefakte löst §VOD-1 aus. +2
   Regressionstests (Sibilant-Quelle mit nötigem De-essing → kein Flag;
   Artefakt-Erzeugung → Flag), Schwellwert-Pin an neue Einheit angepasst.
+- **HTDemucs-Zeitbudget 15→60 s (2026-09-07):** separation_fidelity fiel bei
+  27.2 s Trennung über das 15-s-Budget in den Proxy-Fallback — längere Songs
+  bekamen nie echte Stem-Trennung. `_sep_time_budget_s` jetzt
+  `max(60.0, 0.5×RT)` — kurze Excerpts erhalten echte Separation, lange Songs
+  skalieren weiter mit 0.5× RT. Die SIR-Proxy-Tests hingen am Budget als
+  Proxy-Trigger — jetzt deterministisch via `proxy_only`-Fixture
+  (Monkeypatch des Separators) statt maschinen-abhängigem Timeout; Budget-Test
+  an neue Formel angepasst. +Bandit B324 (MD5 → usedforsecurity=False),
+  Bug-9-except:pass mit Logging, 3 Log-Meldungen eingedeutscht, C408-Fix.
 - **Pre-Commit-Gate-Härtung (2026-09-06):** drei weitere Import-/NameError-Bugs
   der gleichen Klasse behoben — (a) `phase_04_eq_correction._apply_peaking_filter`
   nutzte `_safe_sosfiltfilt04` ohne lokalen Import (NameError bei jedem

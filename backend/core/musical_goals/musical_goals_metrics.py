@@ -2227,7 +2227,7 @@ class GrooveMetric:
         try:
             # §v10.131 Depth-adaptive onset detection: tiefe Ketten brauchen
             # sensitivere Detektion weil HF-Transienten durch NR gedämpft sind.
-            _onset_kwargs: dict[str, Any] = dict(hop_length=512, backtrack=False, units="time")
+            _onset_kwargs: dict[str, Any] = {"hop_length": 512, "backtrack": False, "units": "time"}
             try:
                 from backend.core.calibration_context import get_calibration_context
 
@@ -3580,10 +3580,11 @@ def _sep_time_budget_s(duration_s: float) -> float:
 
     Kalibriert am Elke-Best-Referenzlauf: ~0.35× RT auf CPU (Modell-Warm-up
     ausgenommen — läuft in measure_all vorab außerhalb der Budget-Uhr).
-    0.5× RT + 3-s-Floor gibt Marge für langsame Maschinen, ohne die
-    Budget-Semantik auszuhöhlen.
+    0.5× RT + 60-s-Floor: Der Floor wurde 2026-09-07 von 3 s auf 60 s
+    angehoben — längere Songs/Excerpts und ROCm-erste Läufe brauchen echte
+    Trennung statt Proxy-Fallback (Befund: 27.2 s bei 15-s-Budget).
     """
-    return float(max(3.0, duration_s * 0.5))
+    return float(max(60.0, duration_s * 0.5))
 
 
 class SeparationFidelityMetric:
@@ -3655,7 +3656,9 @@ class SeparationFidelityMetric:
             if ref.ndim > 1:
                 ref = np.mean(ref, axis=0 if ref.shape[0] <= 2 else 1).astype(np.float32)
             ref_mono = ref.astype(np.float32)
-            return self._reference_based(audio_mono, ref_mono, sr, material_type=material_type, global_scalar=global_scalar)
+            return self._reference_based(
+                audio_mono, ref_mono, sr, material_type=material_type, global_scalar=global_scalar
+            )
 
         return self._reference_free(audio_mono, sr, material_type=material_type)
 
@@ -3720,7 +3723,7 @@ class SeparationFidelityMetric:
         # = Qualitätsrisiko) und verfehlten echte Wiederholungen später im Signal.
         _bytes_for_hash = restored[:min_len].tobytes()
         _step_hash = max(1, len(_bytes_for_hash) // 4_000_000)
-        _hash_key = int(hashlib.md5(_bytes_for_hash[::_step_hash]).hexdigest(), 16) % (2**32)
+        _hash_key = int(hashlib.md5(_bytes_for_hash[::_step_hash], usedforsecurity=False).hexdigest(), 16) % (2**32)
         cache_key = (
             _hash_key,
             int(sr),
@@ -3731,7 +3734,7 @@ class SeparationFidelityMetric:
             str(material_type),
         )
         if cache_key in cache:
-            logger.debug("separation_fidelity: HTDemucs cache hit (global_scalar=%.3f)", _global_scalar)
+            logger.debug("separation_fidelity: HTDemucs Zwischenspeicher-Treffer (global_scalar=%.3f)", _global_scalar)
             return float(cache[cache_key])
 
         # §m2 Mess-Budget (pro Lauf, song-isoliert je MusicalGoalsChecker-Instanz):
@@ -3755,7 +3758,7 @@ class SeparationFidelityMetric:
                 _prior = None
             if _prior is None:
                 logger.warning(
-                    "separation_fidelity: HTDemucs-Mess-Budget erschöpft (2/Lauf, §m2) → neutraler Proxy"
+                    "separation_fidelity: HTDemucs-Mess-Kontingent erschöpft (2/Lauf, §m2) → neutraler Proxy"
                 )
                 return self._separation_fidelity_proxy(restored, reference, sr, min_len)
             logger.warning(
@@ -3814,7 +3817,7 @@ class SeparationFidelityMetric:
 
         except Exception as e:
             # Fallback zur Proxy-Methode bei HTDemucs-Fehler
-            logger.warning("HTDemucs Separation fehlgeschlagen, fallback zu SDR-Proxy: %s", e)
+            logger.warning("HTDemucs Separation fehlgeschlagen, Ersatzpfad SDR-Proxy: %s", e)
             return self._separation_fidelity_proxy(restored, reference, sr, min_len)
 
     def _separation_fidelity_proxy(
@@ -4564,7 +4567,7 @@ class MusicalGoalsChecker:
                     try:
                         _wp.separate(np.zeros(max(int(sr // 4), 1), dtype=np.float32), sr)
                     except Exception:
-                        pass
+                        logger.debug("measure_all: HTDemucs warm-up nicht möglich (nicht blockierend)")
                     logger.debug(
                         "measure_all: HTDemucs warm-up %.1f s (außerhalb Per-Goal-Budget)",
                         time.perf_counter() - _t_warm0,

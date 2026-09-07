@@ -951,12 +951,28 @@ class TestSeparationFidelitySIRProxy:
 
     SR = 48000
 
+    @pytest.fixture
+    def proxy_only(self, monkeypatch):
+        """Erzwingt deterministisch den SIR-Proxy-Pfad.
+
+        Seit dem 60-s-Budget (2026-09-07) würde die echte Separation sonst
+        durchlaufen — die Proxy-Formel-Tests müssen unabhängig vom
+        Maschinen-Timing den Proxy testen.
+        """
+        import plugins.htdemucs_plugin as _hd
+
+        class _NoSep:
+            def separate(self, audio, sr):
+                raise RuntimeError("proxy-forced")
+
+        monkeypatch.setattr(_hd, "get_htdemucs_plugin", lambda: _NoSep())
+
     def _sine(self, freq: float, dur: float = 10.0) -> np.ndarray:
         # 10 s: SeparationFidelityMetric short-form blend needs ≥ 8 s for _rel = 1.0
         t = np.linspace(0, dur, int(self.SR * dur), endpoint=False)
         return np.sin(2 * np.pi * freq * t).astype(np.float32)  # type: ignore[no-any-return]
 
-    def test_perfect_restoration_score_near_1(self):
+    def test_perfect_restoration_score_near_1(self, proxy_only):
         """Identische restored/reference → Score ≥ 0.95."""
         from backend.core.musical_goals.musical_goals_metrics import SeparationFidelityMetric
 
@@ -965,7 +981,7 @@ class TestSeparationFidelitySIRProxy:
         score = m._reference_based(ref.copy(), ref, self.SR)
         assert score >= 0.95, f"Perfect restoration: expected ≥ 0.95, got {score:.3f}"
 
-    def test_periodic_interference_reduces_score(self):
+    def test_periodic_interference_reduces_score(self, proxy_only):
         """Periodische Interferenz (Frequenz-Leakage) senkt den Score vs. perfekter Restaurierung."""
         from backend.core.musical_goals.musical_goals_metrics import SeparationFidelityMetric
 
@@ -978,7 +994,7 @@ class TestSeparationFidelitySIRProxy:
             f"Interference should reduce score: perfect={score_perfect:.3f} interference={score_interference:.3f}"
         )
 
-    def test_score_range(self):
+    def test_score_range(self, proxy_only):
         """Score liegt immer in [0, 1]."""
         from backend.core.musical_goals.musical_goals_metrics import SeparationFidelityMetric
 
@@ -989,7 +1005,7 @@ class TestSeparationFidelitySIRProxy:
             restored = rng.standard_normal(self.SR).astype(np.float32)
             assert 0.0 <= m._reference_based(restored, ref, self.SR) <= 1.0
 
-    def test_formula_weights_perfect_case(self):
+    def test_formula_weights_perfect_case(self, proxy_only):
         """Gewichtete Summe (0.40+0.35+0.25) ergibt ≈ 1.0 bei perfekter Restaurierung."""
         from backend.core.musical_goals.musical_goals_metrics import SeparationFidelityMetric
 
@@ -1831,20 +1847,20 @@ class TestVQIGenreWeights:
 
 
 def test_sep_time_budget_scaling():
-    """§Separation-SOTA: HTDemucs-Budget skaliert mit Audio-Länge, Floor 3 s.
+    """§Separation-SOTA: HTDemucs-Budget skaliert mit Audio-Länge, Floor 60 s.
 
-    Regression für die Warnung „HTDemucs 10.5s > Budget 3.0s“ (2026-09-06):
-    Das Budget war statisch 3 s — Modell-Warm-up und Voll-Song-Inferenz
-    rissen es bei jedem Session-Start. Jetzt: 0.5× RT + 3-s-Floor,
-    Warm-up exklusiv (läuft in measure_all vorab).
+    Regression für die Warnung „HTDemucs 27.2s > Budget 15.0s“ (2026-09-07):
+    0.5× RT war für längere Songs/ROCm-erste Läufe zu knapp. Jetzt:
+    0.5× RT + 60-s-Floor, Warm-up exklusiv (läuft in measure_all vorab).
     """
     from backend.core.musical_goals.musical_goals_metrics import _sep_time_budget_s
 
-    assert _sep_time_budget_s(2.0) == 3.0  # Floor
-    assert _sep_time_budget_s(30.0) == 15.0  # 0.5× RT
-    assert _sep_time_budget_s(240.0) == 120.0  # Voll-Song
-    # 30-s-Clip bei ~0.35× RT ≈ 10.5 s liegt deutlich unter 15 s Budget.
-    assert 10.5 <= _sep_time_budget_s(30.0)
+    assert _sep_time_budget_s(2.0) == 60.0  # Floor
+    assert _sep_time_budget_s(30.0) == 60.0  # 0.5× RT (15 s) < Floor
+    assert _sep_time_budget_s(240.0) == 120.0  # Voll-Song: 0.5× RT
+    assert _sep_time_budget_s(300.0) == 150.0  # langer Song: 0.5× RT
+    # 30-s-Clip bei ~0.35× RT ≈ 10.5 s liegt deutlich unter 60 s Budget.
+    assert _sep_time_budget_s(30.0) >= 10.5
 
 
 if __name__ == "__main__":
