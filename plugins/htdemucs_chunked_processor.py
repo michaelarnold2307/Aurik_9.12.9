@@ -140,7 +140,6 @@ class ChunkedProcessor:
             return result_48k
 
         # Initialisiere Output-Stems (Akkumulator)
-        crossfade_samples = int(sr * self.CROSSFADE_MS / 1000)
         stems_out: dict[str, np.ndarray] = {
             "vocals": np.zeros((2, orig_length), dtype=np.float32),
             "drums": np.zeros((2, orig_length), dtype=np.float32),
@@ -160,7 +159,6 @@ class ChunkedProcessor:
             chunk_start = pos
             chunk_end = min(pos + self.WINDOW_SIZE, orig_length)
             chunk_len = chunk_end - chunk_start
-            is_last_chunk = chunk_end >= orig_length
 
             logger.debug(
                 "Chunk %d: [%d:%d] (%d samples, %.2fs)",
