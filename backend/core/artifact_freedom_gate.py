@@ -349,7 +349,7 @@ class ArtifactFreedomGate:
         phase_id: str = "",
         goal_weights: dict[str, float] | None = None,
         restorability_score: float | None = None,
-        transfer_chain_depth: int = 1,
+        transfer_chain_depth: int | None = None,
     ) -> ArtifactFreedomResult:
         """Bewertet artifact freedom of restored audio vs original.
 
@@ -362,10 +362,16 @@ class ArtifactFreedomGate:
             goal_weights: optional §2.56 per-song goal-weights for adaptive annoyance guard
             restorability_score: optional restorability context (0-100) for adaptive tolerance
             transfer_chain_depth: chain depth for depth-adaptive artifact tolerance
+                (§G86 (GEBOTE.md): Default nur aus CalibrationContext; None → auflösen)
 
         Returns:
             ArtifactFreedomResult with artifact_freedom score and details
         """
+        if transfer_chain_depth is None:
+            # §G86 (GEBOTE.md): transfer_chain_depth-Default nur aus CalibrationContext.
+            from backend.core.defect_to_audibility import _resolve_transfer_chain_depth
+
+            transfer_chain_depth = _resolve_transfer_chain_depth(None)
         original = np.nan_to_num(np.asarray(original, dtype=np.float32), nan=0.0, posinf=0.0, neginf=0.0)
         restored = np.nan_to_num(np.asarray(restored, dtype=np.float32), nan=0.0, posinf=0.0, neginf=0.0)
 

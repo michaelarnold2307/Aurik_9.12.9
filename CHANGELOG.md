@@ -2,6 +2,31 @@
 
 ## Unreleased (nach 10.0.20)
 
+### 🕵️ Forensik-Konsistenz: Material-Veto, Ketten-Ordnung, Cross-Validation (2026-09-06)
+
+- **§2.46f Material-Veto (Defer/Veto):** Die DefectScanner-Feature-Heuristik
+  („Auto-detected cassette with confidence 10.42“) widersprach dem
+  MediumDetector-Physical-Gate-Primary (vinyl, rotation=0.411). Root-Cause:
+  §v10.14-Baseline-Boni (vinyl+6/tape+4/cassette+5) — Priors als Score getarnt.
+  Fix: Boni entfernt; Forensic-Primary wird bei schwacher Evidenz übernommen
+  (Defer) und bei Widerspruch erzwungen (Veto); Log meldet „score“ statt
+  „confidence“. 5 Regressionstests (§2.46f-1…4).
+- **MediumDetector-Log-Konsistenz:** Kandidaten-Gates loggen nur noch DEBUG,
+  ein einziger finaler INFO-Log meldet Primary + alle Kandidaten — die
+  widersprüchlichen Doppel-Zeilen („primary=reel_tape 0.396“ / „primary=vinyl
+  0.226“) sind weg. §6.8-Transparenz: Bei Physical-Gate-Override über einen
+  unknown-dominierten Bayesian-Posterior wird die Evidenz-Basis explizit geloggt.
+- **Cross-Validierung ehrlich:** „stimmen überein“ → „ketten-konsistent“
+  (Faktoren bestätigen Ketten-Zugehörigkeit, keine gegenseitige
+  Material-Gleichheit); Factor 3 nutzt das unabhängige
+  `auto_detected_material` statt des semi-tautologischen Caller-Hints.
+- **RIAA-Log-Transparenz:** „RIAA curve detected“ → „classified“ —
+  `curve=unknown conf=0.99` ist die sichere Klassifikation „keine
+  Standard-Kurve“ (Flat-Transfer), kein Fehlschlag.
+- **Spec 05 §6.7 präzisiert:** Supplementär-Prinzip (Defer/Veto) und
+  Carrier-First-Kettenordnung (`transfer_chain[0]` = Primary, Folgeglieder
+  chronologisch) jetzt bindend dokumentiert; Drift-Baseline nachgezogen.
+
 ### 👂 Hörordnung Ebene 3 — maschineller Audit + Matrix-Harness-CI-Gate
 
 - **Ebene 3:** `wohlklang_ordnung_gate` (`WohlklangOrdnungGate`) — Audit der

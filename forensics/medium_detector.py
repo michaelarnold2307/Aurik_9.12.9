@@ -2458,13 +2458,17 @@ class MediumDetector:
                             _detection_method = f"Vinyl crackle+infrasonic (crackle={fp.crackle_density:.4f}, infrasonic={fp.infrasonic_rms:.4f})"
                         else:
                             _detection_method = f"codec-adaptive gate (conf={_cand_conf:.3f}≥{_pa_conf_thresh:.3f})"
-                        logger.info(
-                            "MediumDetector: ✅ PHYSICAL ANALOG erkannt — "
-                            "primary=%s (confidence=%.3f) via %s; "
+                        # §2.46a-Log-Fix (2026-09-06): Kandidaten-Gates nur noch auf DEBUG —
+                        # mehrere Gate-Positive in Folge erzeugten sonst widersprüchliche
+                        # INFO-Zeilen („primary=reel_tape 0.396“ und „primary=vinyl 0.226“).
+                        # Der finale Stand wird NACH der Schleife genau einmal geloggt.
+                        logger.debug(
+                            "MediumDetector: ✅ PHYSICAL ANALOG Gate-Positiv — "
+                            "candidate=%s (confidence=%.3f) via %s; "
                             "full chain=%s; "
                             "features [crackle=%.4f infrasonic=%.4f rotation=%.3f wow_flutter=%.3f]",
-                            best_analog,
-                            best_analog_score,
+                            _cand_analog,
+                            _cand_conf,
                             _detection_method,
                             [m for m, _ in _physical_analog_sources],
                             fp.crackle_density,
@@ -2475,6 +2479,25 @@ class MediumDetector:
                         # Kein break — wir überschreiben mit jedem späteren Gate-Positiv.
                         # Letzter Treffer in _MEDIUM_ORDER-Reihenfolge = closest-to-codec.
                         # Ausnahme: vinyl via Rotation-Gate bleibt Primary (_primary_vinyl_forced_by_rotation_gate).
+
+                if best_analog is not None:
+                    # §2.46a-Log-Fix (2026-09-06): genau EIN finaler INFO-Log —
+                    # §6.7e (copilot-instructions.md): letztes Gate-Positiv = closest-to-codec
+                    # = Primary; niedrigere Konfidenz als ein früherer Kandidat ist KEIN
+                    # Widerspruch, sondern Ergebnis der Multi-Kandidaten-Regel.
+                    logger.info(
+                        "MediumDetector: ✅ PHYSICAL ANALOG erkannt — "
+                        "primary=%s (confidence=%.3f) via physical gate(s); "
+                        "candidates=%s; "
+                        "features [crackle=%.4f infrasonic=%.4f rotation=%.3f wow_flutter=%.3f]",
+                        best_analog,
+                        best_analog_score,
+                        ", ".join(f"{m}(conf={c:.3f})" for m, c in _physical_analog_sources),
+                        fp.crackle_density,
+                        fp.infrasonic_rms,
+                        fp.rotation_strength,
+                        fp.wow_flutter_index,
+                    )
 
                 if best_analog is None:
                     _sources_detail = (
@@ -2965,6 +2988,16 @@ class MediumDetector:
             confidence,
             ", ".join(f"{m}={s:.3f}" for m, s in list(posteriors.items())[:3]),
         )
+        if _best_analog_set_by_physical_gate and posteriors.get("unknown", 0.0) > 0.60:
+            # §6.8-Transparenz (2026-09-06): Physical-Gates überstimmen einen
+            # unbekannt-dominierten Bayesian-Posterior — die Konfidenz stützt sich
+            # auf physikalische Evidenz (rotation/infrasonic/wow), nicht auf den
+            # posterior (der bei mehrstufigen Ketten prior-dominiert ist).
+            logger.info(
+                "MediumDetector: §6.8 Physical-Gate-Override — Bayesian top=unknown (%.3f); "
+                "Konfidenz basiert auf physikalischer Evidenz, nicht auf dem Posterior",
+                posteriors.get("unknown", 0.0),
+            )
 
         result = MediumDetectionResult(
             transfer_chain=chain,
@@ -3020,7 +3053,11 @@ class MediumDetector:
                 result.riaa_curve_type = _riaa_curve
                 result.riaa_curve_confidence = _riaa_conf
                 if _riaa_conf >= 0.70:
-                    result.evidence.append(f"RIAA curve detected: {_riaa_curve} ({_riaa_conf:.0%} konfident)")
+                    # §6.6-Transparenz (2026-09-06): „classified“ statt „detected“ —
+                    # ein conf=0.99-Ergebnis mit curve=unknown ist KEIN Fehlschlag,
+                    # sondern die sichere Klassifikation „keine Standard-Kurve“
+                    # (z. B. Flat-Transfer mit bereits angewandter RIAA-De-Emphasis).
+                    result.evidence.append(f"RIAA curve classified: {_riaa_curve} ({_riaa_conf:.0%} konfident)")
                     logger.info(
                         "MediumDetector: RIAA curve=%s conf=%.2f material=%s",
                         _riaa_curve,

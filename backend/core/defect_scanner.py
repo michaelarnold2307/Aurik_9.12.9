@@ -1992,7 +1992,21 @@ class DefectScanner:
 
         # Material-Typ: Hint als Prior, aber auto-detect für spectral_fingerprint immer ausführen
         _material_hint = material_type  # Hint des Aufrufers (kann None sein)
-        _auto_material = self._auto_detect_material(audio, era_decade=era_decade)  # §6.6.1: immer berechnen
+        # §2.46f-Veto-Fix (2026-09-06): Forensic-Primary als starke Evidenz an die
+        # Auto-Detection übergeben — die Feature-Heuristik darf dem MediumDetector
+        # (Physical-Gates) nicht widersprechen (Produktionsbefund: „cassette 10.42“
+        # bei Physical-Gate-Vinyl mit rotation=0.411). MediumDetector ist autoritativ,
+        # DefectScanner nur supplementär (pre_analysis §v10.14).
+        _forensic_primary: MaterialType | None = None
+        _fmd_primary_raw = getattr(forensic_medium_result, "primary_material", None)
+        if _fmd_primary_raw is not None:
+            try:
+                _forensic_primary = MaterialType(str(getattr(_fmd_primary_raw, "value", _fmd_primary_raw)))
+            except ValueError:
+                _forensic_primary = None  # z. B. lacquer_disc — kein MaterialType-Pendant
+        _auto_material = self._auto_detect_material(
+            audio, era_decade=era_decade, forensic_material=_forensic_primary
+        )  # §6.6.1: immer berechnen
         _sf["material_detected"] = float(list(MaterialType).index(_auto_material))
         if material_type is None:
             material_type = self.material_type or _auto_material
@@ -3337,7 +3351,12 @@ class DefectScanner:
 
     # ========== MATERIAL AUTO-DETECTION ==========
 
-    def _auto_detect_material(self, audio: np.ndarray, era_decade: int | None = None) -> MaterialType:
+    def _auto_detect_material(
+        self,
+        audio: np.ndarray,
+        era_decade: int | None = None,
+        forensic_material: MaterialType | None = None,
+    ) -> MaterialType:
         """
         Auto-Detect Material-Typ basierend auf Audio-Charakteristiken.
 
@@ -3351,15 +3370,24 @@ class DefectScanner:
         §v10.14.1: era_decade moduliert die Rumble-Gewichtung. Bei digitalen
         Ära-Aufnahmen (≥1990) ist sub-60Hz Energie mit hoher Wahrscheinlichkeit
         musikalischer Bass, NICHT mechanischer Rumble.
+
+        §2.46f (2026-09-06): forensic_material (MediumDetector-Primary via
+        Physical-Gates) hat Vorrang vor der Heuristik — siehe §6.8/§v10.14
+        (MediumDetector autoritativ, DefectScanner supplementär).
         """
         if audio.ndim == 1:
             # Mono → Shellac, Vinyl (Mono) oder Tape (Mono)
-            return self._detect_mono_material(audio, era_decade=era_decade)
+            return self._detect_mono_material(audio, era_decade=era_decade, forensic_material=forensic_material)
         else:
             # Stereo → Vinyl, Tape, CD oder Streaming
-            return self._detect_stereo_material(audio, era_decade=era_decade)
+            return self._detect_stereo_material(audio, era_decade=era_decade, forensic_material=forensic_material)
 
-    def _detect_mono_material(self, audio: np.ndarray, era_decade: int | None = None) -> MaterialType:
+    def _detect_mono_material(
+        self,
+        audio: np.ndarray,
+        era_decade: int | None = None,
+        forensic_material: MaterialType | None = None,
+    ) -> MaterialType:
         """
         Unterscheidet Shellac vs Vinyl (Mono) vs Tape (Mono).
 
@@ -3482,15 +3510,37 @@ class DefectScanner:
         best_score = scores[best_material]
 
         if best_score > 0.5:
+            # §2.46f-Veto-Fix (2026-09-06): klarer Widerspruch zur Forensic-Erkennung
+            # → Forensic übernimmt (Physical-Gates > Feature-Score).
+            if (
+                forensic_material is not None
+                and forensic_material != MaterialType.UNKNOWN
+                and best_material != forensic_material
+            ):
+                logger.info(
+                    "§2.46f Auto-Detection mono %s (score=%.2f) widerspricht Forensic-Primary %s → Forensic übernimmt",
+                    best_material.value,
+                    best_score,
+                    forensic_material.value,
+                )
+                return forensic_material
             # §2.46a: Auto-detected material tracked for provenance
-            logger.info("§2.46a Auto-detected mono %s with confidence %.2f", best_material.value, best_score)
+            logger.info("§2.46a Auto-detected mono %s with score=%.2f", best_material.value, best_score)
             return best_material
         else:
+            if forensic_material is not None and forensic_material != MaterialType.UNKNOWN:
+                # Schwache Feature-Evidenz → Forensic-Material übernehmen statt UNKNOWN.
+                return forensic_material
             # INFO (not WARNING): auto-detection failed gracefully, fallback chain activated per §3.0
             logger.debug("Mono material detection inconclusive (best=%.2f), falling back to transfer-chain analysis", best_score)
             return MaterialType.UNKNOWN
 
-    def _detect_stereo_material(self, audio: np.ndarray, era_decade: int | None = None) -> MaterialType:
+    def _detect_stereo_material(
+        self,
+        audio: np.ndarray,
+        era_decade: int | None = None,
+        forensic_material: MaterialType | None = None,
+    ) -> MaterialType:
         """
         Unterscheidet alle Stereo-Material-Typen (Vinyl, Tape, Reel-Tape, DAT, CD, MP3, AAC, MiniDisc, Streaming).
 
@@ -3558,7 +3608,6 @@ class DefectScanner:
         vinyl_score += click_score * 1.0  # Moderate Clicks
         vinyl_score -= compression_score * 2.0  # Vinyl hat keine Compression
         vinyl_score -= digital_score * 2.0  # Vinyl ist analog
-        vinyl_score += 6.0  # §v10.14 FIX: Baseline-Bonus (Vinyl ~Tape/Cassette-Niveau)
         if _era_is_digital_st:
             vinyl_score -= _digital_boost_st  # Digital-Ära → Vinyl unwahrscheinlich
         scores[MaterialType.VINYL] = max(0, vinyl_score)
@@ -3571,7 +3620,6 @@ class DefectScanner:
         tape_score -= crackle_score * 0.5  # Gealtertes Tape kann Crackle haben (Oxidflaking) - leichte Penalty
         tape_score -= rumble_energy * 5.0 * _rumble_factor_st  # Rumble era-moduliert
         tape_score -= compression_score * 2.0  # Tape analog
-        tape_score += 4.0  # §v10.14 FIX: Baseline-Bonus für TAPE(=Cassette) Stereo-Pfad
         if _era_is_digital_st:
             tape_score -= _digital_boost_st * 0.5  # Digital-Ära → Tape unwahrscheinlich
         scores[MaterialType.TAPE] = max(0, tape_score)
@@ -3703,7 +3751,6 @@ class DefectScanner:
         cassette_score -= rumble_energy * 8.0  # Leichter Transport → kein Rumble
         cassette_score -= compression_score * 2.0  # Analog - kein Codec
         cassette_score -= digital_score * 2.0  # Analog
-        cassette_score += 5.0  # §v10.14 FIX: Baseline-Bonus (Cassette ist häufigstes Consumer-Format)
         # Boost: hohe Flutter + HF-Hiss → eindeutiger Cassetten-Fingerabdruck
         if wow_flutter_score > 0.2 and hf_noise_score > 0.15:
             cassette_score += 1.5
@@ -3711,14 +3758,40 @@ class DefectScanner:
 
         # Wähle Material mit höchstem Score
         if not scores or max(scores.values()) < 0.5:  # Minimaler Confidence-Threshold
+            # §2.46f-Veto-Fix (2026-09-06): Schwache Feature-Evidenz → Forensic-Material
+            # übernehmen statt UNKNOWN. Die §v10.14-Baseline-Boni (vinyl+6/tape+4/
+            # cassette+5) sind entfernt — sie waren Priors als Score getarnt und
+            # erzeugten „cassette 10.42“ bei Physical-Gate-Vinyl (rotation=0.411).
+            if forensic_material is not None and forensic_material != MaterialType.UNKNOWN:
+                logger.debug(
+                    "Material scores unter Schwelle (%s) → forensic %s übernommen",
+                    scores,
+                    forensic_material.value,
+                )
+                return forensic_material
             return MaterialType.UNKNOWN
 
         best_material = max(scores.items(), key=lambda x: x[1])
         logger.debug("Material scores: %s", scores)
+        # §2.46f-Veto-Fix (2026-09-06): Widerspruch zur Forensic-Erkennung → Forensic
+        # übernimmt. Der Score ist KEIN [0,1]-Maß und darf nicht als „confidence“
+        # geloggt werden (Produktionsbefund: „confidence 10.42“).
+        if (
+            forensic_material is not None
+            and forensic_material != MaterialType.UNKNOWN
+            and best_material[0] != forensic_material
+        ):
+            logger.info(
+                "§2.46f Auto-Detection %s (score=%.2f) widerspricht Forensic-Primary %s → Forensic übernimmt",
+                best_material[0].value,
+                best_material[1],
+                forensic_material.value,
+            )
+            return forensic_material
         # §v10.350 SOTA: Only log material detection in debug mode or during development
         # This prevents console spam on every import while still enabling troubleshooting
         if logger.isEnabledFor(logging.DEBUG):
-            logger.info("§2.46f Auto-detected %s with confidence %.2f", best_material[0].value, best_material[1])
+            logger.info("§2.46f Auto-detected %s with score=%.2f", best_material[0].value, best_material[1])
 
         return best_material[0]
 

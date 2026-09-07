@@ -568,12 +568,24 @@ def run_pre_analysis(
 
             # Factor 3: Defect scanner material vs chain
             if result.defects is not None:
-                _def_mat_raw = getattr(result.defects, "material_type", None)
-                # §v10.304.16: Enum.value statt str(Enum) → "mp3_high" statt "MaterialType.MP3_HIGH"
-                if hasattr(_def_mat_raw, "value"):
-                    _def_mat = str(_def_mat_raw.value)  # type: ignore[union-attr]
-                else:
-                    _def_mat = str(_def_mat_raw or getattr(result.defects, "auto_detected_material", "") or "")
+                # §2.46f-Fix (2026-09-06): auto_detected_material ist das UNABHÄNGIGE
+                # Heuristik-Signal; material_type ist der vom MediumDetector übernommene
+                # Hint und damit semi-tautologisch (bestätigt nur, was der Aufrufer
+                # selbst übergab). Nur die unabhängige Erkennung kann die Kette
+                # tatsächlich bestätigen — oder widerlegen.
+                _def_mat = ""
+                _auto_dm = getattr(result.defects, "auto_detected_material", None)
+                if _auto_dm is not None:
+                    _auto_dm_v = str(getattr(_auto_dm, "value", _auto_dm)).lower()
+                    if _auto_dm_v not in ("unknown", "none", ""):
+                        _def_mat = _auto_dm_v
+                if not _def_mat:
+                    _def_mat_raw = getattr(result.defects, "material_type", None)
+                    # §v10.304.16: Enum.value statt str(Enum) → "mp3_high" statt "MaterialType.MP3_HIGH"
+                    if hasattr(_def_mat_raw, "value"):
+                        _def_mat = str(_def_mat_raw.value)  # type: ignore[union-attr]
+                    else:
+                        _def_mat = str(_def_mat_raw or "")
                 if _def_mat and _def_mat != "unknown":
                     if _def_mat in _cv_chain or any(_def_mat in m for m in _cv_chain):
                         _cv_agreements.append(f"Defect({_def_mat})")
@@ -593,6 +605,11 @@ def run_pre_analysis(
                     _cv_confidence,
                 )
             elif _cv_agreements:
+                # §2.46f-Fix (2026-09-06): „stimmen überein“ → „ketten-konsistent“.
+                # Die Faktoren bestätigen die KETTEN-Zugehörigkeit (z. B. Era=reel_tape
+                # und Defect=vinyl sind beide legitime Stufen einer vinyl→reel_tape-Kette),
+                # nicht gegenseitige Material-Gleichheit — die alte Formulierung las sich
+                # wie ein Material-Konsens und war irreführend.
                 # Boost confidence when multiple independent factors agree
                 _boost = min(0.15, len(_cv_agreements) * 0.05)
                 _new_cv_conf = min(1.0, _cv_confidence + _boost)
@@ -610,7 +627,7 @@ def run_pre_analysis(
                 except Exception:
                     pass
                 logger.info(
-                    "Cross-Validierung: %d Faktoren stimmen überein (%s). Confidence %.2f → %.2f (persistiert)",
+                    "Cross-Validierung: %d Faktoren ketten-konsistent (%s). Confidence %.2f → %.2f (persistiert)",
                     len(_cv_agreements),
                     ", ".join(_cv_agreements),
                     _cv_confidence,

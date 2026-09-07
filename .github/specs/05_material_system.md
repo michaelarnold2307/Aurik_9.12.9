@@ -526,6 +526,11 @@ assert sample_rate == 48000, f"SR muss 48000 Hz sein, erhalten: {sample_rate}"
 
 **Modul**: `forensics/medium_detector.py` — `MediumDetector.detect(audio, sr, file_ext=...)` — einziges autoritatives System ab v10.0.0.
 
+**Autoritäts- und Kettenordnung (bindend ab v10.0.0, präzisiert 2026-09-06):**
+
+1. **Supplementär-Prinzip (Defer/Veto)**: Feature-basierte Material-Heuristiken — z. B. die DefectScanner-`_auto_detect_material`-Heuristik (§2.46f) — sind supplementär. Schwache Feature-Evidenz übernimmt den MediumDetector-Primary (Defer); ein widersprechendes Feature-Ergebnis darf den Primary nie überstimmen (Veto). Der Primary beruht auf Physical-Gates (Rotation/Infrasonic/Wow-Flutter, §6.7e) und Bayesian-Physical-Fusion (§6.8) — die stärkere Evidenzklasse. Produktionsbefund, der diese Regel erzwingt: „§2.46f Auto-detected cassette with confidence 10.42“ bei Physical-Gate-Vinyl (rotation=0.411) durch getarnte Prior-Baseline-Boni in der Heuristik.
+2. **Carrier-First-Kettenordnung**: `transfer_chain[0]` ist immer der Primary (Carrier-First, §2.46a); die Folgeglieder stehen chronologisch (z. B. `vinyl → reel_tape → lacquer_disc → mp3_low`). Konsumenten (pre_analysis, Era-Ceiling §2.13, Kettenstufen-Extraktion) verlassen sich auf diese Ordnung. Der chronologische Sort ist ein Auswahlmechanismus für den Primary, nicht die finale Reihenfolge.
+
 **Architektur**: Zweistufige Fusion aus Bayesian-Gaussian-Scoring + physikalischer Inferenz.
 
 ### Phase 1: Bayesian Gaussian-Likelihood-Scoring
