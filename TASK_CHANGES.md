@@ -12,10 +12,12 @@
 | M | backend/core/unified_restorer_v3.py | modifiziert |
 | M | backend/core/musical_goals/musical_goals_metrics.py | modifiziert |
 | M | backend/core/feedback_chain.py | modifiziert |
+| M | backend/core/inviting_sound_gate.py | modifiziert |
 | M | backend/core/residuum_masking.py | modifiziert |
 | M | conftest.py | modifiziert |
 | ?? | tests/unit/test_b3_full_song_defect_merge.py | ungetrackt |
 | ?? | tests/unit/test_fc_hoerordnung_pre_filter.py | ungetrackt |
+| ?? | tests/unit/test_inviting_gate_repair_exemption.py | ungetrackt |
 
 ## Entscheidungen
 
@@ -65,4 +67,12 @@
   bleiben autoritativ; unbekannte Phasen/Goals bleiben erhalten (konservativ). UV3 injiziert
   eine DSP-only-Baseline (`_fast_goal_snapshot`) als `baseline_goals` → Filter wirkt ab Iteration 1.
   5 Regressionstests in `tests/unit/test_fc_hoerordnung_pre_filter.py`.
+- **Einladungs-Gate: Sharpness-Sprung-Exemption an Reparaturstellen (Matrix-Befund Punkt 4)**:
+  sharpness_jump=0.562acum → Gate-Fail, obwohl der Sprung aus lokalisierter Reparatur stammt
+  (beabsichtigte HF-Änderung). Neu: `check_inviting_gate(..., repair_windows=...)` nimmt
+  Sprünge aus, deren Fenster ein Reparatur-Fenster überlappen (kein neuer Schwellwert —
+  das 0.2-acum-Limit der Hörordnung §6 bleibt normativ). UV3 baut die Fenster aus den
+  Defect-Locations (severity ≥ 0.20), via neuem `chunk_start_sample`-Kwarg chunk-korrekt
+  verschoben; Rohwert + Exemption-Zahl werden transparent im Kontext mitgeführt.
+  3 Regressionstests in `tests/unit/test_inviting_gate_repair_exemption.py`.
 

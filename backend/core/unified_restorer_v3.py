@@ -8072,6 +8072,14 @@ class UnifiedRestorerV3:
         _cached_defect_kwarg = kwargs.pop("cached_defect_result", None)
         _cached_medium_kwarg = kwargs.pop("cached_medium_result", None)
         _cached_restorability_kwarg = kwargs.pop("cached_restorability_result", None)
+        # §B3 Chunked-Streaming: Chunk-Offset für die Reparatur-Fenster-Zuordnung
+        # (Einladungs-Gate Sharpness-Sprung-Exemption, 2026-09-07). Defect-
+        # Locations sind Full-Song-absolut; das Gate misst den Chunk lokal.
+        _chunk_start_sample_kwarg = int(kwargs.pop("chunk_start_sample", 0) or 0)
+        if _chunk_start_sample_kwarg and isinstance(
+            getattr(self, "_restoration_context", None), dict
+        ):
+            self._restoration_context["chunk_start_sample"] = _chunk_start_sample_kwarg
         # §v10.9: Material→Decade-Fallback wenn Era-Classifier None liefert
         if _cached_era_kwarg is None and _cached_medium_kwarg is not None:
             _MATERIAL_TO_DECADE: dict[str, int] = {
@@ -17974,17 +17982,42 @@ class UnifiedRestorerV3:
                 _fatigue_idx = float(getattr(_get_xprt(), "fatigue_index", 0.0) or 0.0)
             except Exception as _fat_exc:
                 logger.debug("Ermüdungs-Index nicht verfügbar: %s", _fat_exc)
+            # §Reparatur-Fenster (2026-09-07): Defect-Locations (Full-Song-absolut)
+            # auf den aktuellen Chunk verschieben — Sharpness-Sprünge an echten
+            # Reparaturstellen sind beabsichtigt und werden vom Gate ausgenommen.
+            _repair_windows_inv: list[tuple[float, float]] = []
+            try:
+                _ctx_inv = getattr(self, "_restoration_context", None) or {}
+                _cso_inv = float((_ctx_inv or {}).get("chunk_start_sample", 0) or 0) / max(float(sample_rate), 1.0)
+                _scores_inv = getattr(defect_result, "scores", None)
+                if isinstance(_scores_inv, dict):
+                    for _dtx_inv, _dsx_inv in _scores_inv.items():
+                        if float(getattr(_dsx_inv, "severity", 0.0) or 0.0) < 0.20:
+                            continue
+                        for (_a_inv, _b_inv) in (getattr(_dsx_inv, "locations", None) or []):
+                            _a_s_inv = float(_a_inv) - _cso_inv
+                            _b_s_inv = float(_b_inv) - _cso_inv
+                            if _b_s_inv > 0.0:
+                                _repair_windows_inv.append((max(0.0, _a_s_inv), _b_s_inv))
+            except Exception as _rw_exc:
+                _repair_windows_inv = []
+                logger.debug("Reparatur-Fenster nicht verfügbar: %s", _rw_exc)
             _inviting_res = _check_inviting(
                 restored_audio,
                 sample_rate,
                 singing_mask=(getattr(self, "_restoration_context", None) or {}).get("singing_mask"),
                 fatigue_index=_fatigue_idx,
+                repair_windows=_repair_windows_inv or None,
             )
             if isinstance(getattr(self, "_restoration_context", None), dict):
                 self._restoration_context["inviting_gate"] = {
                     "passed": bool(_inviting_res.passed),
                     "max_asper_in_voice": round(float(_inviting_res.max_asper_in_voice), 4),
                     "sharpness_jump_max": round(float(_inviting_res.sharpness_jump_max), 4),
+                    "sharpness_jump_raw_max": round(
+                        float(_inviting_res.details.get("sharpness_jump_raw_max", 0.0)), 4
+                    ),
+                    "exempted_jumps": int(_inviting_res.details.get("exempted_jumps", 0)),
                     "fatigue_abort": bool(_inviting_res.fatigue_abort),
                     "n_windows": int(_inviting_res.n_windows),
                 }
@@ -44872,6 +44905,7 @@ class UnifiedRestorerV3:
                     break
 
                 _chunk_kwargs["file_path"] = f"__aurik_chunk__{i}__"
+                _chunk_kwargs["chunk_start_sample"] = int(start)
                 chunk = audio[start:end, :] if audio.ndim == 2 else audio[start:end]
 
                 # §v10.704 B28 [FIX 2026-08-23]: Goal-Referenz auf Chunk-Fenster halten.

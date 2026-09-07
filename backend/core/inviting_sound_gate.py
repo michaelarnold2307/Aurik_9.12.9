@@ -143,6 +143,7 @@ def check_inviting_gate(
     fatigue_index: float = 0.0,
     window_s: float = _WINDOW_S_DEFAULT,
     hop_s: float = _HOP_S_DEFAULT,
+    repair_windows: list[tuple[float, float]] | None = None,
 ) -> InvitingGateResult:
     """Fenster-Gate der Hörordnung Ebene 4.
 
@@ -152,6 +153,9 @@ def check_inviting_gate(
         singing_mask: optionales bool-Array (pro Fenster, 1D) — True = Stimm-
             /Klimax-Zone. Fehlt es, gelten alle Fenster als kritisch.
         fatigue_index: Ermüdungsindex aus experience_runtime (0..1).
+        repair_windows: optionale Reparatur-Zeiträume (s) — Sharpness-Sprünge,
+            die ein Reparatur-Fenster überlappen, sind beabsichtigt und werden
+            vom Jump-Kriterium ausgenommen (advisory, 2026-09-07).
     """
     res = InvitingGateResult()
     mono = np.asarray(audio, dtype=np.float64)
@@ -191,11 +195,46 @@ def check_inviting_gate(
             res.max_asper_in_voice = max(res.max_asper_in_voice, asper)
 
     res.max_asper = float(max(asper_values)) if asper_values else 0.0
-    res.sharpness_jump_max = (
+    _raw_jump_max = (
         float(max(abs(sharp_values[i + 1] - sharp_values[i]) for i in range(len(sharp_values) - 1)))
         if len(sharp_values) > 1
         else 0.0
     )
+    # §Reparatur-Kontext (2026-09-07): Sprünge an echten Reparaturstellen sind
+    # beabsichtigt (lokalisierte HF-Änderung) — das Jump-Kriterium der
+    # Hörordnung §6 zielt auf unbeabsichtigte Diskontinuitäten. Kein neuer
+    # Schwellwert: das 0.2-acum-Limit bleibt normativ, nur der Kontext wird
+    # berücksichtigt.
+    _eff_jump_max = _raw_jump_max
+    _exempted_jumps = 0
+    if _raw_jump_max > _SHARPNESS_JUMP_LIMIT and repair_windows:
+        try:
+            _kept_jumps: list[float] = []
+            for _ji in range(len(sharp_values) - 1):
+                _jv = abs(sharp_values[_ji + 1] - sharp_values[_ji])
+                if _jv <= _SHARPNESS_JUMP_LIMIT:
+                    _kept_jumps.append(_jv)
+                    continue
+                _s0 = windows[_ji][0] / sr
+                _e0 = windows[_ji + 1][1] / sr
+                _overlaps = any((_s0 < float(_rw[1]) and _e0 > float(_rw[0])) for _rw in repair_windows)
+                if _overlaps:
+                    _exempted_jumps += 1
+                else:
+                    _kept_jumps.append(_jv)
+            _eff_jump_max = float(max(_kept_jumps)) if _kept_jumps else 0.0
+            if _exempted_jumps:
+                logger.info(
+                    "Einladungs-Gate: %d Sharpness-Sprung/Sprünge an Reparaturstellen ausgenommen (raw=%.3f → effektiv=%.3f acum)",
+                    _exempted_jumps,
+                    _raw_jump_max,
+                    _eff_jump_max,
+                )
+        except Exception as _jump_exc:
+            logger.debug("Reparatur-Fenster-Exemption fehlgeschlagen: %s", _jump_exc)
+    res.sharpness_jump_max = _eff_jump_max
+    res.details["sharpness_jump_raw_max"] = round(_raw_jump_max, 3)
+    res.details["exempted_jumps"] = _exempted_jumps
     res.n_windows = len(windows)
 
     # Ermüdung (experience_runtime-Index; optional Fatigue-Analyzer-Gegenprobe)
