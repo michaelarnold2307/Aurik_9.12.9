@@ -85,8 +85,15 @@ class ChunkedProcessor:
         else:
             raise ValueError(f"Expected audio shape (T,) or (C, T), got {audio.shape}")
 
-        # Stelle sicher dass HTDemucs-Modell initialisiert ist
-        self.plugin._ensure_model()
+        # Stelle sicher dass Separations-Modell initialisiert ist.
+        # §MDX23C-Drift: HTDemucs kennt _ensure_model(), MDX23C kennt _load().
+        _ensure = getattr(self.plugin, "_ensure_model", None)
+        if callable(_ensure):
+            _ensure()
+        else:
+            _load = getattr(self.plugin, "_load", None)
+            if callable(_load):
+                _load()
 
         orig_length = audio_2ch.shape[1]
         logger.info(
@@ -100,7 +107,27 @@ class ChunkedProcessor:
         if orig_length <= self.WINDOW_SIZE:
             logger.debug("Audio kürzer als WINDOW_SIZE (%d), nutze direkte Separation", self.WINDOW_SIZE)
             # Audio erwartet 48kHz hier (bereits durch separate() resampled)
-            result_48k = self.plugin._separate_direct_impl(audio_2ch)
+            # §MDX23C-Drift (2026-09-07): get_htdemucs_plugin() liefert MDX23CPlugin —
+            # HTDemucs kennt _separate_direct_impl(), MDX23C bietet die Drop-In-API
+            # separate(audio, sr). Zusätzlich kann die Stem-Länge um ±1 Sample
+            # abweichen → auf orig_length trimmen.
+            _direct = getattr(self.plugin, "_separate_direct_impl", None)
+            if callable(_direct):
+                result_48k = _direct(audio_2ch)
+            else:
+                result_48k = self.plugin.separate(audio_2ch, 48000)
+            # Längen-Normalisierung (MDX23C kann ±1 Sample liefern)
+            if getattr(result_48k, "vocals", None) is not None and result_48k.vocals.shape[-1] != orig_length:
+                _trim_fn = lambda _v: _v[..., :orig_length] if _v.shape[-1] > orig_length else np.pad(
+                    _v, ((0, 0),) * (_v.ndim - 1) + ((0, orig_length - _v.shape[-1]),), mode="constant"
+                )
+                result_48k = type(result_48k)(
+                    vocals=_trim_fn(result_48k.vocals),
+                    drums=_trim_fn(result_48k.drums),
+                    bass=_trim_fn(result_48k.bass),
+                    other=_trim_fn(result_48k.other),
+                    sr=result_48k.sr,
+                )
             # Mono-Restore wenn nötig
             if orig_shape_mono:
                 return type(result_48k)(
@@ -155,7 +182,13 @@ class ChunkedProcessor:
 
             # HTDemucs-Separation
             try:
-                separated = self.plugin._separate_direct_impl(chunk)
+                # §MDX23C-Drift: Duck-Typing — HTDemucs _separate_direct_impl,
+                # MDX23C Drop-In separate(chunk, 48000).
+                _direct_fn = getattr(self.plugin, "_separate_direct_impl", None)
+                if callable(_direct_fn):
+                    separated = _direct_fn(chunk)
+                else:
+                    separated = self.plugin.separate(chunk, 48000)
                 stems_chunk: dict[str, np.ndarray] = separated.as_dict()
                 logger.debug("Chunk %d: separation successful", chunk_idx)
             except Exception as e:

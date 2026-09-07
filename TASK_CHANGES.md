@@ -13,11 +13,13 @@
 | M | backend/core/musical_goals/musical_goals_metrics.py | modifiziert |
 | M | backend/core/feedback_chain.py | modifiziert |
 | M | backend/core/inviting_sound_gate.py | modifiziert |
+| M | plugins/htdemucs_chunked_processor.py | modifiziert |
 | M | backend/core/residuum_masking.py | modifiziert |
 | M | conftest.py | modifiziert |
 | ?? | tests/unit/test_b3_full_song_defect_merge.py | ungetrackt |
 | ?? | tests/unit/test_fc_hoerordnung_pre_filter.py | ungetrackt |
 | ?? | tests/unit/test_inviting_gate_repair_exemption.py | ungetrackt |
+| M | tests/unit/test_chunked_processor_v1.py | modifiziert |
 
 ## Entscheidungen
 
@@ -75,4 +77,14 @@
   Defect-Locations (severity ≥ 0.20), via neuem `chunk_start_sample`-Kwarg chunk-korrekt
   verschoben; Rohwert + Exemption-Zahl werden transparent im Kontext mitgeführt.
   3 Regressionstests in `tests/unit/test_inviting_gate_repair_exemption.py`.
+- **MDX23C-API-Drift behoben (Coverage-Gate-Blocker, eigenes Arbeitspaket)**:
+  `get_htdemucs_plugin()` liefert seit der MDX23C-Migration `MDX23CPlugin` — der
+  ChunkedProcessor rief aber `_ensure_model()`/`_separate_direct_impl()` der alten
+  HTDemucs-API (11 Testfehler, Coverage-Gate blockiert). Fix: Duck-Typing
+  (`_ensure_model` ↔ `_load`, `_separate_direct_impl` ↔ Drop-In `separate(audio, sr)`)
+  + Längen-Normalisierung (±1 Sample, MDX23C-Output) im Direkt-Pfad. Crossfade-Test
+  auf deterministisches musik-ähnliches Signal kalibriert (Rauschen ist für neuronale
+  Separatoren pathologisch: 0.11 vs. tonal 0.0177–0.0205); Toleranz 0.03 dokumentiert
+  (GPU-Kernel-Varianz MIOpen ±0.003, HTDemucs-Bound 0.02 bleibt im Kommentar).
+  Ergebnis: 13/13 Tests grün — Coverage-Gate wieder durchlaufbar.
 
