@@ -436,10 +436,10 @@ def pytest_collection_modifyitems(config, items) -> None:
 
     This prevents hard machine crashes in default/local selective test runs.
     """
-    run_heavy = bool(config.getoption("--run-heavy-tests"))
+    run_heavy = bool(config.getoption("run_heavy_tests"))
     # Publish heavy-test mode for runtime safety guards inside processing phases.
     os.environ["AURIK_RUN_HEAVY_TESTS"] = "1" if run_heavy else "0"
-    run_gui = bool(config.getoption("--run-gui-tests"))
+    run_gui = bool(config.getoption("run_gui_tests"))
     deselected: list = []
     kept: list = []
     vscode_run = _is_vscode_run()
@@ -495,7 +495,7 @@ def pytest_ignore_collect(collection_path, config):
             if _vscode_file_count > _VSCODE_FILE_LIMIT:
                 return True  # Datei komplett überspringen (kein Import, kein Event)
 
-    if bool(config.getoption("--run-heavy-tests")):
+    if bool(config.getoption("run_heavy_tests")):
         return False
 
     path = str(collection_path).replace("\\", "/").lower()

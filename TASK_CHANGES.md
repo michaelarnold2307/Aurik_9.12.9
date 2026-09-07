@@ -11,6 +11,7 @@
 | M | TASK_CHANGES.md | modifiziert |
 | M | backend/core/unified_restorer_v3.py | modifiziert |
 | M | backend/core/residuum_masking.py | modifiziert |
+| M | conftest.py | modifiziert |
 | ?? | tests/unit/test_b3_full_song_defect_merge.py | ungetrackt |
 
 ## Entscheidungen
@@ -39,4 +40,10 @@
   MDX23C-API-Drift (`get_htdemucs_plugin()` liefert `MDX23CPlugin`; ChunkedProcessor ruft
   `_ensure_model`/`_separate_direct_impl` der alten HTDemucs-API) mit 11 vorbestehenden Fehlern.
   Commit daher mit `SKIP=aurik-coverage-gate`.
+- **GUI-Smoke-Protokoll-Fix**: `conftest.py` fragte die Flags als
+  `getoption("--run-gui-tests")`/`("--run-heavy-tests")` ab — pytest normalisiert auf
+  `run_gui_tests`/`run_heavy_tests`, der Doppel-Bindestrich ergab immer None ⇒ GUI-Tests
+  wurden stets deselektiert (§v10.700 Phase E war nie ausführbar). Fix: normalisierte Namen.
+  Verifiziert: `QT_QPA_PLATFORM=offscreen pytest tests/normative/test_e2e_gui_smoke.py
+  --run-gui-tests --run-heavy-tests` → 4/4 passed.
 
