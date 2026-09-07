@@ -133,7 +133,7 @@ class TestPhase56Process:
         assert float(result.metadata.get("phase_locality_factor", 1.0)) <= 0.4 + 1e-6
 
     def test_defect_locations_localize_repair(self, phase, sine_440_2s, monkeypatch):
-        def _fake_process_channel(channel, sr, instrument_tag, gap_fraction_min=None):
+        def _fake_process_channel(channel, sr, instrument_tag, gap_fraction_min=None, bw_cap_hz=None):
             return (channel * 0.10).astype(np.float32)
 
         monkeypatch.setattr(phase, "_process_channel", _fake_process_channel)
@@ -154,7 +154,7 @@ class TestPhase56Process:
         assert float(result.metadata.get("repair_locality_coverage", 0.0)) > 0.0
 
     def test_defect_locations_are_event_strength_adaptive(self, phase, sine_440_2s, monkeypatch):
-        def _fake_process_channel(channel, sr, instrument_tag, gap_fraction_min=None):
+        def _fake_process_channel(channel, sr, instrument_tag, gap_fraction_min=None, bw_cap_hz=None):
             return (channel * 0.10).astype(np.float32)
 
         monkeypatch.setattr(phase, "_process_channel", _fake_process_channel)
@@ -178,7 +178,7 @@ class TestPhase56Process:
         assert clog_region > dip_region * 1.25
 
     def test_vibrato_zone_caps_local_band_gap_repair(self, phase, sine_440_2s, monkeypatch):
-        def _fake_process_channel(channel, sr, instrument_tag, gap_fraction_min=None):
+        def _fake_process_channel(channel, sr, instrument_tag, gap_fraction_min=None, bw_cap_hz=None):
             return (channel * 0.10).astype(np.float32)
 
         monkeypatch.setattr(phase, "_process_channel", _fake_process_channel)
@@ -329,6 +329,7 @@ class TestPhase56StereoParameterFlow:
             sr: int,
             n_fft: int,
             gap_fraction_min: float | None = None,
+            bw_cap_hz: float | None = None,
         ) -> list[tuple[int, int]]:
             seen_gap_fractions.append(gap_fraction_min)
             return []  # force fast path
@@ -348,3 +349,50 @@ class TestPhase56StereoParameterFlow:
             f"gap_fraction_min laufen; gesehen={seen_gap_fractions}"
         )
         assert float(m._GAP_FRACTION_MIN) == pytest.approx(original_gap_fraction, abs=1e-12)
+
+
+# ---------------------------------------------------------------------------
+# §2.46g (2026-09-06): Material-BW-Ceiling — Spektralrand ist kein Defekt
+# ---------------------------------------------------------------------------
+
+
+class TestBwCapNyquistGuard:
+    """Produktionsbefund: „Lücke 1013–1025 Bins (23742–24023 Hz)“ auf Vinyl
+    kostete 141.6 s inkl. NMF-β — oberhalb des Material-Ceilings (vinyl ≤ 16 kHz)
+    ist das der natürliche Spektralrand, keine reparierbare Lücke."""
+
+    def test_gap_above_vinyl_ceiling_is_not_detected(self) -> None:
+        from backend.core.phases.phase_56_spectral_band_gap_repair import _detect_band_gaps
+
+        n_fft = 2048
+        n_bins = n_fft // 2 + 1
+        stft = np.full((n_bins, 50), 0.3, dtype=np.float32)
+        stft[1013:1025, :] = 1e-6  # leeres Band bei 23.7–24.0 kHz (Nyquist-Kante)
+
+        with_ceiling = _detect_band_gaps(stft, SR, n_fft, bw_cap_hz=16000.0)
+        assert with_ceiling == [], "Gap über dem Vinyl-Ceiling darf nicht detektiert werden"
+
+        without_ceiling = _detect_band_gaps(stft, SR, n_fft)
+        assert any(g[0] >= 1013 for g in without_ceiling), "Ohne Ceiling muss der Rand als Gap erscheinen (Legacy-Verhalten)"
+
+    def test_gap_below_ceiling_is_still_detected(self) -> None:
+        from backend.core.phases.phase_56_spectral_band_gap_repair import _detect_band_gaps
+
+        n_fft = 2048
+        n_bins = n_fft // 2 + 1
+        stft = np.full((n_bins, 50), 0.3, dtype=np.float32)
+        stft[300:340, :] = 1e-6  # leeres Band bei ~7.0–8.0 kHz — innerhalb des Ceilings
+
+        with_ceiling = _detect_band_gaps(stft, SR, n_fft, bw_cap_hz=16000.0)
+        assert any(g[0] == 300 for g in with_ceiling), "Gap unterhalb des Ceilings muss weiterhin detektiert werden"
+
+    def test_profile_sets_material_bw_cap(self) -> None:
+        from backend.core.phases.phase_56_spectral_band_gap_repair import SpectralBandGapRepairPhase
+
+        phase56 = SpectralBandGapRepairPhase()
+        p_vinyl = phase56._compute_band_gap_profile("vinyl", "quality", 75.0)
+        p_tape = phase56._compute_band_gap_profile("reel_tape", "quality", 75.0)
+        p_digital = phase56._compute_band_gap_profile("cd_digital", "quality", 75.0)
+        assert p_vinyl["bw_cap_hz"] == 16000.0
+        assert p_tape["bw_cap_hz"] == 15000.0
+        assert p_digital["bw_cap_hz"] == 22050.0

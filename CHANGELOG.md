@@ -27,6 +27,39 @@
   Carrier-First-Kettenordnung (`transfer_chain[0]` = Primary, Folgeglieder
   chronologisch) jetzt bindend dokumentiert; Drift-Baseline nachgezogen.
 
+### 🛠️ Restaurations-Lauf-Analyse — Hör-Gate-Verdrahtung + Phantom-Reparaturen (2026-09-06)
+
+- **§2.46g phase_56 Material-BW-Ceiling:** `_detect_band_gaps` scante den vollen
+  Bereich bis Nyquist und reparierte auf Vinyl (Ceiling 16 kHz, §6.2c) eine
+  „Lücke 1013–1025 Bins (23742–24023 Hz)“ — der natürliche Spektralrand,
+  kein Defekt. Kostete **141.6 s** (teuerste Phase des Laufs) inkl. NMF-β-
+  Refinement. Jetzt: pro-Material-Ceiling (Vinyl/Shellac 16 kHz, Band 15 kHz,
+  digital 22.05 kHz) im Gap-Scan + Hallucination-Guard.
+- **§2.46g Era-Konsistenz:** `§v10.303.44 Deep-Chain Era-Correction` hob die
+  Era über die frei erfundene Formel `1960+10×(depth−2)` an (Produktionsbefund:
+  1970→1980 bei vinyl→reel→lacquer→mp3 — GlobalPlan=1970, Era-Ceiling=1970).
+  Jetzt: (a) GlobalPlan-Prior-Rebuild erhält die gecachte Klassifikator-Konfidenz
+  (0.72) statt 0.00; (b) die Korrektur nutzt die echten Einführungsjahre der
+  analogen Kettenglieder als UNTERE Schranke (Musik kann nicht vor ihrem Medium
+  entstanden sein) und hebt die Decade nur bei conf ≤ 0.60 dorthin an.
+- **§2.46g Salienz-Konsistenz:** Der UV3-Re-Run auf gecachten DefectScores
+  annotierte mit leerem Audio neu (`duration=0.0s`, Budget-Cap 10000,
+  „13695/13695 salient“) und überschrieb damit die korrekte Pre-Analyse-Maskierung
+  (4053 maskiert) → „universelle Defekt-Exponiertheit“ → „Restaurierung
+  priorisiert vollständig“. Jetzt: bei vorhandenen Salienz-Metadaten wird die
+  Re-Annotation übersprungen; bei leerem Audio entfällt sie ganz.
+- **§2.46g Hör-Gate-Verdikt-Kopplung:** Einladungs-Gate „NICHT BESTANDEN“
+  (sharpness_sprung=0.714) + 11 Ebene-3-Wohlklang-Ordnungs-Verstöße führten
+  trotzdem zu „✓ QUALITY GUARANTEED“ im Endverdikt. Jetzt degradiert ein
+  verletztes Hör-Gate ein QUALITY-GUARANTEED-Verdikt zu „⚠️ PERCEPTUAL PASS —
+  Hör-Gates degradieren das Verdikt“ (MUSHRA-Verbesserung bleibt bestehen,
+  `quality_guaranteed=False`, `hoer_gate_demoted=True`).
+- **Dokumentiert (kein Eingriff):** ActiveIntervention/ClosedLoop hält die
+  Phasen-Stärke bewusst konstant (nur Δ ≥ 0.08 erhöht, §2.7-MR-Stabilität) —
+  die Hauptschleife ist damit größtenteils konservativ; die hörbare Wirkung
+  kommt aus ReparaturDenker (5432 Clicks, 423 Gaps) + FC-Loop. Eine
+  Neukalibrierung der Schwellen braucht Golden-Set-Evaluation.
+
 ### ⚡ Steigerungspotenziale umgesetzt — Heuristik-Redesign + Parallel-Detektion (2026-09-06)
 
 - **§2.46g Material-Scoring-Redesign (Stereo):** `hf_loss_indicator` ist jetzt

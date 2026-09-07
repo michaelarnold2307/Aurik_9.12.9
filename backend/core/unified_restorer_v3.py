@@ -8793,10 +8793,19 @@ class UnifiedRestorerV3:
 
                         _old_decade = getattr(_era_result, "decade", "?")
                         _existing_noise = getattr(_era_result, "noise_profile", None)
+                        # §2.46g (2026-09-06): _gp_era_conf ist im Denker-Portrait oft 0.0
+                        # (nicht befüllt) — dann die KONFIDENZ des gecachten Klassifikators
+                        # erhalten statt sie auf 0.00 zu setzen. Sonst greift die
+                        # Deep-Chain-Korrektur (§v10.303.44) fälschlich auf konfidente
+                        # Era-Ergebnisse (Produktionsbefund: conf 0.72 → 0.00 → era
+                        # 1970→1980 über die Formel 1960+10×(depth−2)).
+                        _era_conf_preserved = (
+                            _gp_era_conf if _gp_era_conf > 0.0 else float(getattr(_era_result, "confidence", 0.0))
+                        )
                         _era_result = _EraResult(
                             decade=int(_gp_decade),
                             era_label=f"{_gp_decade}er",
-                            confidence=_gp_era_conf,
+                            confidence=_era_conf_preserved,
                             material_prior=str(
                                 _gp_material or getattr(_era_result, "material_prior", "unknown") or "unknown"
                             ),
@@ -8875,25 +8884,44 @@ class UnifiedRestorerV3:
                             )
 
             # §v10.303.44 Deep-Chain Era Correction (post-GlobalPlan):
-            # Wenn die Effective Chain ≥3 Träger hat → die Era MUSS mindestens
-            # chain_depth × 10 Jahre über dem Ära-Klassifikator-Ergebnis liegen.
-            # Grund: Jeder analoge Träger in der Kette addiert ~10 Jahre.
+            # §2.46g (2026-09-06): Die alte Formel _chain_min_era = 1960 + 10×(depth−2)
+            # hob die Era bei tiefen Ketten NACH OBEN an (Produktionsbefund: 1970→1980
+            # bei vinyl→reel→lacquer→mp3 — trotz GlobalPlan=1970 und pre_Analyse-
+            # Era-Ceiling=1970). Physikalisch korrekt begrenzt der FRÜHESTE analoge
+            # Träger die Era nach UNTEN (die Aufnahme kann nicht vor ihrem Medium
+            # entstanden sein); nach OBEN begrenzt bereits die pre_Analyse (Ceiling).
+            # Bei niedriger Konfidenz wird die Decade deshalb maximal bis zur
+            # Analog-Floor-Dekade angehoben; konfidente Era bleibt unangetastet.
             _eff_chain = list(self._restoration_context.get("transfer_chain", []))
             _eff_depth = len(_eff_chain)
             if _eff_depth >= 3:
-                _chain_min_era = 1960 + 10 * (_eff_depth - 2)
-                if _era_result is not None and getattr(_era_result, "confidence", 0) <= 0.60:
+                _ANALOG_INTRO_YEARS: dict[str, int] = {
+                    "wax_cylinder": 1890,
+                    "shellac": 1895,
+                    "wire_recording": 1930,
+                    "reel_tape": 1935,
+                    "tape": 1935,
+                    "lacquer_disc": 1940,
+                    "vinyl": 1950,
+                    "cassette": 1963,
+                }
+                _analog_years = [
+                    _ANALOG_INTRO_YEARS[str(m)] for m in _eff_chain if _ANALOG_INTRO_YEARS.get(str(m))
+                ]
+                if _era_result is not None and getattr(_era_result, "confidence", 0) <= 0.60 and _analog_years:
                     try:
                         from backend.core.era_classifier import EraResult as _EraResult
 
-                        _new_decade = min(max(_chain_min_era, getattr(_era_result, "decade", 1960)), 1990)
-                        if _new_decade != getattr(_era_result, "decade", _new_decade):
+                        _chain_floor_decade = int(max(_analog_years) // 10 * 10)
+                        _decade = int(getattr(_era_result, "decade", 1960))
+                        if _decade < _chain_floor_decade:
+                            _new_decade = min(_chain_floor_decade, 1990)
                             logger.info(
-                                "§v10.303.44 Deep-Chain Era-Correction: chain_depth=%d → era %d→%d (chain_min=%d)",
+                                "§v10.303.44 Deep-Chain Era-Correction: chain_depth=%d → era %d→%d (analog_floor=%d)",
                                 _eff_depth,
-                                getattr(_era_result, "decade", 0),
+                                _decade,
                                 _new_decade,
-                                _chain_min_era,
+                                _chain_floor_decade,
                             )
                             _era_result = _EraResult(
                                 decade=_new_decade,
@@ -10765,11 +10793,36 @@ class UnifiedRestorerV3:
         # psychoacoustic masking (Fastl & Zwicker 2007).  Masked defects get
         # reduced severity → less processing → fewer artifacts.
         try:
-            from backend.core.perceptual_salience import get_perceptual_salience_estimator
+            # §2.46g (2026-09-06): Gecachte Pre-Analyse-Scans tragen bereits
+            # Salienz-Metadaten (perceptual_salience, n_salient/n_masked) —
+            # eine Re-Annotation überschreibt sie mit degenerierten Werten
+            # (Produktionsbefund: _analysis_audio leer → duration=0.0s,
+            # Budget-Cap 10000, „13695/13695 salient“, obwohl die Pre-Analyse
+            # 4053 Events korrekt maskiert hatte). Bei leerem Audio ist die
+            # Annotation physikalisch nicht möglich → überspringen.
+            _salience_audio_ok = _analysis_audio is not None and getattr(_analysis_audio, "size", 0) > 0
+            _already_annotated = False
+            if _salience_audio_ok and defect_result is not None:
+                _sample_score = next(iter(getattr(defect_result, "scores", {}).values()), None)
+                _already_annotated = bool(
+                    _sample_score is not None
+                    and getattr(_sample_score, "metadata", {})
+                    and "perceptual_salience" in getattr(_sample_score, "metadata", {})
+                )
+            if _salience_audio_ok and not _already_annotated:
+                from backend.core.perceptual_salience import get_perceptual_salience_estimator
 
-            _pse = get_perceptual_salience_estimator()
-            defect_result = _pse.annotate_defect_scores(_analysis_audio, sample_rate, defect_result)
-            logger.info("§9.1c PerceptualSalience: defect severities salience-angepasst")
+                _pse = get_perceptual_salience_estimator()
+                defect_result = _pse.annotate_defect_scores(_analysis_audio, sample_rate, defect_result)
+                logger.info("§9.1c PerceptualSalience: defect severities salience-angepasst")
+            elif _already_annotated:
+                logger.info(
+                    "§9.1c PerceptualSalience: gecachte Salienz-Metadaten übernommen (keine Re-Annotation, §2.46g)"
+                )
+            else:
+                logger.warning(
+                    "§9.1c PerceptualSalience: Audio leer — Salienz-Annotation übersprungen (§2.46g)"
+                )
         except Exception as _pse_exc:
             logger.debug("PerceptualSalienceEstimator nicht verfügbar: %s", _pse_exc)
 
@@ -26214,6 +26267,38 @@ class UnifiedRestorerV3:
                 # v10.703 Step 3: quality_uncertain flag
                 "quality_uncertain": bool(getattr(_mqa_report, "quality_uncertain", False)),
             }
+
+            # §2.46g (2026-09-06) Hör-Gate-Verdikt-Kopplung: Die normativen
+            # Hörordnung-Gates (Ebene 3 Wohlklang-Ordnung, Ebene 4 Einladungs-Gate)
+            # müssen das Endverdikt beeinflussen. Produktionsbefund: Einladungs-Gate
+            # „NICHT BESTANDEN“ (sharpness_sprung=0.714) + 11 Ebene-3-Verstöße →
+            # trotzdem „✓ QUALITY GUARANTEED“ im Fazit.
+            try:
+                _hoer_demote = False
+                if isinstance(_flow_meta, dict):
+                    _wo_audit = _flow_meta.get("wohlklang_ordnung")
+                    if isinstance(_wo_audit, dict):
+                        _wo_status = str(_wo_audit.get("status", "") or "")
+                        _wo_violations = _wo_audit.get("violations") or []
+                        if _wo_status == "VIOLATION" or (isinstance(_wo_violations, list) and len(_wo_violations) > 0):
+                            _hoer_demote = True
+                    if _flow_meta.get("einladungs_gate_passed") is False:
+                        _hoer_demote = True
+                _inv_ctx = (self._restoration_context or {}).get("inviting_gate") or {}
+                if isinstance(_inv_ctx, dict) and _inv_ctx.get("passed") is False:
+                    _hoer_demote = True
+                if _hoer_demote and str(_mqa_result.get("verdict", "")).startswith("✓ QUALITY GUARANTEED"):
+                    _mqa_result["verdict"] = (
+                        "⚠️ PERCEPTUAL PASS — Hör-Gates degradieren das Verdikt "
+                        "(normative Hörordnung-Gates nicht erfüllt); MUSHRA-Verbesserung bleibt bestehen"
+                    )
+                    _mqa_result["quality_guaranteed"] = False
+                    _mqa_result["hoer_gate_demoted"] = True
+                    logger.warning(
+                        "§2.46g MQA-Verdikt durch Hör-Gates degradiert (Einladungs-Gate/Ebene-3)"
+                    )
+            except Exception as _hd_exc:
+                logger.debug("§2.46g Hör-Gate-Verdikt-Kopplung nicht blockierend: %s", _hd_exc)
 
             # §GEBOT-G52/G54: RestorationQualityIndex — PRIMÄRER Quality-Gate
             # RQI misst echte Restaurierungs-Verbesserung, nicht Ähnlichkeit zum Original.

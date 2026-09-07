@@ -253,6 +253,7 @@ def _detect_band_gaps(
     sr: int,
     n_fft: int,
     gap_fraction_min: float | None = None,
+    bw_cap_hz: float | None = None,
 ) -> list[tuple[int, int]]:
     """
     Detektiert leere Frequenzbänder im STFT-Magnitudenspektrum.
@@ -261,12 +262,23 @@ def _detect_band_gaps(
         stft_mag: |STFT| Matrix [n_bins × n_frames] float32
         sr: Sample-Rate [Hz]
         n_fft: FFT-Größe
+        bw_cap_hz: §2.46g (2026-09-06) Material-Bandbreiten-Ceiling — Lücken
+            oberhalb dieser Grenze sind der NATÜRLICHE Spektralrand des Trägers
+            (z. B. Vinyl ≤ 16 kHz), KEIN Defekt. Produktionsbefund: „Lücke
+            1013–1025 Bins (23742–24023 Hz)“ auf Vinyl kostete 141.6 s inkl.
+            NMF-β-Refinement für einen Frequenzbereich ohne reale Signalenergie.
 
     Returns:
         Liste von (bin_low, bin_high) Tupeln für identifizierte Lücken.
     """
     n_bins, _n_frames = stft_mag.shape
     freq_resolution = sr / n_fft  # Hz pro Bin
+
+    # §2.46g (2026-09-06): Scan-Bereich auf das Material-Ceiling begrenzen.
+    # Ohne Ceiling wird der Spektralrand (nahe Nyquist) als „Lücke“ gewertet.
+    _scan_bins = n_bins
+    if bw_cap_hz is not None and bw_cap_hz > 0.0:
+        _scan_bins = max(1, min(n_bins, int(bw_cap_hz * n_fft / sr)))
 
     # Energie pro Bin (logarithmisch): mittlere Bandenergie als zweites Gate,
     # damit sporadische Bursts kein dauerhaftes Gap vortaeuschen.
@@ -294,7 +306,7 @@ def _detect_band_gaps(
     gaps: list[tuple[int, int]] = []
     in_gap = False
     gap_start = 0
-    for b in range(n_bins):
+    for b in range(_scan_bins):
         if gap_bins[b] and not in_gap:
             in_gap = True
             gap_start = b
@@ -306,9 +318,9 @@ def _detect_band_gaps(
             if width_hz >= _MIN_GAP_WIDTH_HZ:
                 gaps.append((gap_start, gap_end))
     if in_gap:
-        width_hz = (n_bins - gap_start) * freq_resolution
+        width_hz = (_scan_bins - gap_start) * freq_resolution
         if width_hz >= _MIN_GAP_WIDTH_HZ:
-            gaps.append((gap_start, n_bins))
+            gaps.append((gap_start, _scan_bins))
 
     logger.debug("SpectralBandGapRepair: %d Lücken entdeckt", len(gaps))
     return gaps
@@ -606,14 +618,17 @@ class SpectralBandGapRepairPhase(PhaseInterface):
             min_head_wear_confidence = 0.52
             mid_gap_fraction_min = 0.78
             side_gap_fraction_min = 0.92
+            bw_cap_hz = 15000.0  # §2.46g: Band-Ceiling (Reel ≤ 15 kHz, Kassette ≤ 12 kHz)
         elif any(token in _material for token in ("cd_digital", "dat", "streaming", "flac")):
             min_head_wear_confidence = 0.70
             mid_gap_fraction_min = 0.88
             side_gap_fraction_min = 0.98
+            bw_cap_hz = 22050.0  # §2.46g: digitale Träger — voller Bereich bis Nyquist
         else:
             min_head_wear_confidence = 0.60
             mid_gap_fraction_min = 0.84
             side_gap_fraction_min = 0.95
+            bw_cap_hz = 16000.0  # §2.46g: Vinyl/Shellac-Ceiling (§6.2c: vinyl ≤ 16 kHz)
 
         _rest = float(np.clip(float(restorability_score or 50.0), 0.0, 100.0))
         _rest_norm = _rest / 100.0
@@ -636,6 +651,7 @@ class SpectralBandGapRepairPhase(PhaseInterface):
             "min_head_wear_confidence": float(np.clip(min_head_wear_confidence, 0.40, 0.85)),
             "mid_gap_fraction_min": float(np.clip(mid_gap_fraction_min, 0.70, 0.97)),
             "side_gap_fraction_min": float(np.clip(side_gap_fraction_min, 0.85, 0.995)),
+            "bw_cap_hz": float(bw_cap_hz),  # §2.46g: Material-Ceiling für Gap-Scan + Hallucination-Guard
         }
 
     @staticmethod
@@ -878,7 +894,9 @@ class SpectralBandGapRepairPhase(PhaseInterface):
             side = (audio[:, 0] - audio[:, 1]) / _sqrt2
 
             # Full repair on Mid channel
-            mid_repaired = self._process_channel(mid, sr, instrument_tag)
+            mid_repaired = self._process_channel(
+                mid, sr, instrument_tag, bw_cap_hz=_band_gap_profile.get("bw_cap_hz")
+            )
             mid_repaired = self._mrsa_gain_refinement(
                 mid.astype(np.float64), mid_repaired.astype(np.float64), sr
             ).astype(np.float32)
@@ -890,6 +908,7 @@ class SpectralBandGapRepairPhase(PhaseInterface):
                 sr,
                 instrument_tag,
                 gap_fraction_min=_band_gap_profile["side_gap_fraction_min"],
+                bw_cap_hz=_band_gap_profile.get("bw_cap_hz"),
             )
             side_repaired = self._mrsa_gain_refinement(
                 side.astype(np.float64), side_repaired.astype(np.float64), sr
@@ -905,6 +924,7 @@ class SpectralBandGapRepairPhase(PhaseInterface):
                 sr,
                 instrument_tag,
                 gap_fraction_min=_band_gap_profile["mid_gap_fraction_min"],
+                bw_cap_hz=_band_gap_profile.get("bw_cap_hz"),
             )
             # MRSA post-processing: zone-specific gain refinement + PGHI
             out = self._mrsa_gain_refinement(audio.astype(np.float64), out.astype(np.float64), sr).astype(np.float32)
@@ -1119,12 +1139,14 @@ class SpectralBandGapRepairPhase(PhaseInterface):
         sr: int,
         instrument_tag: str,
         gap_fraction_min: float | None = None,
+        bw_cap_hz: float | None = None,
     ) -> np.ndarray:
         """Verarbeitet einen Kanal (Mono-Array).
 
         Args:
             gap_fraction_min: Override für _GAP_FRACTION_MIN (None = Standardwert 0.80).
                               Höherer Wert = konservativer (z.B. 0.95 für Side-Kanal, §2.51).
+            bw_cap_hz: §2.46g Material-Bandbreiten-Ceiling für die Gap-Detektion.
         """
         n_fft = self.n_fft
         hop = self.hop_length
@@ -1150,7 +1172,9 @@ class SpectralBandGapRepairPhase(PhaseInterface):
         stft_phase = np.angle(stft_frames).astype(np.float32)
 
         # Lücken detektieren — optional konservativer für Side-Kanal (§2.51)
-        gaps = _detect_band_gaps(stft_mag, sr, n_fft, gap_fraction_min=gap_fraction_min)
+        gaps = _detect_band_gaps(
+            stft_mag, sr, n_fft, gap_fraction_min=gap_fraction_min, bw_cap_hz=bw_cap_hz
+        )
         if not gaps:
             return mono
 
