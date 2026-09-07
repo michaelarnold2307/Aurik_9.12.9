@@ -4,7 +4,12 @@ Vocal Overprocessing Detector — §T3 Vokal-Supremacy (§VOD-1)
 Central anti-overprocessing instance that detects when vocal processing phases
 cause harm to the vocal signal:
 
-1. **Lisp detection**: Post-De-Essing 6–10 kHz variance > 15 dB → too aggressive.
+1. **Lisp detection**: Über-aggressives De-essing = die 6–10-kHz-
+   Schwankung (Std der Band-Energie in dB) verschlechtert sich gegenüber dem
+   Eingang um mehr als die adaptive Delta-Schwelle UND liegt absolut über der
+   adaptiven Schwelle (§VOD-1 SOTA 2026-09-07: rein absolutes Post-Flagging
+   feuerte bei ohnehin sibilantem Material — nötiges aggressives De-essing
+   wird nicht mehr als Fehler gewertet).
 2. **Formant drift**: F1/F2 position via LPC before/after Phase 42; Δ > 5 % → warning.
 3. **Sibilance over-reduction**: If sibilance energy (5–10 kHz) after Phase 19
    is < 40 % of original energy → overprocessing.
@@ -32,8 +37,9 @@ class VocalOverprocessingResult:
 
     Fields:
         phase_id:     The checked phase.
-        lisp_detected: True when 6–10 kHz post-phase variance > 15 dB.
-        lisp_variance_db: Variance in the 6–10 kHz band in dB.
+        lisp_detected: True wenn die 6–10-kHz-Schwankung post um die
+            Delta-Schwelle WÄCHST und absolut über der Schwelle liegt.
+        lisp_variance_db: Delta der 6–10-kHz-Schwankung (Std, dB) post − pre.
         formant_drift_pct: F1 drift as a percentage (5 % threshold).
         formant_drift_warning: True when F1 drift > 5 % or F2 drift > 5 %.
         sibilance_over_reduced: True when post sibilance < 40 % of original.
@@ -86,7 +92,13 @@ def _band_energy(audio: np.ndarray, sr: int, low_hz: float, high_hz: float) -> f
 
 
 def _band_variance_db(audio: np.ndarray, sr: int, low_hz: float, high_hz: float) -> float:
-    """Compute frame-by-frame variance of band energy in dB."""
+    """Typische Band-Energie-Schwankung (Std der Frame-Energien in dB).
+
+    §Einheiten-Fix (2026-09-07): vorher np.var(dB-Werte) → Einheit dB², Werte
+    wie 115.9 „dB“ waren physikalisch unsinnig (Std war ~10.8 dB — normal).
+    Jetzt Standardabweichung → echte dB-Skala, vergleichbar mit der adaptiven
+    Schwelle (12.8–15 dB).
+    """
     audio64 = _to_mono(audio)
     if audio64.size < 1024:
         return 0.0
@@ -104,7 +116,7 @@ def _band_variance_db(audio: np.ndarray, sr: int, low_hz: float, high_hz: float)
         energies.append(10.0 * np.log10(max(e, 1e-12)))
     if len(energies) < 3:
         return 0.0
-    return float(np.var(energies))
+    return float(np.std(energies))
 
 
 # ---------------------------------------------------------------------------
@@ -204,7 +216,12 @@ class VocalOverprocessingDetector:
     """
 
     LISP_BAND = (6000.0, 10000.0)
-    LISP_VARIANCE_THRESHOLD_DB: float = 15.0
+    # §VOD-1 Einheiten-Fix (2026-09-07): Schwellen in STD der Band-Energie (dB).
+    # Absoluter Floor: Band muss überhaupt signifikant schwanken (Sanity).
+    LISP_VARIANCE_THRESHOLD_DB: float = 3.0
+    # Delta-Schwelle: Über-aggressives De-essing = Post-Schwankung wächst um
+    # mehr als 3 dB gegenüber dem Eingang.
+    LISP_DELTA_THRESHOLD_DB: float = 3.0
     FORMANT_DRIFT_THRESHOLD_PCT: float = 5.0
     SIBILANCE_BAND = (5000.0, 10000.0)
     SIBILANCE_RATIO_THRESHOLD: float = 0.40
@@ -227,7 +244,8 @@ class VocalOverprocessingDetector:
             elif era_decade >= 2000:
                 era_scale = 0.90
         return {
-            "lisp_threshold": float(self.LISP_VARIANCE_THRESHOLD_DB * snr_scale * era_scale),
+            "lisp_threshold": float(self.LISP_VARIANCE_THRESHOLD_DB),  # Sanity-Floor, fix
+            "lisp_delta_threshold": float(self.LISP_DELTA_THRESHOLD_DB * snr_scale),
             "sibilance_threshold": float(
                 self.SIBILANCE_RATIO_THRESHOLD * (2.0 - snr_scale) * (2.0 - min(era_scale, 1.5))
             ),
@@ -261,13 +279,19 @@ class VocalOverprocessingDetector:
         lisp_var_pre = _band_variance_db(vocals_pre, sr, *self.LISP_BAND)
         lisp_var_post = _band_variance_db(vocals_post, sr, *self.LISP_BAND)
         lisp_variance_db = lisp_var_post - lisp_var_pre
-        lisp_detected = lisp_var_post > _th["lisp_threshold"]
+        # §VOD-1 SOTA (2026-09-07): Über-aggressives De-essing = die 6–10-kHz-
+        # Schwankung VERSCHLECHTERT sich gegenüber dem Eingang (Delta > Schwelle)
+        # UND liegt absolut über der adaptiven Schwelle. Rein absolutes
+        # Post-Flagging feuerte bei ohnehin sibilantem Material — nötiges
+        # aggressives De-essing wird jetzt korrekt NICHT als Fehler gewertet.
+        lisp_detected = lisp_variance_db > _th["lisp_delta_threshold"] and lisp_var_post > _th["lisp_threshold"]
 
         if lisp_detected:
             msg = (
                 f"§VOD-1 Lisp detected after {phase_id}: "
-                f"6–10 kHz variance = {lisp_var_post:.1f} dB > "
-                f"{_th['lisp_threshold']:.1f} dB (adaptive). De-essing may be too aggressive."
+                f"6–10 kHz Schwankung {lisp_var_pre:.1f} → {lisp_var_post:.1f} dB "
+                f"(Δ {lisp_variance_db:+.1f} dB > {_th['lisp_delta_threshold']:.1f} dB, "
+                f"absolut > {_th['lisp_threshold']:.1f} dB). De-essing may be too aggressive."
             )
             warnings.append(msg)
             logger.warning(msg)

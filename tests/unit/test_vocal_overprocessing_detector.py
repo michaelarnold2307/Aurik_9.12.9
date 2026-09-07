@@ -220,6 +220,48 @@ class TestVocalOverprocessingDetector:
         assert isinstance(result.lisp_detected, bool)
         assert isinstance(result.sibilance_over_reduced, bool)
 
+    def test_check_de_essing_no_false_positive_for_needed_de_essing(self, detector, sr):
+        """§VOD-1 Regression: sibilante QUELLE + nötiges aggressives De-essing.
+
+        Die 6–10-kHz-Schwankung ist bereits im Eingang hoch (Burst-Struktur);
+        De-essing, das die Schwankung REDUZIERT, darf NICHT als Lisp gelten
+        (der alte absolute Check feuerte hier — Import-Song-Fall 115.9 „dB“).
+        """
+        from scipy.signal import butter, sosfiltfilt
+
+        rng = np.random.RandomState(7)
+        t = np.linspace(0, 3.0, 3 * sr, endpoint=False)
+        sos_bp = butter(4, [6000.0, 10000.0], btype="bandpass", fs=sr, output="sos")
+        bp = sosfiltfilt(sos_bp, rng.randn(len(t)))
+        gate = 0.5 * (1.0 + np.sign(np.sin(2 * np.pi * 4.0 * t)))
+        pre = 0.3 * np.sin(2 * np.pi * 200.0 * t) + 0.5 * bp * gate
+        pre /= np.max(np.abs(pre))
+        deessed = pre - 0.3 * bp * gate
+        deessed /= np.max(np.abs(deessed))
+
+        result = detector.check_de_essing(pre, deessed, sr)
+        assert not result.lisp_detected
+        assert not result.sibilance_over_reduced
+        assert result.lisp_variance_db < 0  # Schwankung wurde reduziert, nicht erzeugt
+
+    def test_check_de_essing_flags_burst_artifact_creation(self, detector, sr):
+        """§VOD-1: De-essing, das NEUE Burst-Artefakte erzeugt, wird erkannt."""
+        from scipy.signal import butter, sosfiltfilt
+
+        rng = np.random.RandomState(7)
+        t = np.linspace(0, 3.0, 3 * sr, endpoint=False)
+        sos_bp = butter(4, [6000.0, 10000.0], btype="bandpass", fs=sr, output="sos")
+        bp = sosfiltfilt(sos_bp, rng.randn(len(t)))
+        gate = 0.5 * (1.0 + np.sign(np.sin(2 * np.pi * 4.0 * t)))
+        pre = 0.3 * np.sin(2 * np.pi * 200.0 * t) + 0.5 * bp * gate
+        pre /= np.max(np.abs(pre))
+        artifact = pre + 1.5 * bp * gate
+        artifact /= np.max(np.abs(artifact))
+
+        result = detector.check_de_essing(pre, artifact, sr)
+        assert result.lisp_detected
+        assert result.lisp_variance_db > 0
+
     def test_check_de_essing_sibilance(self, detector, sibilant_audio, sr):
         """Severe sibilance reduction should trigger over-reduction."""
         # Cut HF drastically
@@ -260,7 +302,10 @@ class TestVocalOverprocessingDetector:
 
     def test_vql_threshold_constant(self, detector):
         """Ensure default threshold constants are reasonable."""
-        assert detector.LISP_VARIANCE_THRESHOLD_DB == 15.0
+        # §Einheiten-Fix (2026-09-07): Std der Band-Energie in dB — der alte
+        # Wert 15.0 galt einer dB²-Varianz (falsche Einheit).
+        assert detector.LISP_VARIANCE_THRESHOLD_DB == 3.0
+        assert detector.LISP_DELTA_THRESHOLD_DB == 3.0
         assert detector.SIBILANCE_RATIO_THRESHOLD == 0.40
         assert detector.FORMANT_DRIFT_THRESHOLD_PCT == 5.0
 

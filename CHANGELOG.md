@@ -126,6 +126,17 @@
   Tail mit letztem Frame gepolstert statt Zero-Pad). 4 Unit-Tests belegen
   Transparenz: Ein transparenter Spektral-Kern reproduziert im Chunked-Pfad
   das Ganzsignal-Ergebnis bit-exakt.
+- **§VOD-1 Lisp-Einheiten-Fix + Delta-Logik (2026-09-07):** Die 6–10-kHz-
+  „Varianz“ wurde als np.var der dB-Werte berechnet (Einheit dB²) — Werte wie
+  115.9 „dB“ waren physikalisch unsinnig (Std war ~10.8 dB, völlig normal)
+  und der ABSOLUTE Post-Check feuerte bei ohnehin sibilantem Import-Material
+  fälschlich. Fix: (a) `_band_variance_db` liefert jetzt die Standardabweichung
+  der Band-Energie (echte dB); (b) Lisp = Delta (Post − Pre) > 3 dB (snr-
+  adaptiv) UND absoluter Sanity-Floor 3 dB — De-essing, das die Schwankung
+  REDUZIERT (nötiges aggressives De-essing), wird korrekt NICHT geflaggt;
+  nur die ERZEUGUNG neuer Burst-Artefakte löst §VOD-1 aus. +2
+  Regressionstests (Sibilant-Quelle mit nötigem De-essing → kein Flag;
+  Artefakt-Erzeugung → Flag), Schwellwert-Pin an neue Einheit angepasst.
 - **Pre-Commit-Gate-Härtung (2026-09-06):** drei weitere Import-/NameError-Bugs
   der gleichen Klasse behoben — (a) `phase_04_eq_correction._apply_peaking_filter`
   nutzte `_safe_sosfiltfilt04` ohne lokalen Import (NameError bei jedem
