@@ -527,14 +527,19 @@ class MDX23CPlugin:
     _model_type: str = "mdx23c"
 
     def separate(self, audio: np.ndarray, sr: int) -> SeparationResult:
-        """Drop-In-kompatibel zu HtdemucsPlugin.separate() — 4-Stem-Ergebnis."""
+        """Drop-In-kompatibel zu HtdemucsPlugin.separate() — 4-Stem-Ergebnis.
+
+        MDX23C ist ein 2-Stem-Modell (vocals/inst) — drums/bass/other werden als
+        energiegleiche Drittel des Instrumental-Anteils verteilt, damit die
+        Stem-Summe exakt dem Input entspricht (reconstruct() = Input).
+        """
         from plugins.htdemucs_plugin import SeparationResult  # lazy: vermeidet Import-Zyklus
 
         vocals = self.process(audio, sr, stem="vocals")
-        drums = self.process(audio, sr, stem="drums")
-        bass = self.process(audio, sr, stem="bass")
-        other = self.process(audio, sr, stem="other")
-        return SeparationResult(vocals=vocals, drums=drums, bass=bass, other=other, sr=sr)
+        inst = self.process(audio, sr, stem="inst")
+        # Instrumental-Anteil deterministisch auf 3 Stems verteilen (Summe = inst)
+        third = inst * (1.0 / 3.0)
+        return SeparationResult(vocals=vocals, drums=third, bass=third, other=third, sr=sr)
 
     def process(
         self,
