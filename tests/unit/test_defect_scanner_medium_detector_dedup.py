@@ -185,3 +185,55 @@ class TestForensicVeto:
         # _auto_material folgt dem Forensic-Primary (vinyl) → kein Widerspruch.
         assert result.material_type == MaterialType.VINYL
         assert result.auto_detected_material is None
+
+
+# ============================================================
+# §2.46g Scoring-Redesign (2026-09-06): Slope-HF-Loss, Stille-Guards, Mono-Normalisierung
+# ============================================================
+
+def _narrowband_stereo(seconds: float = 1.5) -> np.ndarray:
+    """8-kHz-Bandbreite (2 Sinustöne) — schmalbandiges Analog OHNE HF-Inhalt."""
+    n = int(48_000 * seconds)
+    t = np.arange(n) / 48_000
+    mono = (0.1 * np.sin(2 * np.pi * 220 * t) + 0.08 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    return np.stack([mono, mono.copy()], axis=0)
+
+
+def _vinyl_mono(seconds: float = 2.0) -> np.ndarray:
+    """Mono-Vinyl-Signatur: 50-Hz-Netzbrumm + 20-Hz-Rumble + Mikro-Clicks."""
+    rng = np.random.default_rng(5)
+    n = int(48_000 * seconds)
+    t = np.arange(n) / 48_000
+    sig = (0.08 * np.sin(2 * np.pi * 50 * t) + 0.15 * np.sin(2 * np.pi * 20 * t) + 0.05 * np.sin(2 * np.pi * 300 * t)).astype(
+        np.float32
+    )
+    for p in rng.integers(0, n - 40, 200):
+        sig[p : p + 40] += rng.uniform(0.2, 0.5)
+    return sig
+
+
+@pytest.mark.unit
+class TestScoringRedesign:
+    def test_narrowband_analog_is_not_mp3(self) -> None:
+        """§2.46g-1: Schmalbandiges Analog darf NICHT als mp3_low gelesen werden.
+        (Der alte Indikator 1−hf/0.05 lieferte bei jedem analogen Bandbreiten-
+        Limit hf_loss=1 → mp3_low +3.)"""
+        scanner = DefectScanner(sample_rate=48_000)
+        got = scanner._auto_detect_material(_narrowband_stereo(), era_decade=1970)
+        assert got != MaterialType.MP3_LOW
+
+    def test_silence_returns_unknown_or_defers(self) -> None:
+        """§2.46g-2: Stille ist degeneriert (flutter=1, hf_loss=1, HF-Mangel=1) —
+        die Heuristik darf dann kein Material erraten."""
+        scanner = DefectScanner(sample_rate=48_000)
+        stereo_silence = np.zeros((2, 48_000), dtype=np.float32)
+        assert scanner._auto_detect_material(stereo_silence, era_decade=1970) == MaterialType.UNKNOWN
+        assert scanner._auto_detect_material(stereo_silence[0], era_decade=1985) == MaterialType.UNKNOWN
+
+    def test_mono_vinyl_signature_scores_vinyl(self) -> None:
+        """§2.46g-3: Mono-Vinyl-Signatur (Brumm+Rumble+Clicks) wird trotz
+        entferntem +9-Bonus korrekt als VINYL erkannt — die Features tragen die
+        Entscheidung jetzt selbst."""
+        scanner = DefectScanner(sample_rate=48_000)
+        got = scanner._auto_detect_material(_vinyl_mono(), era_decade=1965)
+        assert got == MaterialType.VINYL

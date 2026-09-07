@@ -194,6 +194,7 @@ class ERBAuditoryMaskingModel:
         # Jeder perceptual_salience-Durchlauf übergibt dasselbe Array → einmalige Konversion reicht.
         # Key: (id(audio), shape) — ausreichend eindeutig für eine Pipeline-Session.
         self._mono_cache: dict[tuple, np.ndarray] = {}
+        self._mono_cache_lock = threading.Lock()  # §2.46h: Parallel-ERB teilt den Singleton
         # §Perf: ERB-Band-Masken-Cache — pro (n_fft, sr) vorberechnet.
         # Ersetzt 24× Python-Schleife mit mask/mean durch einen einzigen Matmul.
         # Key: (n_fft, sr, centres_bytes) → (mask_matrix (n_bands, n_rfft), band_sizes (n_bands,))
@@ -228,10 +229,15 @@ class ERBAuditoryMaskingModel:
         # §Perf: Mono-Cache — teures nan_to_num auf vollem Array nur einmal pro Audio-Objekt.
         _mono_key = (id(audio), audio.shape)
         if _mono_key not in self._mono_cache:
-            if len(self._mono_cache) >= 2:
-                # Cache auf max 2 Einträge begrenzen — große Audio-Arrays (≥80 MB) nicht unbegrenzt halten
-                del self._mono_cache[next(iter(self._mono_cache))]
-            self._mono_cache[_mono_key] = self._to_mono_f64(audio)
+            # §2.46h (2026-09-06): Der Singleton wird jetzt von Parallel-ERB-Threads
+            # geteilt — Cache-Mutation unter Lock (Wert ist deterministisch; ohne
+            # Lock drohen doppelte Berechnung und 80-MB-Doppelhaltung).
+            with self._mono_cache_lock:
+                if _mono_key not in self._mono_cache:
+                    if len(self._mono_cache) >= 2:
+                        # Cache auf max 2 Einträge begrenzen — große Audio-Arrays (≥80 MB) nicht unbegrenzt halten
+                        del self._mono_cache[next(iter(self._mono_cache))]
+                    self._mono_cache[_mono_key] = self._to_mono_f64(audio)
         mono = self._mono_cache[_mono_key]
         n_samples = len(mono)
         duration_s = n_samples / sr

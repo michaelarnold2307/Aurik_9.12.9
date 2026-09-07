@@ -403,6 +403,11 @@ class PerceptualSalienceEstimator:
                 else:
                     erb_anns = all_anns
 
+                # §2.46h (2026-09-06) MESSUNG: Parallelisierung dieser Schleife ist
+                # kontraproduktiv (gemessen 0.72× — die innere Arbeit ist GIL-
+                # gebundener Python-Code: _to_bark_bands-Schleifen und kleine FFTs
+                # releasen den GIL nicht lange genug, Thread-Overhead dominiert).
+                # Der SOTA-Ausbau ist VEKTORISIERUNG (STFT-Batching), nicht Threading.
                 for ann in erb_anns:
                     erb_result = erb_model.compute_masking_threshold(
                         mono,

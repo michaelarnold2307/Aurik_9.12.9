@@ -2240,20 +2240,206 @@ class DefectScanner:
             _frac = min(1.0, _tail_steps_done / float(_TAIL_STEP_BUDGET))
             _prog(_tail_start + _tail_span * _frac, name)
 
-        # Alle 28 Defekttypen sequentiell - nach jedem Schritt Fortschritt melden
+        # §2.46h (2026-09-06) Parallel-Detektion statt sequentiell:
+        # Die Detektoren sind unabhängige, reine Funktionen über (audio, sr,
+        # thresholds) — sequentiell kostete die Detektionsstrecke ~124 s für
+        # 60 s Audio (207,9 % Overhead, Produktionsbefund). ThreadPool nutzt
+        # die GIL-Freigaben von numpy/scipy (FFT/Welch/Filter); die
+        # Ergebnis-Zuordnung erfolgt deterministisch pro DefectType (§G5 —
+        # keine Zufallsquellen, keine Reihenfolge-Abhängigkeit). Abhängige
+        # Merge-Schritte (Tape-Intro-Supplement, Clipping→Clicks-Suppression)
+        # bleiben serial.
         # Welch-PSD-Cache zurücksetzen: neuer scan()-Call, neues audio_mono-Objekt.
         self._scan_welch_cache = {}
         scores = {}
 
-        _prog(_lead_pct(5), "Clicks")
-        scores[DefectType.CLICKS] = self._detect_clicks(audio_mono if not is_stereo else audio)
-        _prog(_lead_pct(9), "Knistern")
-        scores[DefectType.CRACKLE] = self._detect_crackle(audio_mono)
-        _prog(_lead_pct(15), "Brummen")
-        scores[DefectType.HUM] = self._detect_hum(audio_mono)
-        _prog(_lead_pct(20), "Tonhöhenschwankung")
-        scores[DefectType.WOW] = self._detect_wow(audio_mono)  # IEC 60386 < 0.5 Hz
-        scores[DefectType.FLUTTER] = self._detect_flutter(audio_mono)  # IEC 60386 0.5-200 Hz
+        import os  # noqa: PLC0415 — lokaler Import im Konsistenz-Muster der Datei
+        from concurrent.futures import ThreadPoolExecutor
+
+        _prog(_lead_pct(5), "Defekt-Detektion (parallel)")
+
+        _det_tasks: list[tuple[DefectType, Callable[[], DefectScore | dict[DefectType, DefectScore]]]] = [
+            (DefectType.CLICKS, lambda: self._detect_clicks(audio_mono if not is_stereo else audio)),
+            (DefectType.CRACKLE, lambda: self._detect_crackle(audio_mono)),
+            (DefectType.HUM, lambda: self._detect_hum(audio_mono)),
+            (DefectType.WOW, lambda: self._detect_wow(audio_mono)),  # IEC 60386 < 0.5 Hz
+            (DefectType.FLUTTER, lambda: self._detect_flutter(audio_mono)),  # IEC 60386 0.5-200 Hz
+            (DefectType.AZIMUTH_ERROR, lambda: self._detect_azimuth_error(audio)),  # PHD-Slope L/R
+            (
+                DefectType.STEREO_IMBALANCE,
+                lambda: self._detect_stereo_imbalance(audio)
+                if is_stereo
+                else DefectScore(DefectType.STEREO_IMBALANCE, 0.0, 0.0),
+            ),
+            (DefectType.DIGITAL_ARTIFACTS, lambda: self._detect_digital_artifacts(audio_mono)),
+            (DefectType.LOW_FREQ_RUMBLE, lambda: self._detect_low_freq_rumble(audio_mono)),
+            (DefectType.HIGH_FREQ_NOISE, lambda: self._detect_high_freq_noise(audio_mono)),
+            (DefectType.COMPRESSION_ARTIFACTS, lambda: self._detect_compression_artifacts(audio_mono)),
+            (
+                DefectType.PHASE_ISSUES,
+                lambda: self._detect_phase_issues(audio)
+                if is_stereo
+                else DefectScore(DefectType.PHASE_ISSUES, 0.0, 0.0),
+            ),
+            # §9.7.5a - Dropout detection runs on FULL audio (not center-cropped).
+            # Tape dropouts occur anywhere (intro, leader, splice points).
+            (DefectType.DROPOUTS, lambda: self._detect_dropouts(_audio_mono_full)),
+            (DefectType.CLIPPING, lambda: self._detect_clipping(audio_mono)),
+            (DefectType.DC_OFFSET, lambda: self._detect_dc_offset(audio_mono)),
+            (DefectType.BANDWIDTH_LOSS, lambda: self._detect_bandwidth_loss(audio_mono)),
+            (DefectType.PITCH_DRIFT, lambda: self._detect_pitch_drift(audio_mono)),
+            (DefectType.REVERB_EXCESS, lambda: self._detect_reverb_excess(audio_mono)),
+            (DefectType.PRINT_THROUGH, lambda: self._detect_print_through(audio_mono)),
+            (DefectType.QUANTIZATION_NOISE, lambda: self._detect_quantization_noise(audio_mono)),
+            (DefectType.JITTER_ARTIFACTS, lambda: self._detect_jitter_artifacts(audio_mono)),
+            (DefectType.DYNAMIC_COMPRESSION_EXCESS, lambda: self._detect_dynamic_compression_excess(audio_mono)),
+            (DefectType.SOFT_SATURATION, lambda: self._detect_soft_saturation(audio_mono)),
+            (DefectType.SIBILANCE, lambda: self._detect_sibilance(audio_mono)),
+            (DefectType.VOCAL_HARSHNESS, lambda: self._detect_vocal_harshness(audio_mono)),
+            (DefectType.BIAS_ERROR, lambda: self._detect_bias_error(audio_mono)),
+            (DefectType.DOLBY_NR_MISMATCH, lambda: self._detect_dolby_nr_mismatch(audio_mono)),
+            (DefectType.RIAA_CURVE_ERROR, lambda: self._detect_riaa_curve_error(audio_mono)),
+            (DefectType.HEAD_WEAR, lambda: self._detect_head_wear(audio_mono)),
+            (DefectType.TRANSIENT_SMEARING, lambda: self._detect_transient_smearing(audio_mono)),
+            (DefectType.PRE_ECHO, lambda: self._detect_pre_echo(audio_mono)),
+            (DefectType.ALIASING, lambda: self._detect_aliasing(audio_mono)),
+            (DefectType.MODULATION_NOISE, lambda: self._detect_modulation_noise(audio_mono)),
+            (DefectType.INNER_GROOVE_DISTORTION, lambda: self._detect_inner_groove_distortion(audio_mono)),
+            (DefectType.GROOVE_ECHO, lambda: self._detect_groove_echo(audio_mono)),
+            (
+                DefectType.CROSSTALK,
+                lambda: self._detect_crosstalk(audio)
+                if is_stereo
+                else DefectScore(DefectType.CROSSTALK, 0.0, 0.5, metadata={"reason": "mono"}),
+            ),
+            (DefectType.INTERMODULATION_DISTORTION, lambda: self._detect_intermodulation_distortion(audio_mono)),
+            (DefectType.TAPE_SPLICE_ARTIFACT, lambda: self._detect_tape_splice_artifact(audio_mono)),
+            (DefectType.HF_REMANENCE_LOSS, lambda: self._detect_hf_remanence_loss(audio_mono)),
+            (DefectType.STYLUS_DAMAGE, lambda: self._detect_stylus_damage(audio_mono)),
+            (DefectType.STICKY_SHED_RESIDUE, lambda: self._detect_sticky_shed_residue(audio_mono)),
+            (DefectType.MULTIBAND_WOW_FLUTTER, lambda: self._detect_multiband_wow_flutter(audio_mono)),
+            (DefectType.GENERATION_LOSS, lambda: self._detect_generation_loss(audio_mono)),
+            (DefectType.MOTOR_INTERFERENCE, lambda: self._detect_motor_interference(audio_mono)),
+            (DefectType.PROXIMITY_EFFECT_EXCESS, lambda: self._detect_proximity_effect_excess(audio_mono)),
+            (DefectType.ROOM_MODE_RESONANCE, lambda: self._detect_room_mode_resonance(audio_mono)),
+            (DefectType.NR_BREATHING_ARTIFACT, lambda: self._detect_nr_breathing_artifact(audio_mono)),
+            (DefectType.FLUTTER_SPECTRAL_SIDEBANDS, lambda: self._detect_flutter_spectral_sidebands(audio_mono)),
+            (DefectType.SPEED_CALIBRATION_ERROR, lambda: self._detect_speed_calibration_error(audio_mono)),
+            (DefectType.OVERLOAD_DISTORTION, lambda: self._detect_overload_distortion(audio_mono)),
+            (DefectType.LACQUER_DISC_DEGRADATION, lambda: self._detect_lacquer_disc_degradation(audio_mono)),
+        ]
+        # §2.46h (2026-09-06): Auch die teuren Full-Audio-Detektoren laufen im
+        # gleichen Pool — TRANSPORT_BUMP ist der größte Einzelposten
+        # („15-40 s auf langen Dateien“, §9.4a-Kommentar). Material-Gates und
+        # Cross-Material-Fallbacks hängen nur von material_type ab und werden
+        # in den Tasks gekapselt; die Zuordnung bleibt deterministisch (§G5).
+        _DIGITAL_NO_BUMP: frozenset[MaterialType] = frozenset(
+            {
+                MaterialType.CD_DIGITAL,
+                MaterialType.MP3_LOW,
+                MaterialType.MP3_HIGH,
+                MaterialType.AAC,
+                MaterialType.STREAMING,
+            }
+        )
+        _TAPE_MATERIALS: frozenset[MaterialType] = frozenset(
+            {
+                MaterialType.TAPE,
+                MaterialType.CASSETTE,
+                MaterialType.REEL_TAPE,
+                MaterialType.WIRE_RECORDING,
+            }
+        )
+
+        def _task_transport_bump() -> DefectScore:
+            # §9.1a: non-stationary impulsive micro-speed jumps, FULL audio.
+            # §9.4a: digitale Materialien haben keinen mechanischen Transport.
+            if material_type in _DIGITAL_NO_BUMP:
+                logger.info(
+                    "DefectScanner: TRANSPORT_BUMP uebersprungen (digital material=%s, §9.4a)",
+                    material_type,
+                )
+                return DefectScore(DefectType.TRANSPORT_BUMP, 0.0, 0.95)
+            return self._detect_transport_bump(_audio_mono_full)
+
+        def _task_tape_head_dip() -> DefectScore:
+            _s = self._detect_tape_head_level_dips(_audio_mono_full)
+            if material_type in _TAPE_MATERIALS:
+                return _s
+            if self._should_keep_cross_material_tape_head_level_dip(_s):
+                _s.severity = float(np.clip(_s.severity * 0.75, 0.0, 1.0))
+                _s.confidence = float(np.clip(min(_s.confidence, 0.72), 0.05, 0.95))
+                _s.metadata["cross_material_fallback"] = True
+                _s.metadata["fallback_material_gate_bypassed"] = material_type.value
+                return _s
+            return DefectScore(DefectType.TAPE_HEAD_LEVEL_DIP, 0.0, 0.95)
+
+        def _task_scrape_flutter() -> DefectScore:
+            _s = self._detect_scrape_flutter(_audio_mono_full)
+            if material_type in _TAPE_MATERIALS:
+                return _s
+            if self._should_keep_cross_material_scrape_flutter(_s):
+                _s.severity = float(np.clip(_s.severity * 0.80, 0.0, 1.0))
+                _s.confidence = float(np.clip(min(_s.confidence, 0.78), 0.05, 0.95))
+                _s.metadata["cross_material_fallback"] = True
+                _s.metadata["fallback_material_gate_bypassed"] = material_type.value
+                return _s
+            return DefectScore(DefectType.SCRAPE_FLUTTER, 0.0, 0.95)
+
+        def _task_tape_head_clog() -> DefectScore:
+            _s = self._detect_tape_head_clog(_audio_mono_full)
+            if material_type in _TAPE_MATERIALS:
+                return _s
+            if self._should_keep_cross_material_tape_head_clog(_s):
+                _s.severity = float(np.clip(_s.severity * 0.75, 0.0, 1.0))
+                _s.confidence = float(np.clip(min(_s.confidence, 0.76), 0.05, 0.95))
+                _s.metadata["cross_material_fallback"] = True
+                _s.metadata["fallback_material_gate_bypassed"] = material_type.value
+                return _s
+            return DefectScore(DefectType.TAPE_HEAD_CLOG, 0.0, 0.95)
+
+        def _task_dropout_subtypes() -> dict[DefectType, DefectScore]:
+            _oxide, _hc, _splice, _locs = self._detect_dropout_subtypes(_audio_mono_full)
+            return {
+                DefectType.DROPOUT_OXIDE: _oxide,
+                DefectType.DROPOUT_HEAD_CONTACT: _hc,
+                DefectType.DROPOUT_SPLICE: _splice,
+            }
+
+        _det_tasks.extend(
+            [
+                (DefectType.TRANSPORT_BUMP, _task_transport_bump),
+                (DefectType.TAPE_HEAD_LEVEL_DIP, _task_tape_head_dip),
+                (DefectType.SCRAPE_FLUTTER, _task_scrape_flutter),
+                (DefectType.TAPE_HEAD_CLOG, _task_tape_head_clog),
+                (DefectType.AMPLITUDE_DRIFT, lambda: self._detect_amplitude_drift(_audio_mono_full)),
+                (DefectType.DROPOUTS, _task_dropout_subtypes),
+                (DefectType.MPEG_FRAME_LOSS, lambda: self._detect_mpeg_frame_loss(_audio_mono_full)),
+                (
+                    DefectType.STEREO_FIELD_COLLAPSE,
+                    lambda: self._detect_stereo_collapse(audio)
+                    if is_stereo
+                    else DefectScore(
+                        DefectType.STEREO_FIELD_COLLAPSE, 0.0, 0.5, metadata={"reason": "mono"}
+                    ),
+                ),
+                (DefectType.PHASE_ROTATION, lambda: self._detect_phase_rotation(_audio_mono_full)),
+            ]
+        )
+        # §2.46h: 8 Workers auf 16 logischen Kernen — FFT/Welch-Batches sind
+        # memory-bound; mehr Threads bringen keine lineare Beschleunigung und
+        # erhöhen den RAM-Spitzenbedarf unnötig.
+        _det_workers = min(8, max(1, (os.cpu_count() or 4) // 2))
+        with ThreadPoolExecutor(max_workers=_det_workers, thread_name_prefix="defectscan") as _det_pool:
+            _det_results = list(_det_pool.map(lambda _t: (_t[0], _t[1]()), _det_tasks))
+        for _det_dt, _det_score in _det_results:
+            if isinstance(_det_score, dict):
+                scores.update(_det_score)  # Dropout-Subtypen-Task liefert 3 Scores
+            else:
+                scores[_det_dt] = _det_score
+        _prog(_lead_pct(64), "Detektion abgeschlossen — abhängige Merges")
+
+        # ── §2.46h: Abhängige Merge-Schritte (serial, deterministisch) ────────
         # v10.0.0 §9.1b-ext: Tape-Intro-Supplement for WOW/FLUTTER.
         # Center-cropped 60 s misses cassette motor startup instability (first 0-20 s).
         # For tape material: re-run WOW/FLUTTER on the first 20 s of full audio and
@@ -2285,30 +2471,8 @@ class DefectScanner:
                 )
                 scores[DefectType.FLUTTER] = _flutter_intro
                 scores[DefectType.FLUTTER].metadata["intro_supplement"] = True
-        scores[DefectType.AZIMUTH_ERROR] = self._detect_azimuth_error(audio)  # PHD-Slope L/R
-        _prog(_lead_pct(26), "Stereo-Ungleichgewicht")
-        scores[DefectType.STEREO_IMBALANCE] = (
-            self._detect_stereo_imbalance(audio) if is_stereo else DefectScore(DefectType.STEREO_IMBALANCE, 0.0, 0.0)
-        )
-        _prog(_lead_pct(31), "Digitalartefakte")
-        scores[DefectType.DIGITAL_ARTIFACTS] = self._detect_digital_artifacts(audio_mono)
-        _prog(_lead_pct(37), "Tieffrequenz-Rumpeln")
-        scores[DefectType.LOW_FREQ_RUMBLE] = self._detect_low_freq_rumble(audio_mono)
-        _prog(_lead_pct(42), "Hochfrequenzrauschen")
-        scores[DefectType.HIGH_FREQ_NOISE] = self._detect_high_freq_noise(audio_mono)
-        _prog(_lead_pct(48), "Kompressions-Artefakte")
-        scores[DefectType.COMPRESSION_ARTIFACTS] = self._detect_compression_artifacts(audio_mono)
-        _prog(_lead_pct(53), "Phasenfehler")
-        scores[DefectType.PHASE_ISSUES] = (
-            self._detect_phase_issues(audio) if is_stereo else DefectScore(DefectType.PHASE_ISSUES, 0.0, 0.0)
-        )
-        _prog(_lead_pct(59), "Aussetzer")
-        # §9.7.5a - Dropout detection runs on FULL audio (not center-cropped).
-        # Tape dropouts occur anywhere (intro, leader, splice points).
-        scores[DefectType.DROPOUTS] = self._detect_dropouts(_audio_mono_full)
-        _prog(_lead_pct(64), "Übersteuerung")
-        # --- Weltklasse-Erweiterung: 4 neue Defekttypen ---
-        scores[DefectType.CLIPPING] = self._detect_clipping(audio_mono)
+
+        # --- Weltklasse-Erweiterung: Clipping→Clicks-Suppression ---
         if scores[DefectType.CLIPPING].severity >= 0.50 and scores[DefectType.CLICKS].severity > 0.0:
             click_locations = scores[DefectType.CLICKS].locations
             clip_locations = scores[DefectType.CLIPPING].locations
@@ -2329,208 +2493,18 @@ class DefectScanner:
                     scores[DefectType.CLICKS].severity = 0.0
                     scores[DefectType.CLICKS].confidence = min(float(scores[DefectType.CLICKS].confidence), 0.35)
         _prog(_lead_pct(69), "DC-Versatz")
-        scores[DefectType.DC_OFFSET] = self._detect_dc_offset(audio_mono)
-        _prog(_lead_pct(74), "Bandbreitenverlust")
-        scores[DefectType.BANDWIDTH_LOSS] = self._detect_bandwidth_loss(audio_mono)
-        _prog(_lead_pct(78), "Tonhöhendrift")
-        scores[DefectType.PITCH_DRIFT] = self._detect_pitch_drift(audio_mono)
-        _prog(_lead_pct(82), "Übermäßiger Hall")
-        scores[DefectType.REVERB_EXCESS] = self._detect_reverb_excess(audio_mono)
-        _prog(_lead_pct(84), "Durchkopieren")
-        scores[DefectType.PRINT_THROUGH] = self._detect_print_through(audio_mono)
-        _prog(_lead_pct(87), "Quantisierungsrauschen")
-        # --- Weltklasse-Erweiterung Runde 3 ---
-        scores[DefectType.QUANTIZATION_NOISE] = self._detect_quantization_noise(audio_mono)
-        _prog(_lead_pct(89), "Jitter-Artefakte")
-        scores[DefectType.JITTER_ARTIFACTS] = self._detect_jitter_artifacts(audio_mono)
-        _prog(_lead_pct(90), "Überkompression")
-        scores[DefectType.DYNAMIC_COMPRESSION_EXCESS] = self._detect_dynamic_compression_excess(audio_mono)
-        # --- Vollständige 28-Typen-Erweiterung (F-7) ---
-        scores[DefectType.SOFT_SATURATION] = self._detect_soft_saturation(audio_mono)
-        _tail_tick("Soft-Sättigung")
-        scores[DefectType.SIBILANCE] = self._detect_sibilance(audio_mono)
-        _tail_tick("Sibilanz")
-        scores[DefectType.VOCAL_HARSHNESS] = self._detect_vocal_harshness(audio_mono)
-        _tail_tick("Vokalhärte")
-        scores[DefectType.BIAS_ERROR] = self._detect_bias_error(audio_mono)
-        _tail_tick("Bias-Fehler")
-        scores[DefectType.DOLBY_NR_MISMATCH] = self._detect_dolby_nr_mismatch(audio_mono)
-        _tail_tick("Dolby-NR-Mismatch")
-        scores[DefectType.RIAA_CURVE_ERROR] = self._detect_riaa_curve_error(audio_mono)
-        _tail_tick("RIAA-Kurve")
-        scores[DefectType.HEAD_WEAR] = self._detect_head_wear(audio_mono)
-        _tail_tick("Kopfverschleiß")
-        scores[DefectType.TRANSIENT_SMEARING] = self._detect_transient_smearing(audio_mono)
-        _tail_tick("Transienten-Schmierung")
-        scores[DefectType.PRE_ECHO] = self._detect_pre_echo(audio_mono)
-        _tail_tick("Pre-Echo")
-        scores[DefectType.ALIASING] = self._detect_aliasing(audio_mono)
-        _tail_tick("Aliasing")
-
-        # ── v10.0.0: 12 newly added defect detectors ─────────────────────────
-        scores[DefectType.MODULATION_NOISE] = self._detect_modulation_noise(audio_mono)
-        _tail_tick("Modulationsrauschen")
-        scores[DefectType.INNER_GROOVE_DISTORTION] = self._detect_inner_groove_distortion(audio_mono)
-        _tail_tick("Innenrillen-Verzerrung")
-        scores[DefectType.GROOVE_ECHO] = self._detect_groove_echo(audio_mono)
-        _tail_tick("Rillenecho")
-        # Crosstalk needs stereo input
-        if is_stereo:
-            scores[DefectType.CROSSTALK] = self._detect_crosstalk(audio)
-        else:
-            scores[DefectType.CROSSTALK] = DefectScore(DefectType.CROSSTALK, 0.0, 0.5, metadata={"reason": "mono"})
-        _tail_tick("Übersprechen")
-        scores[DefectType.INTERMODULATION_DISTORTION] = self._detect_intermodulation_distortion(audio_mono)
-        _tail_tick("Intermodulation")
-        scores[DefectType.TAPE_SPLICE_ARTIFACT] = self._detect_tape_splice_artifact(audio_mono)
-        _tail_tick("Band-Spleiß")
-        scores[DefectType.HF_REMANENCE_LOSS] = self._detect_hf_remanence_loss(audio_mono)
-        _tail_tick("HF-Remanenz")
-        scores[DefectType.STYLUS_DAMAGE] = self._detect_stylus_damage(audio_mono)
-        _tail_tick("Nadelschaden")
-        scores[DefectType.STICKY_SHED_RESIDUE] = self._detect_sticky_shed_residue(audio_mono)
-        _tail_tick("Sticky-Shed")
-        scores[DefectType.MULTIBAND_WOW_FLUTTER] = self._detect_multiband_wow_flutter(audio_mono)
-        _tail_tick("Multiband Wow/Flutter")
-        scores[DefectType.GENERATION_LOSS] = self._detect_generation_loss(audio_mono)
-        _tail_tick("Generationsverlust")
-        scores[DefectType.MOTOR_INTERFERENCE] = self._detect_motor_interference(audio_mono)
-        _tail_tick("Motor-Interferenz")
-        # v10.0.0: 7 neue DefectType-Detektionen
-        scores[DefectType.PROXIMITY_EFFECT_EXCESS] = self._detect_proximity_effect_excess(audio_mono)
-        _tail_tick("Proximity-Effekt")
-        scores[DefectType.ROOM_MODE_RESONANCE] = self._detect_room_mode_resonance(audio_mono)
-        _tail_tick("Raum-Resonanz")
-        scores[DefectType.NR_BREATHING_ARTIFACT] = self._detect_nr_breathing_artifact(audio_mono)
-        _tail_tick("NR-Atmen")
-        scores[DefectType.FLUTTER_SPECTRAL_SIDEBANDS] = self._detect_flutter_spectral_sidebands(audio_mono)
-        _tail_tick("Flutter-Seitenbänder")
-        scores[DefectType.SPEED_CALIBRATION_ERROR] = self._detect_speed_calibration_error(audio_mono)
-        _tail_tick("Geschwindigkeitsfehler")
-        scores[DefectType.OVERLOAD_DISTORTION] = self._detect_overload_distortion(audio_mono)
-        _tail_tick("Übersteuerungs-Klirr")
-        scores[DefectType.LACQUER_DISC_DEGRADATION] = self._detect_lacquer_disc_degradation(audio_mono)
         _tail_tick("Lackfolien-Degradierung")
 
-        # §9.1a - TRANSPORT_BUMP is non-stationary (impulsive micro-speed jumps).
-        # MUST run on FULL audio, same as DROPOUTS.
-        # §9.4a - Digital-only materials have no mechanical transport mechanism.
-        # Their MATERIAL_SENSITIVITY threshold is 1.0 (never triggers). Skip the
-        # expensive full-audio frame analysis entirely to save ~15-40 s on long files.
-        _DIGITAL_NO_BUMP: frozenset[MaterialType] = frozenset(
-            {
-                MaterialType.CD_DIGITAL,
-                MaterialType.MP3_LOW,
-                MaterialType.MP3_HIGH,
-                MaterialType.AAC,
-                MaterialType.STREAMING,
-            }
-        )
-        if material_type in _DIGITAL_NO_BUMP:
-            scores[DefectType.TRANSPORT_BUMP] = DefectScore(DefectType.TRANSPORT_BUMP, 0.0, 0.95)
-            logger.info(
-                "DefectScanner: TRANSPORT_BUMP uebersprungen (digital material=%s, §9.4a)",
-                material_type,
-            )
-        else:
-            scores[DefectType.TRANSPORT_BUMP] = self._detect_transport_bump(_audio_mono_full)
+        # §2.46h (2026-09-06): Die Tail-Detektoren laufen bereits im Parallel-Pool;
+        # hier nur noch die Fortschritts-Ticks in Original-Reihenfolge nachziehen.
         _tail_tick("Transport-Bump")
-
-        # §9.1a - TAPE_HEAD_LEVEL_DIP is non-stationary (gradual level dips from
-        # head-contact pressure variation).  MUST run on FULL audio.
-        # Only relevant for tape-based materials with magnetic head mechanism.
-        _TAPE_HEAD_DIP_MATERIALS: frozenset[MaterialType] = frozenset(
-            {
-                MaterialType.TAPE,
-                MaterialType.CASSETTE,
-                MaterialType.REEL_TAPE,
-                MaterialType.WIRE_RECORDING,
-            }
-        )
-        _tape_head_dip_score = self._detect_tape_head_level_dips(_audio_mono_full)
-        if material_type in _TAPE_HEAD_DIP_MATERIALS:
-            scores[DefectType.TAPE_HEAD_LEVEL_DIP] = _tape_head_dip_score
-        elif self._should_keep_cross_material_tape_head_level_dip(_tape_head_dip_score):
-            _tape_head_dip_score.severity = float(np.clip(_tape_head_dip_score.severity * 0.75, 0.0, 1.0))
-            _tape_head_dip_score.confidence = float(np.clip(min(_tape_head_dip_score.confidence, 0.72), 0.05, 0.95))
-            _tape_head_dip_score.metadata["cross_material_fallback"] = True
-            _tape_head_dip_score.metadata["fallback_material_gate_bypassed"] = material_type.value
-            scores[DefectType.TAPE_HEAD_LEVEL_DIP] = _tape_head_dip_score
-        else:
-            scores[DefectType.TAPE_HEAD_LEVEL_DIP] = DefectScore(DefectType.TAPE_HEAD_LEVEL_DIP, 0.0, 0.95)
         _tail_tick("Tape-Head-Level-Dip")
-
-        _SCRAPE_FLUTTER_MATERIALS: frozenset[MaterialType] = frozenset(
-            {
-                MaterialType.TAPE,
-                MaterialType.CASSETTE,
-                MaterialType.REEL_TAPE,
-                MaterialType.WIRE_RECORDING,
-            }
-        )
-        _scrape_flutter_score = self._detect_scrape_flutter(_audio_mono_full)
-        if material_type in _SCRAPE_FLUTTER_MATERIALS:
-            scores[DefectType.SCRAPE_FLUTTER] = _scrape_flutter_score
-        elif self._should_keep_cross_material_scrape_flutter(_scrape_flutter_score):
-            _scrape_flutter_score.severity = float(np.clip(_scrape_flutter_score.severity * 0.80, 0.0, 1.0))
-            _scrape_flutter_score.confidence = float(np.clip(min(_scrape_flutter_score.confidence, 0.78), 0.05, 0.95))
-            _scrape_flutter_score.metadata["cross_material_fallback"] = True
-            _scrape_flutter_score.metadata["fallback_material_gate_bypassed"] = material_type.value
-            scores[DefectType.SCRAPE_FLUTTER] = _scrape_flutter_score
-        else:
-            scores[DefectType.SCRAPE_FLUTTER] = DefectScore(DefectType.SCRAPE_FLUTTER, 0.0, 0.95)
         _tail_tick("Scrape-Flutter")
-
-        _TAPE_HEAD_CLOG_MATERIALS: frozenset[MaterialType] = frozenset(
-            {
-                MaterialType.TAPE,
-                MaterialType.CASSETTE,
-                MaterialType.REEL_TAPE,
-                MaterialType.WIRE_RECORDING,
-            }
-        )
-        _tape_head_clog_score = self._detect_tape_head_clog(_audio_mono_full)
-        if material_type in _TAPE_HEAD_CLOG_MATERIALS:
-            scores[DefectType.TAPE_HEAD_CLOG] = _tape_head_clog_score
-        elif self._should_keep_cross_material_tape_head_clog(_tape_head_clog_score):
-            _tape_head_clog_score.severity = float(np.clip(_tape_head_clog_score.severity * 0.75, 0.0, 1.0))
-            _tape_head_clog_score.confidence = float(np.clip(min(_tape_head_clog_score.confidence, 0.76), 0.05, 0.95))
-            _tape_head_clog_score.metadata["cross_material_fallback"] = True
-            _tape_head_clog_score.metadata["fallback_material_gate_bypassed"] = material_type.value
-            scores[DefectType.TAPE_HEAD_CLOG] = _tape_head_clog_score
-        else:
-            scores[DefectType.TAPE_HEAD_CLOG] = DefectScore(DefectType.TAPE_HEAD_CLOG, 0.0, 0.95)
         _tail_tick("Tape-Head-Clog")
-
-        # §9.1c - AMPLITUDE_DRIFT: Gradual level rise/fall over entire song.
-        # Distinguishes artistic crescendo (preserve) from carrier drift (correct).
-        # Runs on full mono audio for reliable trend detection (requires full duration).
-        scores[DefectType.AMPLITUDE_DRIFT] = self._detect_amplitude_drift(_audio_mono_full)
         _tail_tick("Amplitude-Drift")
-
-        # ── Tier 2: Dropout-Subtypen ───────────────────────────────────────
-        # Klassifiziert Dropouts aus _detect_dropouts in drei Subtypen.
-        _oxide_score, _hc_score, _splice_score, _all_dropout_locs = self._detect_dropout_subtypes(_audio_mono_full)
-        scores[DefectType.DROPOUT_OXIDE] = _oxide_score
-        scores[DefectType.DROPOUT_HEAD_CONTACT] = _hc_score
-        scores[DefectType.DROPOUT_SPLICE] = _splice_score
         _tail_tick("Dropout-Subtypen")
-
-        # ── Tier 2: MPEG-Frame-Verlust ─────────────────────────────────────
-        scores[DefectType.MPEG_FRAME_LOSS] = self._detect_mpeg_frame_loss(_audio_mono_full)
         _tail_tick("MPEG-Frame-Verlust")
-
-        # ── Tier 2: Stereofeld-Kollaps (nur Stereo) ─────────────────────────
-        if is_stereo:
-            scores[DefectType.STEREO_FIELD_COLLAPSE] = self._detect_stereo_collapse(audio)
-        else:
-            scores[DefectType.STEREO_FIELD_COLLAPSE] = DefectScore(
-                DefectType.STEREO_FIELD_COLLAPSE, 0.0, 0.5, metadata={"reason": "mono"}
-            )
         _tail_tick("Stereofeld-Kollaps")
-
-        # ── Tier 2: Phasenrotation ─────────────────────────────────────────
-        scores[DefectType.PHASE_ROTATION] = self._detect_phase_rotation(_audio_mono_full)
         _tail_tick("Phasenrotation")
 
         # ── Full-Audio Location Re-Detection ───────────────────────────────────
@@ -3395,6 +3369,14 @@ class DefectScanner:
 
         §v10.14.1: era_decade moduliert Rumble-Gewichtung.
         """
+        # §2.46g (2026-09-06) Stille-Guard (global): Ohne Signal-Energie sind
+        # alle Material-Features degeneriert (hf_loss=1, flutter=1, HF-Mangel=1).
+        # Stille → Forensic-Defer oder ehrliches UNKNOWN statt Raterei.
+        _mono_material_rms = float(np.sqrt(np.mean(audio.astype(np.float64) ** 2)))
+        if _mono_material_rms < 1e-6:
+            if forensic_material is not None and forensic_material != MaterialType.UNKNOWN:
+                return forensic_material
+            return MaterialType.UNKNOWN
         # === Feature-Extraction ===
 
         # Quick click detection
@@ -3418,10 +3400,17 @@ class DefectScanner:
         crackle_score = self._detect_crackle(audio).severity
 
         # Wow/Flutter (beide analog - IEC 60386)
-        wow_flutter_score = max(
-            self._detect_wow(audio if audio.ndim == 1 else audio.mean(axis=1)).severity,
-            self._detect_flutter(audio if audio.ndim == 1 else audio.mean(axis=1)).severity,
-        )
+        # §2.46g (2026-09-06) Stille-Guard: _detect_flutter liefert auf Stille
+        # degeneriert severity=1.0 (leere Pitch-Varianz) → Cassette-Score 3.5
+        # auf Stille. Ohne Signal-Energie ist Wow/Flutter nicht definiert → 0.
+        _mono_rms = float(np.sqrt(np.mean(audio.astype(np.float64) ** 2)))
+        if _mono_rms > 1e-6:
+            wow_flutter_score = max(
+                self._detect_wow(audio if audio.ndim == 1 else audio.mean(axis=1)).severity,
+                self._detect_flutter(audio if audio.ndim == 1 else audio.mean(axis=1)).severity,
+            )
+        else:
+            wow_flutter_score = 0.0
 
         # === Material Scoring ===
 
@@ -3433,62 +3422,64 @@ class DefectScanner:
         _era_is_digital = era_decade is not None and era_decade >= 1990
         _era_is_modern = era_decade is not None and era_decade >= 2000
         _rumble_analog_factor = 1.0
-        _rumble_digital_boost = 0.0
+        _digital_boost_n = 0.0
         if _era_is_modern:
             _rumble_analog_factor = 0.15  # 85% Dämpfung — Bass ist fast sicher musikalisch
-            _rumble_digital_boost = 8.0  # Starker Boost für digitale Materialien
+            _digital_boost_n = 3.0  # Starker Boost für digitale Materialien (normalisierte Skala)
         elif _era_is_digital:
             _rumble_analog_factor = 0.35  # 65% Dämpfung
-            _rumble_digital_boost = 4.0
+            _digital_boost_n = 1.5
 
-        # SHELLAC Score (Mono) - sehr alt, viele defekte, wenig HF
-        # Penalized heavily since modern materials are more common
+        # §2.46g (2026-09-06) Skalen-Normalisierung: Alle Features werden auf
+        # 0..1 normiert; die §v10.14-Baseline-Boni (vinyl+9/tape+10/cassette+9)
+        # sind entfernt — Priors gehören in die Bayesian-Schicht (MediumDetector),
+        # nicht in Feature-Scores. Referenzpunkte empirisch (Produktionslog:
+        # crackle=0.0016, infrasonic=0.0218, rotation=0.411 bei Physical-Gate-Vinyl).
+        click_rate_n = float(np.clip(click_rate / 60.0, 0.0, 1.0))  # 60 Klicks/s = dichteste Shellac-Signatur
+        hf_n = float(np.clip(high_freq_energy / 0.03, 0.0, 1.0))  # 3 % HF-Energie = voll
+        rumble_n = float(np.clip(rumble_energy / 0.01, 0.0, 1.0))  # 1 % Sub-60 Hz = stark
+        hum_n = float(np.clip(_mid_low_energy / 0.01, 0.0, 1.0))  # 50-70 Hz Netzbrumm-Anteil
+
+        # SHELLAC Score (Mono) - sehr alt, viele Klicks, wenig HF, kein Rumble
         shellac_score = 0.0
-        shellac_score += click_rate * 0.3  # Clicks weniger gewichtet
-        shellac_score += crackle_score * 2.0  # Crackle reduziert
-        shellac_score += (1.0 - high_freq_energy) * 1.0  # HF-Mangel weniger stark
-        shellac_score += wow_flutter_score * 0.3  # Wow/Flutter reduziert
-        shellac_score -= rumble_energy * 20.0 * _rumble_analog_factor  # Shellac sollte fast kein Rumble haben
-        shellac_score -= 10.0  # Starke Baseline-Penalty (Shellac ist selten)
+        shellac_score += click_rate_n * 3.0  # Hauptmerkmal: dichte Klick-Rate
+        shellac_score += crackle_score * 1.5  # Surface-Noise typisch
+        shellac_score += (1.0 - hf_n) * 2.0  # HF-Mangel (akustische Aufnahme)
+        shellac_score += wow_flutter_score * 0.3  # Spielwerk-Schwankungen
+        shellac_score -= rumble_n * 1.0  # Schweres Spielwerk: kaum Sub-60 Hz
+        shellac_score -= _digital_boost_n * 0.5  # Digital-Ära → Shellac unwahrscheinlich
 
-        # VINYL Score (Mono) - Basiert auf empirischen Daten
-        # Vinyl (1950s scratched): HF=0.035, rumble=0.0002, crackle=1.0, clicks=48
+        # VINYL Score (Mono) - Rumble + Crackle + Netzbrumm
         vinyl_score = 0.0
-        vinyl_score += high_freq_energy * 150.0  # Höhere HF als Tape (Hauptmerkmal!)
-        vinyl_score += crackle_score * 2.0  # Crackle typisch, aber nicht exklusiv (§3 Material-Mismatch-Fix)
-        vinyl_score += click_rate * 0.3  # Moderate Clicks
-        vinyl_score += wow_flutter_score * 2.0  # Speed-Variation
-        vinyl_score += (
-            rumble_energy * 1500.0 * _rumble_analog_factor
-        )  # §v10.14 FIX: Vinyl HAT Rumble (Motor) — war subtrahiert!
-        vinyl_score += 9.0  # §v10.14 FIX: Baseline-Bonus (Vinyl ~Tape/Cassette-Niveau)
-        if _era_is_digital:
-            vinyl_score -= _rumble_digital_boost  # Digital-Ära → Vinyl unwahrscheinlich
+        vinyl_score += crackle_score * 3.0  # Surface-Noise (Hauptmerkmal)
+        vinyl_score += rumble_n * 2.5 * _rumble_analog_factor  # Plattenteller-Rumble
+        vinyl_score += hum_n * 1.5  # 50/60-Hz-Netzbrumm (Motor/Pickup)
+        vinyl_score += hf_n * 1.0  # Volle Bandbreite bis 15 kHz
+        vinyl_score += click_rate_n * 0.8  # Moderate Klick-Rate
+        vinyl_score += wow_flutter_score * 1.0  # Geschwindigkeits-Schwankungen
+        vinyl_score -= _digital_boost_n * 0.5  # Digital-Ära → Vinyl unwahrscheinlich
 
-        # TAPE Score (Mono) - Basiert auf empirischen Daten
-        # Tape (1980s cassette): HF=0.024, rumble=0.0010, crackle=1.0, clicks=48
+        # TAPE Score (Mono) - Reel-Tape: Hiss + Flutter + moderater Rumble
         tape_score = 0.0
-        tape_score += wow_flutter_score * 6.0  # Sehr typisch (Tape-Stretch)
-        tape_score += rumble_energy * 2500.0 * _rumble_analog_factor  # Rumble stark era-moduliert!
-        tape_score -= high_freq_energy * 80.0  # Niedrigere HF als Vinyl (Hauptmerkmal!)
-        tape_score += crackle_score * 1.0  # Crackle schwach positive (beide haben es)
-        tape_score += click_rate * 0.1  # Clicks schwach positive
-        tape_score += 10.0  # Baseline-Bonus erhöht
-        if _era_is_digital:
-            tape_score -= _rumble_digital_boost  # Digital-Ära → Tape unwahrscheinlich
+        tape_score += wow_flutter_score * 2.5  # Bandlauf-Schwankungen (Hauptmerkmal)
+        tape_score += rumble_n * 1.5 * _rumble_analog_factor  # Transport-Rumble
+        tape_score -= hf_n * 1.5  # Weniger HF als Vinyl (Hiss-Band, kein Vollband)
+        tape_score += crackle_score * 0.5  # Oxidflaking leicht positiv
+        tape_score += click_rate_n * 0.2  # Seltene Clicks
+        tape_score -= _digital_boost_n * 0.5  # Digital-Ära → Reel-Tape unwahrscheinlich
 
         # CASSETTE Score (Mono) - Compact Cassette IEC 60094-1 Type I/II/IV
-        # Diskriminatoren vs. TAPE/Reel-Tape:
+        # Diskriminatoren vs. Reel-Tape:
         #   - Höheres Flutter (4.75 cm/s → typisch 0.10-0.30 % WRMS; Reel: 0.02-0.08 %)
-        #   - Niedrigere BW (≤ 12 kHz Type I vs. 15 kHz Reel-Tape) → stärkerer HF-Abfall
+        #   - Niedrigere BW (≤ 12 kHz Type I vs. 15 kHz Reel-Tape)
         #   - Kein/kaum Rumble (leichter Transportmechanismus)
         cassette_score = 0.0
-        cassette_score += wow_flutter_score * 9.0  # Hauptmerkmal: Flutter höher als Reel-Tape
-        cassette_score -= high_freq_energy * 120.0  # BW ≤ 12 kHz → stärkerer HF-Abfall als Reel
-        cassette_score += crackle_score * 0.5  # Weniger Crackle als Vinyl
-        cassette_score -= rumble_energy * 3500.0  # Leichter Transport → kein/kaum Rumble
-        cassette_score += click_rate * 0.08  # Gelegentliche Dropout-Clicks möglich
-        cassette_score += 9.0  # Baseline (leicht über Reel-Tape, da häufiger als Reel)
+        cassette_score += wow_flutter_score * 3.5  # Hauptmerkmal: Flutter höher als Reel
+        cassette_score -= hf_n * 2.0  # BW ≤ 12 kHz → HF-Abfall
+        cassette_score -= rumble_n * 2.0  # Leichter Transport → kein Rumble
+        cassette_score += crackle_score * 0.3  # Wenig Crackle
+        cassette_score += click_rate_n * 0.15  # Gelegentliche Dropout-Clicks
+        cassette_score -= _digital_boost_n * 0.2  # Digital-Ära → Kassette unwahrscheinlich
 
         logger.debug(
             "Mono material scores: shellac=%.2f, vinyl=%.2f, tape=%.2f, cassette=%.2f",
@@ -3550,6 +3541,15 @@ class DefectScanner:
         """
         audio_mono = np.mean(audio, axis=1)
 
+        # §2.46g (2026-09-06) Stille-Guard (global): Ohne Signal-Energie sind
+        # alle Material-Features degeneriert (hf_loss=1, flutter=1, HF-Mangel=1).
+        # Stille → Forensic-Defer oder ehrliches UNKNOWN statt Raterei.
+        _stereo_material_rms = float(np.sqrt(np.mean(audio_mono.astype(np.float64) ** 2)))
+        if _stereo_material_rms < 1e-6:
+            if forensic_material is not None and forensic_material != MaterialType.UNKNOWN:
+                return forensic_material
+            return MaterialType.UNKNOWN
+
         # === Feature-Extraction ===
 
         # 1. Rumble-Detection (Vinyl-typisch)
@@ -3565,20 +3565,54 @@ class DefectScanner:
 
         # 4. High-freq noise / Tape hiss
         hf_noise_score = self._detect_high_freq_noise(audio_mono).severity
+        # §2.46g (2026-09-06) Impulse≠Hiss-Guard: Impulszüge (Crackle/Clicks) haben
+        # einen hohen Crest-Faktor im HP-Band — sie dürfen nicht als stationärer
+        # Hiss gewertet werden (Produktionsbefund: synthetisches Vinyl-Crackle →
+        # „cassette“-Score). Hiss ist gaußisch-stationär (Crest ≈ 3-5 dB).
+        if hf_noise_score > 0.0:
+            _hp_sos = signal.butter(4, 8000, btype="high", fs=self.sample_rate, output="sos")
+            _hp_audio = signal.sosfilt(_hp_sos, audio_mono)
+            _hp_rms = float(np.sqrt(np.mean(_hp_audio**2)) + 1e-12)
+            _hp_crest_db = float(20.0 * np.log10(float(np.max(np.abs(_hp_audio)) + 1e-12) / _hp_rms))
+            if _hp_crest_db > 15.0:
+                hf_noise_score *= float(np.clip(1.0 - (_hp_crest_db - 15.0) / 30.0, 0.15, 1.0))
 
         # 5. High-freq energy loss (MP3/AAC low-pass effect)
-        hf_energy = np.sum(psd[freqs > 15000]) / _psd_tot if self.sample_rate >= 44100 else 0.0
-        hf_loss_indicator = 1.0 - (hf_energy / 0.05)  # Normalized: 0.05 = full HF, 0.0 = no HF
-        hf_loss_indicator = np.clip(hf_loss_indicator, 0.0, 1.0)
+        # §2.46g (2026-09-06) Slope-basiert statt 1−hf/0.05: Der alte Indikator
+        # lieferte bei schmalbandigen Analogquellen und Stille pauschal hf_loss=1
+        # → mp3_low +3 (Falsch-Positiv bei jedem analogen Bandbreiten-Limit).
+        # SOTA: Die STEILHEIT des HF-Abfalls trennt Codec-Cutoff (steil) von
+        # analogem Rolloff (flach); liegen beide Bänder am Rauschboden, ist die
+        # Differenz ≈ 0 → kein mp3-Verdacht.
+        def _band_db(psd: np.ndarray, freqs: np.ndarray, f_lo: float, f_hi: float) -> float:
+            _bm = (freqs >= f_lo) & (freqs <= f_hi)
+            if not _bm.any():
+                return -120.0
+            return float(10.0 * np.log10(np.mean(psd[_bm]) + 1e-20))
+
+        hf_loss_indicator = float(
+            np.clip(
+                (_band_db(psd, freqs, 10_000.0, 12_000.0) - _band_db(psd, freqs, 14_000.0, 16_000.0)) / 60.0,
+                0.0,
+                1.0,
+            )
+        )
 
         # 6. Crackle (Vinyl-typisch)
         crackle_score = self._detect_crackle(audio_mono).severity
 
         # 7. Wow/Flutter (analog media - IEC 60386)
-        wow_flutter_score = max(
-            self._detect_wow(audio_mono).severity,
-            self._detect_flutter(audio_mono).severity,
-        )
+        # §2.46g (2026-09-06) Stille-Guard: _detect_flutter liefert auf Stille
+        # degeneriert severity=1.0 (leere Pitch-Varianz). Ohne Signal-Energie
+        # ist Wow/Flutter nicht definiert → 0.
+        _stereo_rms = float(np.sqrt(np.mean(audio_mono.astype(np.float64) ** 2)))
+        if _stereo_rms > 1e-6:
+            wow_flutter_score = max(
+                self._detect_wow(audio_mono).severity,
+                self._detect_flutter(audio_mono).severity,
+            )
+        else:
+            wow_flutter_score = 0.0
 
         # 8. Clicks (alle analog, aber unterschiedliche Pattern)
         click_score = self._detect_clicks(audio_mono).severity

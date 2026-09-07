@@ -27,6 +27,33 @@
   Carrier-First-Kettenordnung (`transfer_chain[0]` = Primary, Folgeglieder
   chronologisch) jetzt bindend dokumentiert; Drift-Baseline nachgezogen.
 
+### ⚡ Steigerungspotenziale umgesetzt — Heuristik-Redesign + Parallel-Detektion (2026-09-06)
+
+- **§2.46g Material-Scoring-Redesign (Stereo):** `hf_loss_indicator` ist jetzt
+  **Slope-basiert** (10–12 kHz vs. 14–16 kHz, 60-dB-Skala) statt `1−hf/0.05` —
+  schmalbandige Analogquellen und Stille lieferten vorher pauschal `hf_loss=1`
+  → mp3_low +3 (Falsch-Positiv bei jedem analogen Bandbreiten-Limit).
+  Zusätzlich **Impulse≠Hiss-Guard** (Crest-Faktor > 15 dB im 8-kHz-HP-Band
+  diskontiert den Hiss-Score) und **Stille-Guard** (RMS < 1e-6 → Forensic-Defer
+  oder UNKNOWN — `_detect_flutter` lieferte auf Stille degeneriert 1.0).
+- **§2.46g Material-Scoring-Redesign (Mono):** Baseline-Boni (vinyl+9/tape+10/
+  cassette+9) entfernt, alle Features auf 0..1 normiert (Click-Rate/60 s,
+  HF/3 %, Rumble/1 %, 50–70-Hz-Netzbrumm als Vinyl-Feature — vorher tote
+  Variable). Mono-Vinyl-Signatur (Brumm+Rumble+Clicks) wird weiterhin korrekt
+  als VINYL erkannt (Regressionstest).
+- **§2.46h Parallel-Detektion (DefectScanner.scan):** Alle unabhängigen
+  Detektoren + Full-Audio-Tail (transport_bump, tape-head-dips, scrape-flutter,
+  Dropout-Subtypen, …) laufen im ThreadPool (8 Worker); Material-Gates und
+  Cross-Material-Fallbacks sind in Tasks gekapselt. Ergebnis **bit-identisch**
+  (gemessen 1 vs. 8 Worker, severities/confidences < 1e-9). Detektor-Block
+  3,9× schneller (12,5 s Arbeit in 3,2 s Wall-Time); Gesamt-Scan −6 %.
+- **§2.46h Messung (Negativ-Ergebnis, dokumentiert):** Parallelisierung der
+  ERB-Salience-Schleife (4800 Events im Produktionsbefund) ist
+  **kontraproduktiv** (0,72× — `_to_bark_bands`/Quantile sind GIL-gebundener
+  Python-Code). Revertiert mit Mess-Kommentar; der SOTA-Ausbau ist
+  STFT-Batching/Vectorisierung, nicht Threading. ERB-`_mono_cache` jetzt
+  lock-geschützt (Singleton wird von Parallel-Detektoren geteilt).
+
 ### 👂 Hörordnung Ebene 3 — maschineller Audit + Matrix-Harness-CI-Gate
 
 - **Ebene 3:** `wohlklang_ordnung_gate` (`WohlklangOrdnungGate`) — Audit der
