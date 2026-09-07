@@ -11,9 +11,11 @@
 | M | TASK_CHANGES.md | modifiziert |
 | M | backend/core/unified_restorer_v3.py | modifiziert |
 | M | backend/core/musical_goals/musical_goals_metrics.py | modifiziert |
+| M | backend/core/feedback_chain.py | modifiziert |
 | M | backend/core/residuum_masking.py | modifiziert |
 | M | conftest.py | modifiziert |
 | ?? | tests/unit/test_b3_full_song_defect_merge.py | ungetrackt |
+| ?? | tests/unit/test_fc_hoerordnung_pre_filter.py | ungetrackt |
 
 ## Entscheidungen
 
@@ -53,4 +55,14 @@
   („Kontingent erschöpft“ ~20×/Chunk). Fix: abgeschlossene Messwerte werden nie verworfen
   (Warn-Log statt Überschreiben); neutral 0.5 nur wenn kein Wert vorliegt. Proxy-Label
   ehrlich benannt (SDR-Kohärenz-Proxy ist ein echter Messwert).
+- **Hörordnungs-Tier-Pre-Filter in der FeedbackChain (Matrix-Befund Punkt 3)**: FC erzeugte
+  Kandidaten, die brillanz (Stufe 4) auf Kosten von waerme/natuerlichkeit (Stufe 1/2) verbesserten;
+  der GPP-Abbruch kam erst NACH der Messung (11–23 Verstöße/Audit). Neu:
+  `FeedbackChain.FC_PHASE_PRIMARY_GOALS` (Phase→Goal-Map, 11 Einträge) +
+  `_filter_phases_by_hoerordnung_tiers()` — überspringt VOR der Kandidaten-Konstruktion Phasen,
+  deren Ziel-Stufe über der niedrigsten Defizit-Stufe liegt und die kein Defizit-Goal direkt
+  bedienen (lexikografische Ordnung, hoerordnung.instructions.md §5). GPP/WohlklangOrdnungGate
+  bleiben autoritativ; unbekannte Phasen/Goals bleiben erhalten (konservativ). UV3 injiziert
+  eine DSP-only-Baseline (`_fast_goal_snapshot`) als `baseline_goals` → Filter wirkt ab Iteration 1.
+  5 Regressionstests in `tests/unit/test_fc_hoerordnung_pre_filter.py`.
 

@@ -39,6 +39,27 @@ class FeedbackChainResult:
 class FeedbackChain:
     """Iterative quality loop with conservative convergence control."""
 
+    # §Hörordnung-Pre-Filter (hoerordnung.instructions.md §5, "Teamwork statt
+    # Dominanz", Produktionsbefund 2026-09-07): Primäre Ziel-Goals der
+    # FC-Phasen (numerische Phase-ID → Goal-Namen). Unbekannte Goal-Namen
+    # fallen auf hearing_tier()=3 zurück — der Filter bleibt damit konservativ.
+    # Die GoalPriorityProtocol/GPP-Prüfung bleibt der autoritative Gatekeeper;
+    # dieser Pre-Filter überspringt nur Kandidaten, deren Ziel-Stufe über der
+    # niedrigsten Defizit-Stufe liegt (lexikografische Ordnung).
+    FC_PHASE_PRIMARY_GOALS: dict[int, tuple[str, ...]] = {
+        7: ("waerme", "natuerlichkeit"),  # Harmonic Restoration
+        14: ("transparenz",),  # Phase correction
+        16: ("brillanz", "waerme"),  # Final EQ
+        17: ("brillanz", "groove"),  # Mastering polish
+        40: ("emotionalitaet", "loudness_consistency"),  # Loudness normalization
+        19: ("artikulation", "transparenz"),  # De-esser
+        22: ("micro_dynamics", "groove"),  # Dynamic enhancement
+        36: ("micro_dynamics", "emotionalitaet"),  # Log-envelope smoothing
+        47: ("waerme", "timbre_authentizitaet"),  # Timbre restoration
+        48: ("spatial_depth", "separation_fidelity"),  # Stereo imaging
+        55: ("brillanz", "bass_kraft"),  # Spectral band enhancement
+    }
+
     def __init__(
         self,
         max_iterations: int = 5,
@@ -569,6 +590,61 @@ class FeedbackChain:
         # Clamp: [0.03, 0.25] — never allow unlimited regression
         return float(np.clip(tolerance, 0.03, 0.25))
 
+    def _filter_phases_by_hoerordnung_tiers(
+        self,
+        active_phases: list,
+        goal_scores: dict,
+    ) -> list:
+        """§Hörordnung-Pre-Filter: lexikografische Ziel-Stufen vor der Messung.
+
+        Regel (hoerordnung.instructions.md §5): Solange ein Goal der niedrigsten
+        Defizit-Stufe unter Ziel liegt, werden FC-Phasen übersprungen, die
+        ausschließlich höhere Stufen adressieren und KEIN Defizit-Goal
+        direkt bedienen (Teamwork statt Dominanz). Phasen mit unbekannter ID
+        oder unbekannten Goals bleiben erhalten (konservativ). GPP/Wohlklang-
+        Ordnung-Gate prüfen danach weiterhin autoritativ.
+        """
+        if not goal_scores:
+            return active_phases
+        try:
+            from backend.core.goal_priority_protocol import GoalPriorityProtocol as _TierGPP
+
+            _tier_gpp = _TierGPP()
+            _thr_map = getattr(self, "adaptive_goal_thresholds", None)
+            _thr = _thr_map if isinstance(_thr_map, dict) and _thr_map else {}
+            _deficits = [
+                str(g)
+                for g, v in goal_scores.items()
+                if _thr.get(str(g)) is not None and float(v) < float(_thr[str(g)])
+            ]
+            if not _deficits:
+                return active_phases
+            _lowest_tier = min(int(_tier_gpp.hearing_tier(g)) for g in _deficits)
+
+            kept: list = []
+            dropped: list[int] = []
+            for (_pid, _fn, _kw) in active_phases:
+                _goals = self.FC_PHASE_PRIMARY_GOALS.get(int(_pid))
+                if not _goals:
+                    kept.append((_pid, _fn, _kw))  # unbekannt → konservativ behalten
+                    continue
+                _targets_deficit = any(g in _deficits for g in _goals)
+                _min_tier = min(int(_tier_gpp.hearing_tier(g)) for g in _goals)
+                if _targets_deficit or _min_tier <= _lowest_tier:
+                    kept.append((_pid, _fn, _kw))
+                else:
+                    dropped.append(int(_pid))
+            if dropped and kept:
+                logger.info(
+                    "FeedbackChain §Hörordnung-Pre-Filter: %s übersprungen (Ziel-Stufe > niedrigste Defizit-Stufe %d)",
+                    sorted(dropped),
+                    _lowest_tier,
+                )
+            return kept if kept else active_phases
+        except Exception as _tier_exc:
+            logger.debug("FeedbackChain §Hörordnung-Pre-Filter nicht verfügbar: %s", _tier_exc)
+            return active_phases
+
     def run(
         self,
         audio: np.ndarray,
@@ -758,6 +834,17 @@ class FeedbackChain:
             )
 
         _prev_goals: dict[str, float] = {}
+        # §Hörordnung-Pre-Filter (Punkt 3, 2026-09-07): UV3 kann eine DSP-only
+        # Baseline (UnifiedRestorerV3._fast_goal_snapshot) injizieren — damit
+        # wirkt der Tier-Filter schon vor Iteration 1 statt erst nach der
+        # ersten (teuren) Messung. Ohne Injektion: Filter ab Iteration 2 aktiv.
+        _filter_goal_baseline: dict[str, float] = {}
+        try:
+            _inj_baseline = getattr(self, "baseline_goals", None)
+            if isinstance(_inj_baseline, dict) and _inj_baseline:
+                _filter_goal_baseline = {str(k): float(v) for k, v in _inj_baseline.items()}
+        except Exception as _bl_exc:
+            logger.debug("FeedbackChain baseline_goals nicht nutzbar: %s", _bl_exc)
         _goal_priority_log: list[str] = []
         _phase_executions: list[dict] = []
 
@@ -921,6 +1008,16 @@ class FeedbackChain:
                     logger.info("FeedbackChain: all phases degrade quality — converging early")
                     converged = True
                     break
+
+            # §Hörordnung-Pre-Filter (Punkt 3, 2026-09-07): Vor der
+            # Kandidaten-Konstruktion Phasen mit Ziel-Stufe über der niedrigsten
+            # Defizit-Stufe überspringen (lexikografische Ordnung,
+            # hoerordnung.instructions.md §5). GPP bleibt autoritativ.
+            if _phase_list_mode and _active_phases:
+                _tier_scores = _prev_goals if _prev_goals else _filter_goal_baseline
+                if isinstance(_tier_scores, dict) and _tier_scores:
+                    _active_phases = self._filter_phases_by_hoerordnung_tiers(_active_phases, _tier_scores)
+                    improve_fn = _build_combined_fn(_active_phases)
 
             candidate = improve_fn(current, _sr)
             candidate = np.clip(np.nan_to_num(np.asarray(candidate, dtype=np.float32)), -1.0, 1.0)

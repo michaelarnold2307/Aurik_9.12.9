@@ -14887,6 +14887,21 @@ class UnifiedRestorerV3:
                 _fc_chain.era_decade = int(self._restoration_context.get("decade", 1975) or 1975)
                 # §2.56: Inject song-specific goal weights into FeedbackChain
                 _fc_chain.goal_weights = getattr(self, "_song_goal_weights", None)
+                # §Hörordnung-Pre-Filter (Punkt 3, 2026-09-07): DSP-only
+                # Baseline (15 Goal-Proxies) vor Iteration 1 injizieren — der
+                # FeedbackChain-Tier-Filter überspringt dann Kandidaten, deren
+                # Ziel-Stufe über der niedrigsten Defizit-Stufe liegt.
+                try:
+                    _fc_bl_mat = str(
+                        material_type.value if hasattr(material_type, "value") else material_type
+                    ).lower()
+                    _fc_bl_snap = UnifiedRestorerV3._fast_goal_snapshot(
+                        restored_audio, sample_rate, _fc_bl_mat
+                    )
+                    if isinstance(_fc_bl_snap, dict) and _fc_bl_snap:
+                        _fc_chain.baseline_goals = dict(_fc_bl_snap)
+                except Exception as _fc_bl_exc:
+                    logger.debug("§Hörordnung-Pre-Filter Baseline nicht verfügbar: %s", _fc_bl_exc)
                 # §09.2 + §2.54: Inject ceiling-capped adaptive goal targets so FeedbackChain
                 # uses physically achievable thresholds (min(SGT, PhysicalCeiling)).
                 # Falls back to raw SGT if ceiling-capped targets not yet computed.
