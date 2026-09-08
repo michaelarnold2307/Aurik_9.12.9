@@ -77,13 +77,20 @@ def test_tail_chunk_padding_is_transparent() -> None:
     assert np.isfinite(out).all()
 
 
-def test_short_signal_below_t_uses_whole_path() -> None:
-    """Signal kürzer als T → kein Chunking (S ≤ T)."""
-    audio = _make_audio(0.9)  # S = (43200-960)/480+1 = 89 ≤ 100
+def test_short_signal_below_t_uses_chunked_path() -> None:
+    """§P1-6: Signal kürzer als T → Chunked-Pfad (Pad+Trim) statt Ganzsignal.
+
+    Der Fixed-T-enc erwartet exakt T=100 Frames; der Ganzsignal-Pfad mit
+    S<T warf InvalidArgument (Got 89, Expected 100) → stiller Fallback.
+    """
+    audio = _make_audio(0.9)  # S = (43200-960)/480+1 = 89 < 100
     plugin = _FakeChunkPlugin(time_frames=100)
     out = plugin._infer_onnx(audio)
-    assert plugin._chunk_calls == 1
+    assert plugin._chunk_calls == 2  # pos=0 (l=89) + pos=50 (l=39), 50-%-Overlap
     assert len(out) == len(audio)
+    ref = _FakeChunkPlugin(time_frames=None)._infer_onnx(audio)
+    assert np.allclose(out, ref, atol=1e-4)
+    assert np.isfinite(out).all()
 
 
 if __name__ == "__main__":
