@@ -354,6 +354,56 @@ class DeltaMaskingJNDResult:
     threshold_db: float
 
 
+def delta_masking_margin_db_per_band(
+    pre: np.ndarray,
+    post: np.ndarray,
+    sr: int,
+) -> np.ndarray:
+    """P1-3: Maskierungs-Marge des Phasen-Deltas je Bark-Band (dB).
+
+    margin[b] = Schwelle[b] − Delta[b] — positiv heißt: der Delta-Anteil in
+    Band b ist lokal maskiert. Rückgabewerte NaN/Inf-geschützt; bei nicht
+    auswertbarem Input wird ein Null-Array (keine Maskierung) zurückgegeben.
+    """
+    _zeros: np.ndarray = np.zeros(len(_BARK_CENTERS), dtype=np.float64)
+    try:
+        if not np.all(np.isfinite(pre)) or not np.all(np.isfinite(post)):
+            return _zeros
+        pre = np.nan_to_num(pre, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float64)
+        post = np.nan_to_num(post, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float64)
+        if pre.shape != post.shape or pre.size < 256:
+            return _zeros
+
+        def _mono(x: np.ndarray) -> np.ndarray:
+            if x.ndim == 2:
+                _ax = 0 if x.shape[0] <= 2 else 1
+                return x.mean(axis=_ax)
+            return x
+
+        pre_mono = _mono(pre)
+        delta = _mono(post) - pre_mono
+
+        pre_frames, freqs = _stft_magnitude_db(pre_mono, sr)
+        pre_bands = _to_bark_bands(pre_frames, freqs)
+        thr = _spread_mask_threshold(pre_bands)
+
+        d_frames, _ = _stft_magnitude_db(delta, sr)
+        d_bands = _to_bark_bands(d_frames, freqs)
+        return thr - d_bands
+    except Exception as exc:
+        logger.debug("delta_masking_margin_db_per_band nicht blockierend: %s", exc)
+        return _zeros
+
+
+def bark_band_index_of_freq(f_hz: float) -> int:
+    """P1-3: Bark-Band-Index (ISO-11172-3-Grenzen) für eine Frequenz.
+
+    Nächster Bark-Mittenfrequenz-Index — für Guard-Integration
+    (z. B. Formant-Bänder in lpc_formant_tracker).
+    """
+    return int(np.clip(np.argmin(np.abs(_BARK_CENTERS - float(f_hz))), 0, len(_BARK_CENTERS) - 1))
+
+
 def estimate_delta_masking_jnd_db(
     pre: np.ndarray,
     post: np.ndarray,
@@ -387,46 +437,20 @@ def estimate_delta_masking_jnd_db(
     """
     _cons = DeltaMaskingJNDResult(jnd_db=0.0, delta_above_db=0.0, threshold_db=-120.0)
     try:
-        # Hörordnung: keine Audibility-Entscheidung aus Müll-Daten → nicht-finite
-        # Inputs fallen VOR der Sanitisierung konservativ auf jnd_db=0 zurück.
-        if not np.all(np.isfinite(pre)) or not np.all(np.isfinite(post)):
-            return _cons
-        pre = np.nan_to_num(pre, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float64)
-        post = np.nan_to_num(post, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float64)
-        if pre.shape != post.shape or pre.size < 256:
-            return _cons
-
-        # §2.51 Stereo-Axis-Invariante: channels-last (N, 2) korrekt behandeln
-        def _mono(x: np.ndarray) -> np.ndarray:
-            if x.ndim == 2:
-                _ax = 0 if x.shape[0] <= 2 else 1
-                return x.mean(axis=_ax)
-            return x
-
-        pre_mono = _mono(pre)
-        delta = _mono(post) - pre_mono
-
-        pre_frames, freqs = _stft_magnitude_db(pre_mono, sr)
-        pre_bands = _to_bark_bands(pre_frames, freqs)
-        thr = _spread_mask_threshold(pre_bands)
-
-        d_frames, _ = _stft_magnitude_db(delta, sr)
-        d_bands = _to_bark_bands(d_frames, freqs)
-
+        margins = delta_masking_margin_db_per_band(pre, post, sr)
         if freq_range_hz is not None:
             _sel = (_BARK_CENTERS >= freq_range_hz[0]) & (_BARK_CENTERS <= freq_range_hz[1])
             if not np.any(_sel):
                 return _cons
-            thr = thr[_sel]
-            d_bands = d_bands[_sel]
-
-        margin = thr - d_bands  # > 0 ⇒ Delta unter Schwelle (maskiert)
-        jnd_db = float(np.clip(np.max(margin), 0.0, _DELTA_JND_CAP_DB))
-        above = float(np.clip(np.max(d_bands - thr), 0.0, None))
+            margins = margins[_sel]
+        jnd_db = float(np.clip(np.max(margins), 0.0, _DELTA_JND_CAP_DB))
+        above = float(np.clip(np.max(-margins), 0.0, None))
         return DeltaMaskingJNDResult(
             jnd_db=round(jnd_db, 3),
             delta_above_db=round(above, 3),
-            threshold_db=round(float(np.max(thr)), 2),
+            # Log-Kontext-Feld: Die operative Größe sind die per-Band-Margins
+            # (delta_masking_margin_db_per_band); hier bewusst ohne Verbraucher.
+            threshold_db=-120.0,
         )
     except Exception as exc:
         logger.debug("estimate_delta_masking_jnd_db nicht blockierend: %s", exc)
@@ -436,6 +460,8 @@ def estimate_delta_masking_jnd_db(
 __all__ = [
     "DeltaMaskingJNDResult",
     "ResiduumMaskingResult",
+    "bark_band_index_of_freq",
+    "delta_masking_margin_db_per_band",
     "estimate_delta_masking_jnd_db",
     "estimate_residuum_salience",
     "estimate_residuum_salience_batch",

@@ -20,6 +20,11 @@ from typing import Any
 import numpy as np
 from scipy.signal import butter, find_peaks, sosfiltfilt
 
+from backend.core.residuum_masking import (
+    bark_band_index_of_freq,
+    delta_masking_margin_db_per_band,
+)
+
 logger = logging.getLogger(__name__)
 
 # Maximaler Boost pro Formant (§2.35c — kein Over-Processing)
@@ -111,28 +116,33 @@ def _burg_lpc(x: np.ndarray, order: int) -> np.ndarray:
 
     Returns:
         a: LPC-Koeffizienten [1, a1, a2, ..., a_order]
+
+    §Fix 2026-09-08: Die Schleife nutzte das ORIGINALE n statt der nach jeder
+    Iteration schrumpfenden Vektorlänge → ab order ≥ 2 immer Shape-Mismatch →
+    Ausnahme wurde im Aufrufer still geschluckt → §0p-Formant-Guard war ein
+    stummer No-op (Verstoß §V6). Jetzt dynamische Länge _L je Iteration.
     """
-    n = len(x)
     f = x.copy().astype(np.float64)
     b = x.copy().astype(np.float64)
 
     a = np.zeros(order + 1, dtype=np.float64)
     a[0] = 1.0
-    k_coeffs = np.zeros(order, dtype=np.float64)
 
     for m in range(1, order + 1):
-        num = -2.0 * float(np.dot(f[m:], b[: n - m]))
-        denom = float(np.dot(f[m:], f[m:]) + np.dot(b[: n - m], b[: n - m])) + 1e-10
+        _L = len(f)
+        if _L - m <= 0:
+            break  # Segment zu kurz für weitere Ordnungen
+        num = -2.0 * float(np.dot(f[m:], b[: _L - m]))
+        denom = float(np.dot(f[m:], f[m:]) + np.dot(b[: _L - m], b[: _L - m])) + 1e-10
         k = num / denom
-        k_coeffs[m - 1] = k
 
         a_new = a.copy()
         for i in range(1, m + 1):
             a_new[i] = a[i] + k * a[m - i]
         a = a_new
 
-        f_new = f[m:] + k * b[: n - m]
-        b_new = b[: n - m] + k * f[m:]
+        f_new = f[m:] + k * b[: _L - m]
+        b_new = b[: _L - m] + k * f[m:]
         f = f_new
         b = b_new
 
@@ -453,7 +463,10 @@ def check_formant_shift_db(
             a = _burg_lpc(pre_ds * np.hanning(len(pre_ds)), _LPC_ORDER)
             formants_hz = _lpc_to_formants(a, sr_ds, max_formants=max_formants)
         except Exception as e:
-            logger.debug("lpc_formant_tracker.py::_to_mono lpc: %s", e)
+            logger.warning(
+                "lpc_formant_tracker.py::check_formant_shift_db LPC-Analyse fehlgeschlagen → Guard passiv (kein Rollback): %s",
+                e,
+            )
             return False, 0.0
         if not formants_hz:
             return False, 0.0
@@ -466,10 +479,17 @@ def check_formant_shift_db(
         _post_buf = post_seg[:n_fft] if len(post_seg) >= n_fft else np.pad(post_seg, (0, n_fft - len(post_seg)))
         spec_post = np.abs(np.fft.rfft(_post_buf)) + 1e-12
 
+        # §P1-3 (Hörordnung Ebene 2): Maskierungs-Margen des Phasen-Deltas je
+        # Bark-Band — eine Formant-Verschiebung, deren Delta lokal maskiert
+        # ist, ist unhörbar und soll keinen Rollback auslösen (max(fest, JND)).
+        _margins_db = delta_masking_margin_db_per_band(pre_seg, post_seg, sr)
+
         # Measure energy at each formant band (±semitone ≈ ±5.9%)
         # §V43: Pro-Formant JND-Toleranz (resolve_jnd_tolerance_db) statt uniformem threshold_db.
         # F1 (~600 Hz) → ~1.8 dB; F2 (~1.5 kHz) → ~1.1 dB; F3/F4 (~3 kHz) → ~0.8 dB.
         # min(threshold_db, jnd_tol) → immer das Strengere (Primum non nocere).
+        # §P1-3: Die lokale Maskierungs-Marge des Bands erhöht die Toleranz
+        # begrenzt (max. 6 dB) — maskierte Verschiebungen sind unhörbar.
         max_shift = 0.0
         rollback = False
         for f_hz in formants_hz:
@@ -487,12 +507,26 @@ def check_formant_shift_db(
                 max_shift = max(max_shift, shift_db)
                 # §V43: Strengere der beiden Toleranzen — verhindert hörbare F3/F4-Verschiebungen
                 _jnd_tol = min(threshold_db, resolve_jnd_tolerance_db(f_hz))
-                if shift_db > _jnd_tol:
+                # §P1-3: lokale Maskierungs-Marge des Formant-Bands
+                _mask_margin = float(np.clip(_margins_db[bark_band_index_of_freq(f_hz)], 0.0, 6.0))
+                _tol = max(_jnd_tol, _mask_margin)
+                if shift_db > _tol:
                     rollback = True
+                    logger.warning(
+                        "§0p Formant-Schutz: F@%.0f Hz shift=%.2f dB > %.2f dB (fest %.2f, §P1-3 Maskierungs-JND %.2f) → rollback",
+                        f_hz,
+                        shift_db,
+                        _tol,
+                        _jnd_tol,
+                        _mask_margin,
+                    )
 
         return rollback, max_shift
     except Exception as e:
-        logger.debug("lpc_formant_tracker.py::unknown: %s", e)
+        logger.warning(
+            "lpc_formant_tracker.py::check_formant_shift_db fehlgeschlagen → Guard passiv (kein Rollback): %s",
+            e,
+        )
         return False, 0.0
 
 

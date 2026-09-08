@@ -222,3 +222,81 @@ class TestSpectralColorMaskingJND:
             result_masked = check_spectral_color_preservation(pre, post, SR, threshold=0.97)
         assert result_masked.ok is True  # Schwelle 0.97 − 0.20 = 0.77
         assert result_masked.correlation >= 0.77
+
+
+# ── §0p Formant-Schutz: Toleranz = max(fest/JND-Frequenz, lokale Maskierung) ─
+
+
+def _vowel_formant_signals() -> tuple[np.ndarray, np.ndarray]:
+    """Synthetischer Vokal (F1≈740, F2≈1830, F3≈3080 Hz) + F1-Band-Boost.
+
+    Kalibriert: Der Boost hebt die F1-Band-Energie um ≈2,6 dB — über der
+    festen Frequenz-JND-Toleranz (~1,8 dB), unter der 6-dB-Maskierungs-Obergrenze.
+    """
+    from scipy.signal import butter, lfilter, sosfiltfilt
+
+    rng = np.random.default_rng(5)
+    n = SR * 2
+    glott = np.zeros(n)
+    for k in range(0, n, SR // 120):
+        seg = np.hanning(240)
+        end = min(k + 240, n)
+        glott[k:end] += seg[: end - k]
+
+    def resonator(x: np.ndarray, f: float, bw: float) -> np.ndarray:
+        r = np.exp(-np.pi * bw / SR)
+        th = 2 * np.pi * f / SR
+        return lfilter([1.0], [1.0, -2 * r * np.cos(th), r * r], x)  # type: ignore[no-any-return]
+
+    x = glott
+    for f, bw in ((600, 90), (1500, 110), (2500, 150)):
+        x = resonator(x, f, bw)
+    x = x / (np.max(np.abs(x)) + 1e-9)
+    pre = (x + 0.02 * rng.standard_normal(n)).astype(np.float32)
+    sos = butter(4, [700 / (SR / 2), 790 / (SR / 2)], btype="band", output="sos")
+    band = sosfiltfilt(sos, pre)
+    post = (pre + 0.7 * band).astype(np.float32)
+    return pre, post
+
+
+class TestFormantMaskingJND:
+    def test_unmasked_formant_shift_triggers_rollback(self) -> None:
+        from backend.core.dsp.lpc_formant_tracker import check_formant_shift_db
+
+        pre, post = _vowel_formant_signals()
+        with patch(
+            "backend.core.dsp.lpc_formant_tracker.delta_masking_margin_db_per_band",
+            return_value=np.zeros(24, dtype=np.float64),
+        ):
+            rollback, shift = check_formant_shift_db(pre, post, SR, threshold_db=2.0)
+        assert shift > 2.0, f"Erwarteter F1-Shift > 2 dB, erhalten {shift:.2f}"
+        assert rollback is True
+
+    def test_masked_formant_shift_no_rollback(self) -> None:
+        from backend.core.dsp.lpc_formant_tracker import check_formant_shift_db
+
+        pre, post = _vowel_formant_signals()
+        with patch(
+            "backend.core.dsp.lpc_formant_tracker.delta_masking_margin_db_per_band",
+            return_value=np.full(24, 6.0, dtype=np.float64),
+        ):
+            rollback, _ = check_formant_shift_db(pre, post, SR, threshold_db=2.0)
+        assert rollback is False  # Toleranz max(1,8 dB; 6 dB JND) = 6 dB
+
+    def test_identical_signal_no_rollback(self) -> None:
+        from backend.core.dsp.lpc_formant_tracker import check_formant_shift_db
+
+        pre, _ = _vowel_formant_signals()
+        rollback, shift = check_formant_shift_db(pre, pre, SR)
+        assert rollback is False
+        assert shift == 0.0
+
+    def test_burg_lpc_long_segment_no_crash(self) -> None:
+        """§V6-Fix: _burg_lpc lief bei langen Segmenten in einen Shape-Mismatch
+        (Original-n statt schrumpfender Länge) → Guard war stummer No-op."""
+        from backend.core.dsp.lpc_formant_tracker import _burg_lpc
+
+        rng = np.random.default_rng(7)
+        a = _burg_lpc(rng.standard_normal(32000), order=16)
+        assert a.shape == (17,)
+        assert np.all(np.isfinite(a))
