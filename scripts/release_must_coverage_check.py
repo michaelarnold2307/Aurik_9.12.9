@@ -23,6 +23,10 @@ REPORT_PATH = ROOT / "reports" / "release_must_coverage.json"
 # Hard traceability anchors for headings that are semantically broad and cannot
 # be matched reliably by keyword heuristics alone.
 FORCED_TRACEABILITY: dict[str, list[str]] = {
+    "## [RELEASE_MUST] Strength-Envelope-Nichtdegeneration (v10.0.x)": [
+        "tests/unit/test_strength_envelope_non_degenerate.py",
+        "tests/unit/test_b3_full_song_defect_merge.py",
+    ],
     "### §0h [RELEASE_MUST] Music-Death-Shield — absolute Schutzregel (v10.0.0)": [
         "tests/unit/test_artifact_freedom_gate.py",
         "tests/unit/test_edge_taper_no_intro_outro_artifacts.py",

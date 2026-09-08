@@ -9,6 +9,8 @@
 |---|---|---|
 | M | backend/core/musical_goals/musical_goals_metrics.py | modifiziert |
 | M | scripts/change_ledger.py | modifiziert |
+| M | scripts/release_must_coverage_check.py | modifiziert |
+| M | .github/copilot-instructions.md | modifiziert |
 | ?? | tests/unit/test_strength_envelope_non_degenerate.py | ungetrackt |
 
 ## Entscheidungen
@@ -96,6 +98,11 @@
   Messung als „langsam“; 15–60 s nur noch debug.
 - **change_ledger.py Merge**: Snapshot erhält manuell eingetragene „Entscheidungen“
   (vorher wischte jede Regenerierung die Doku weg).
+- **Spec-Ebene geschlossen**: Neues `[RELEASE_MUST] Strength-Envelope-Nichtdegeneration (v10.0.x)`
+  in `.github/copilot-instructions.md` (σ > 0 und μ deutlich über Floor bei vorhandenen Locations;
+  Produktionsbefund als RELEASE-BLOCKER dokumentiert) + `FORCED_TRACEABILITY`-Eintrag in
+  `scripts/release_must_coverage_check.py` (RELEASE_MUST-Coverage 2/2 = 100 %).
+  Drift-Baseline `reports/spec_drift_baseline.json` wird nachgezogen (Skript vorbereitet).
 - **Session-Dokumentation**: Alle Erkenntnisse, Beweise, Commits und offenen Arbeitspakete in
   `docs/reports/current/2026-09-08_envelope_root_cause_sota_fixes_matrix.md` (9 Abschnitte:
   Root-Cause, 6 Punkte + 2 Zusatzfixes, Matrix-Vergleich, GUI-Smoke, offene Punkte, Commits,

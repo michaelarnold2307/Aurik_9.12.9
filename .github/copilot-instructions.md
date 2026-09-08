@@ -209,6 +209,17 @@ Kette ohne Benutzer-Interaktion durchlaufen: Preflight → DefectScan → Phasen
 Restauration → MQA-Gate → Export-Gate → GUI-Narrativ. Jede Gate-Entscheidung MUSS
 im Narrativ begründet werden (§G155).
 
+## [RELEASE_MUST] Strength-Envelope-Nichtdegeneration (v10.0.x)
+
+Der Strength-Envelope (§2.71) MUSS bei vorhandenen Defect-Locations eine reale
+Ortsvarianz aufweisen (σ > 0 und μ deutlich über dem Floor). Ein degenerierter
+Envelope (μ=0.060 σ=0.000 — Produktionsbefund 2026-09-07: B3-Phase-2 Early-Merge
+überschrieb ENUM-Scores durch 0.06-Stubs und löschte alle Locations) erzeugt eine
+No-Op-Kaskade über alle Phasen und ist ein RELEASE-BLOCKER. Die komplette Kette
+Merge → Locations-Extraktion → compute_strength_envelope MUSS als Regressionstest
+abgesichert sein; Phasen-Stärken unterhalb des Floors bei vorhandenem
+Reparatur-Kontext sind ebenso zu behandeln.
+
 ## §0a Normativ verbotene Phasen (Restoration-Guard)
 
 Folgende Phasen sind im Restoration-Modus normativ VERBOTEN (§0a/UV3-Forbidden-Set):
