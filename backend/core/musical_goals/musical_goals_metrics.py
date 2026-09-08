@@ -3587,6 +3587,47 @@ def _sep_time_budget_s(duration_s: float) -> float:
     return float(max(60.0, duration_s * 0.5))
 
 
+# §Chunked-Prior (2026-09-08): Song-scoped Registry der letzten ECHTEN
+# HTDemucs-Messwerte auf Modul-Ebene — (sr, material) → (score, monotonic).
+#
+# Produktionsbefund (Matrix Zelle 1, 3 h 38 min): Im Chunked-Streaming wird pro
+# Chunk eine neue MusicalGoalsChecker-Instanz erzeugt (§V8-Isolation) — damit
+# auch ein frisches §m2-Budget (2 echte Trennungen je Chunk) und ein leerer
+# Prior. 8 Chunks × 2 Versuche × 26–51 s ≈ 7–13 min redundante Messzeit je Song,
+# obwohl Trennungstreue für dasselbe Material/dieselbe SR pro Song praktisch
+# stabil ist.
+#
+# Qualitäts-/Performance-Design: (1) Ist für (sr, material) ein frischer
+# Registry-Prior vorhanden, ersetzt er den ERSTEN echten Versuch der neuen
+# Instanz (1 statt 2 Messungen je Chunk — die zweite bleibt als Chunk-
+# Validierung). (2) Erschöpfte Budgets fallen auf den Prior statt auf den
+# SDR-Proxy zurück. Frische-Fenster begrenzt Cross-Song-Kontamination in
+# Multi-Song-Batches (gleicher Mechanismus wie der instanz-interne §A1-2-Prior,
+# nur über die Chunk-Grenze erweitert).
+_SEP_PRIOR_REGISTRY: dict[tuple[int, str], tuple[float, float]] = {}
+_SEP_PRIOR_MAX_ENTRIES = 16
+_SEP_PRIOR_MAX_AGE_S = 1200.0  # 20 min — gleiche Session/Song
+
+
+def _sep_prior_lookup(sr: int, material_type: object) -> float | None:
+    """Frischer Prior für (sr, material); None wenn unbekannt oder zu alt."""
+    _entry = _SEP_PRIOR_REGISTRY.get((int(sr), str(material_type)))
+    if _entry is None:
+        return None
+    _val, _ts = _entry
+    if time.monotonic() - _ts > _SEP_PRIOR_MAX_AGE_S:
+        return None
+    return float(_val)
+
+
+def _sep_prior_store(sr: int, material_type: object, score: float) -> None:
+    """Echten Messwert in die Registry legen (bounded, FIFO-artig)."""
+    _key = (int(sr), str(material_type))
+    _SEP_PRIOR_REGISTRY[_key] = (float(score), time.monotonic())
+    while len(_SEP_PRIOR_REGISTRY) > _SEP_PRIOR_MAX_ENTRIES:
+        _SEP_PRIOR_REGISTRY.pop(next(iter(_SEP_PRIOR_REGISTRY)))
+
+
 class SeparationFidelityMetric:
     """13. Musikalisches Ziel: Separation-Treue (§1.2 Spec 01).
 
@@ -3743,6 +3784,18 @@ class SeparationFidelityMetric:
         # und endet ohnehin im Proxy-Fallback. Erlaubt sind pro Lauf nur wenige
         # echte Versuche; danach sofort Proxy (0 ms) statt 15-s-Verschwendung.
         _sep_budget = int(getattr(self, "_heavy_sep_budget_left", 2))
+        # §Chunked-Prior (2026-09-08): Frischer Registry-Prior ersetzt den ERSTEN
+        # echten Versuch einer neuen (Chunk-)Instanz — 1 statt 2 Trennungen je
+        # Chunk, gleiche Aussagekraft (gleiches Material/SR, gleicher Trenner).
+        if _sep_budget == 2:
+            _mod_prior_first = _sep_prior_lookup(int(sr), material_type)
+            if _mod_prior_first is not None:
+                self._heavy_sep_budget_left = 1
+                logger.debug(
+                    "separation_fidelity: frischer Song-Prior %.3f ersetzt 1. echten Versuch (Chunked-Prior §Perf)",
+                    _mod_prior_first,
+                )
+                return float(np.clip(_mod_prior_first, 0.0, 1.0))
         if _sep_budget <= 0:
             # §A1-2 Vorfilter-Fallback: statt neutral 0.5 den letzten ECHTEN Messwert
             # desselben Materials/SR aus dem Inhalts-Cache nutzen (nur echte Läufe
@@ -3757,6 +3810,14 @@ class SeparationFidelityMetric:
             except Exception:
                 _prior = None
             if _prior is None:
+                # §Chunked-Prior: Modul-Registry (gleicher Song über Chunks).
+                _mod_prior = _sep_prior_lookup(int(sr), material_type)
+                if _mod_prior is not None:
+                    logger.warning(
+                        "separation_fidelity: HTDemucs-Mess-Budget erschöpft → Song-Prior %.3f (Chunked-Prior)",
+                        _mod_prior,
+                    )
+                    return float(np.clip(_mod_prior, 0.0, 1.0))
                 logger.warning(
                     "separation_fidelity: HTDemucs-Mess-Kontingent erschöpft (2/Lauf, §m2) → SDR-Kohärenz-Proxy (echter Messwert)"
                 )
@@ -3813,6 +3874,7 @@ class SeparationFidelityMetric:
             )
             cache[cache_key] = float(score)
             self._htdemucs_separation_cache = cache
+            _sep_prior_store(int(sr), material_type, float(score))
             return score
 
         except Exception as e:
@@ -4648,14 +4710,14 @@ class MusicalGoalsChecker:
                     logger.warning("measure_all: goal=%s fehlgeschlagen: %s — using 0.0", goal_name, _metric_exc)
                     scores[goal_name] = 0.0
             _dt = time.perf_counter() - _t0
-            # §v10.17: Per-Goal-Timeout (15s). Ein Goal (z.B. authentizitaet mit MERT, 114s)
-            # darf nicht ALLE anderen Goals killen. WICHTIG (Fix 2026-09-07): Der Check
-            # läuft kooperativ NACH der Messung — er kann nichts unterbrechen. Ein
-            # abgeschlossener Messwert wird daher NIE verworfen: separation_fidelity
-            # hat ein eigenes Budget (60-s-Floor §Separation-SOTA) + §m2-Kontingent
-            # + Inhalts-Cache; verwirft man den 26-s-Messwert, bleibt der Cache leer
-            # und alle Folge-Calls fallen auf den Proxy (Produktionsbefund).
-            if _dt > 15.0:
+            # §v10.17: Per-Goal-Timeout. Der Check läuft kooperativ NACH der
+            # Messung — er kann nichts unterbrechen. Ein abgeschlossener Messwert
+            # wird NIE verworfen (separation_fidelity: 60-s-Budget §Separation-SOTA
+            # + §m2-Kontingent + Inhalts-Cache; ein 26–51-s-Wert ist ECHT).
+            # Schwellen an das reale Budget angeglichen (2026-09-08): 60 s Warn/
+            # Error — 15 s war ein Relikt des alten Verwerf-Verhaltens und
+            # loggte jeden legitimen Trennungs-Messwert als „langsam“.
+            if _dt > 60.0:
                 if scores.get(goal_name) is None:
                     logger.error("measure_all: goal=%s Zeitlimit after %.1fs — using neutral 0.5", goal_name, _dt)
                     scores[goal_name] = 0.5
@@ -4665,6 +4727,8 @@ class MusicalGoalsChecker:
                         goal_name,
                         _dt,
                     )
+            elif _dt > 15.0:
+                logger.debug("measure_all: goal=%s took %.1f s (im 60-s-Budget)", goal_name, _dt)
             elif _dt > 8.0:  # §v10.0.4: 5.0→8.0 — waerme-Spektralanalyse auf 225s dauert 6.1s
                 logger.warning("measure_all: goal=%s took %.1f s", goal_name, _dt)
             else:

@@ -1,27 +1,15 @@
 # TASK_CHANGES — Live-Ledger der aktuellen Aufgabe
 
-> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-07 18:33 CEST).
+> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-08 04:24 CEST).
 > CI (`ci-lite.yml` pr-evidence-gate) erzwingt Abdeckung: jede geänderte Code-Datei muss hier stehen.
 
 ## Geänderte Dateien
 
 | Status | Pfad | Art |
 |---|---|---|
-| M | .gitignore | modifiziert |
-| M | TASK_CHANGES.md | modifiziert |
-| M | backend/core/unified_restorer_v3.py | modifiziert |
-| M | plugins/basicpitch_plugin.py | modifiziert |
-| ?? | docs/reports/current/2026-09-08_envelope_root_cause_sota_fixes_matrix.md | ungetrackt |
 | M | backend/core/musical_goals/musical_goals_metrics.py | modifiziert |
-| M | backend/core/feedback_chain.py | modifiziert |
-| M | backend/core/inviting_sound_gate.py | modifiziert |
-| M | plugins/htdemucs_chunked_processor.py | modifiziert |
-| M | backend/core/residuum_masking.py | modifiziert |
-| M | conftest.py | modifiziert |
-| ?? | tests/unit/test_b3_full_song_defect_merge.py | ungetrackt |
-| ?? | tests/unit/test_fc_hoerordnung_pre_filter.py | ungetrackt |
-| ?? | tests/unit/test_inviting_gate_repair_exemption.py | ungetrackt |
-| M | tests/unit/test_chunked_processor_v1.py | modifiziert |
+| M | scripts/change_ledger.py | modifiziert |
+| ?? | tests/unit/test_strength_envelope_non_degenerate.py | ungetrackt |
 
 ## Entscheidungen
 
@@ -94,6 +82,20 @@
   InvalidArgument „Got: 2757 Expected: 43844“ → §V6-ML→DSP-Fallback (pYIN-Ersatzpfad).
   Fix: Else-Zweig padet/truncatet jetzt auf `_fixed_chunk_len` (nur wenn gesetzt).
   Smoke-Test: `analyze()` auf 0.08-s-Segment läuft durch (BasicPitchResult statt Fallback).
+- **Chunked-Prior für separation_fidelity (Performance + Qualität)**: 8 Chunks × 2 echte
+  Trennungen × 26–51 s ≈ 7–13 min redundante Messzeit je Song (jede Chunk-Instanz startet
+  mit frischem §m2-Budget). Neu: Modul-Registry `_SEP_PRIOR_REGISTRY` — frischer
+  (sr, material)-Prior ersetzt den ERSTEN echten Versuch neuer Chunk-Instanzen (1 statt 2
+  Trennungen/Chunk, zweite bleibt als Validierung) und speist erschöpfte Budgets statt
+  des SDR-Proxy. Frische-Fenster 20 min begrenzt Cross-Song-Kontamination.
+- **Envelope-Nichtdegenerations-Regressionstest**: `tests/unit/test_strength_envelope_non_degenerate.py`
+  sichert die komplette Kette Merge→Extraktion→`compute_strength_envelope` gegen σ=0.000
+  (Produktionsbefund) als CI-Gate ab.
+- **measure_all-Schwellen an reale Budgets angeglichen**: 60 s statt 15 s (Warn/Error) —
+  15 s war ein Relikt des alten Verwerf-Verhaltens und loggte jede legitime Trennungs-
+  Messung als „langsam“; 15–60 s nur noch debug.
+- **change_ledger.py Merge**: Snapshot erhält manuell eingetragene „Entscheidungen“
+  (vorher wischte jede Regenerierung die Doku weg).
 - **Session-Dokumentation**: Alle Erkenntnisse, Beweise, Commits und offenen Arbeitspakete in
   `docs/reports/current/2026-09-08_envelope_root_cause_sota_fixes_matrix.md` (9 Abschnitte:
   Root-Cause, 6 Punkte + 2 Zusatzfixes, Matrix-Vergleich, GUI-Smoke, offene Punkte, Commits,

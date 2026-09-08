@@ -96,6 +96,28 @@ def snapshot(base: str, paths: list[str]) -> int:
         rows.append(f"| {status} | {path} | {_STATUS_LABEL.get(status, status)} |")
 
     now = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d %H:%M %Z")
+    # §Ledger-Merge (2026-09-08): Manuell eingetragene Entscheidungen bleiben beim
+    # Snapshot erhalten — die alte Regenerierung wischte die Dokumentation weg
+    # (jeder erneute Snapshot ersetzte sie durch den Platzhalter).
+    _existing_decisions: list[str] = []
+    if LEDGER.exists():
+        try:
+            _in_dec = False
+            for _ln in LEDGER.read_text(encoding="utf-8").splitlines():
+                if _ln.startswith("## "):
+                    _in_dec = _ln[3:].strip() == "Entscheidungen"
+                    continue
+                if _in_dec and _ln.strip():
+                    _existing_decisions.append(_ln)
+        except Exception:
+            _existing_decisions = []
+    if not _existing_decisions or _existing_decisions == [
+        "- (Architektur-Entscheidungen, kanonische Symbole, Verbote — Aufgabe eintragen)"
+    ]:
+        _dec_block = ["- (Architektur-Entscheidungen, kanonische Symbole, Verbote — Aufgabe eintragen)"]
+    else:
+        _dec_block = _existing_decisions
+
     lines = [
         "# TASK_CHANGES — Live-Ledger der aktuellen Aufgabe",
         "",
@@ -110,7 +132,7 @@ def snapshot(base: str, paths: list[str]) -> int:
         "",
         "## Entscheidungen",
         "",
-        "- (Architektur-Entscheidungen, kanonische Symbole, Verbote — Aufgabe eintragen)",
+        *_dec_block,
         "",
     ]
     LEDGER.write_text("\n".join(lines) + "\n", encoding="utf-8")
