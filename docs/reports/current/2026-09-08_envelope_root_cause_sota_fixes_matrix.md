@@ -174,3 +174,8 @@ Kernbefunde (Belege als Pfad:Zeile im Originalreport):
 **Top-5-Empfehlungen:** (1) Budget-Wahrheit: 32×→~60× oder Analytik von per-Chunk auf einmal je
 Song; (2) Tier-Map-Sync + RELEASE_MUST-Gate; (3) Separation auf VS-1/GSEP + Demucs v5; (4)
 Audibility auf alle Schwellwert-Guards; (5) externe Hörvalidierung + GPU-A/B-Kalibration.
+
+> Die Maßnahmen sind als sofort erkennbare Aufgaben mit TODO-IDs, Belegen und
+> Akzeptanzkriterien in **`docs/TODOS_SOTA_ROADMAP.md`** dokumentiert (P0-1 Song-Ebene-Analytik,
+> P0-2 Tier-Map-Sync, P0-3 Budget-Wahrheit, P1-1 Residency, P1-2 VS-1/GSEP, P1-3 Audibility,
+> P1-4 Hörstudie/GPU-A/B, P2-1 Hygiene).
