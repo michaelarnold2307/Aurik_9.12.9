@@ -1,10 +1,15 @@
 """§v10.14 P2: Phase-Report-Widget — zeigt nach der Restaurierung,
-welche Phasen liefen, wie lange, und was sie bewirkt haben."""
+welche Phasen liefen, wie lange, und was sie bewirkt haben.
+
+§GUI-T8 (2026-09-08): Von PyQt6 auf PyQt5 migriert (einzige GUI-Bindung,
+kein Qt5/Qt6-Doppelladen), alle sichtbaren Texte über t() (i18n) und
+Dezimalzahlen deutsch über ui_constants.de_num (§GUI-T5).
+"""
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import (
     QFrame,
     QHeaderView,
     QLabel,
@@ -14,10 +19,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from Aurik10.i18n import t
+from Aurik10.ui.ui_constants import de_num
+
 
 def _format_seconds(s: float) -> str:
     if s < 60:
-        return f"{s:.1f}s"
+        return f"{de_num(s, 1)} s"
     m, s = divmod(int(s), 60)
     return f"{m}:{s:02d}"
 
@@ -40,10 +48,18 @@ class PhaseReportWidget(QWidget):
 
         self._table = QTableWidget()
         self._table.setColumnCount(5)
-        self._table.setHorizontalHeaderLabels(["Phase", "Dauer", "Δ Qualität", "HPI", "Status"])
+        self._table.setHorizontalHeaderLabels(
+            [
+                t("phase_report.col.phase"),
+                t("phase_report.col.duration"),
+                t("phase_report.col.quality_delta"),
+                t("phase_report.col.hpi"),
+                t("phase_report.col.status"),
+            ]
+        )
         self._table.horizontalHeader().setStretchLastSection(True)
-        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self._table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
+        self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self._table.setSelectionMode(QTableWidget.NoSelection)
         self._table.setStyleSheet(
             "QTableWidget { background: transparent; border: none; gridline-color: #2A3040; }"
             "QTableWidget::item { color: #B8C8E0; padding: 2px 4px; }"
@@ -73,7 +89,12 @@ class PhaseReportWidget(QWidget):
         n_skip = len(phases_skipped)
 
         self._summary_label.setText(
-            f"{n_exec} Phasen ausgeführt · {n_skip} übersprungen · Gesamtzeit {_format_seconds(total_time_s)}"
+            t(
+                "phase_report.summary",
+                n_exec=n_exec,
+                n_skip=n_skip,
+                time=_format_seconds(total_time_s),
+            )
         )
 
         self._table.setRowCount(len(all_phases))
@@ -93,28 +114,28 @@ class PhaseReportWidget(QWidget):
             # Quality delta
             qd = pd.get("quality_delta", 0.0)
             if is_skipped:
-                qd_text = "übersprungen"
-                qd_color = Qt.GlobalColor.gray
+                qd_text = t("phase_report.skipped")
+                qd_color = Qt.gray
             elif qd > 0.001:
-                qd_text = f"+{qd:+.3f}"
-                qd_color = Qt.GlobalColor.darkGreen
+                qd_text = f"+{de_num(qd, 3)}"
+                qd_color = Qt.darkGreen
             elif qd < -0.001:
-                qd_text = f"{qd:+.3f}"
-                qd_color = Qt.GlobalColor.darkRed
+                qd_text = de_num(qd, 3)
+                qd_color = Qt.darkRed
             else:
                 qd_text = "±0"
-                qd_color = Qt.GlobalColor.gray
+                qd_color = Qt.gray
             qd_item = QTableWidgetItem(qd_text)
             qd_item.setForeground(qd_color)
             self._table.setItem(row, 2, qd_item)
 
             # HPI
             hpi = pd.get("hpi_live", 0.0)
-            hpi_item = QTableWidgetItem(f"{hpi:.2f}" if hpi > 0 else "—")
+            hpi_item = QTableWidgetItem(de_num(hpi, 2) if hpi > 0 else "—")
             self._table.setItem(row, 3, hpi_item)
 
             # Status
-            status = "⏭ übersprungen" if is_skipped else "✅ ausgeführt"
+            status = t("phase_report.status.skipped") if is_skipped else t("phase_report.status.executed")
             status_item = QTableWidgetItem(status)
             self._table.setItem(row, 4, status_item)
 

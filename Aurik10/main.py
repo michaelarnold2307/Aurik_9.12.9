@@ -207,6 +207,7 @@ from PyQt5.QtWidgets import QApplication, QMessageBox  # type: ignore[attr-defin
 
 # pylint: enable=no-name-in-module
 from Aurik10 import __version__
+from Aurik10.i18n import t
 from Aurik10.ui.modern_window import ModernMainWindow
 
 # pylint: enable=wrong-import-position
@@ -472,7 +473,7 @@ def main():
     # ROCm/HIP bei der ersten GPU-Operation im Worker-Thread.
     # AURIK_FORCE_CPU=1 überspringt die Erkennung komplett.
     if splash:
-        splash.set_status("GPU wird erkannt...")
+        splash.set_status(t("splash.status.gpu"))
         app.processEvents()
     try:
         from backend.api.bridge import get_ml_device_manager as _gpu_mgr
@@ -485,7 +486,7 @@ def main():
 
     # ── Startup model check ───────────────────────────────────────────────────
     if splash:
-        splash.set_status("Modelle werden geprüft...")
+        splash.set_status(t("splash.status.models"))
         app.processEvents()
 
     _run_startup_model_check(app)
@@ -518,14 +519,14 @@ def main():
 
     # ── Build main window ─────────────────────────────────────────────────────
     if splash:
-        splash.set_status("Benutzeroberfläche wird aufgebaut...")
+        splash.set_status(t("splash.status.ui"))
         app.processEvents()
 
     window = ModernMainWindow()
     _main_window_ref = weakref.ref(window)
 
     if splash:
-        splash.set_status("Bereit.")
+        splash.set_status(t("splash.status.ready"))
         app.processEvents()
         _process_events_ms(app, 600)  # show "Bereit." briefly (was 280 ms)
 

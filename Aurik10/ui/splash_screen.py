@@ -33,6 +33,8 @@ from PyQt5.QtGui import (  # pylint: disable=no-name-in-module
 )
 from PyQt5.QtWidgets import QApplication, QWidget  # pylint: disable=no-name-in-module
 
+from Aurik10.i18n import t
+
 logger = logging.getLogger(__name__)
 
 _RES = Path(__file__).parent.parent / "resources"
@@ -266,7 +268,7 @@ class AurikSplashScreen(QWidget):
     # ── Tagline ───────────────────────────────────────────────────────────────
 
     def _draw_tagline(self, p: QPainter, w: int, _h: int) -> None:
-        text = "AUDIO RESTAURIERUNG UND INTELLIGENTE KORREKTUR"
+        text = t("splash.tagline")
 
         font = QFont("Arial", 9)
         font.setLetterSpacing(QFont.AbsoluteSpacing, 3.2)  # type: ignore[attr-defined]
@@ -280,7 +282,7 @@ class AurikSplashScreen(QWidget):
         p.drawText(tx, ty, text)
 
         # Developer credit — below tagline, above separator
-        dev_text = "von Michael Arnold"
+        dev_text = t("splash.credit")
         font_dev = QFont("Arial", 8)
         font_dev.setItalic(True)
         p.setFont(font_dev)

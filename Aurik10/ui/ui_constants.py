@@ -155,3 +155,13 @@ def DEPTH_AWARE_UI_FACTORY(chain_label: str) -> DepthAwareUI:
     """Erzeugt DepthAwareUI aus einem Chain-Label wie 'reel_tape → vinyl → cassette → mp3_low'."""
     stages = chain_label.count(" → ") + 1 if chain_label else 1
     return DepthAwareUI(chain_depth=stages)
+
+
+def de_num(value: float, digits: int = 2) -> str:
+    """§GUI-T5: Formatiert eine Zahl mit deutschem Dezimalkomma (42,50 statt 42.50).
+
+    Gemeinsame Quelle der Wahrheit für alle nutzersichtbaren Dezimalzahlen
+    außerhalb von modern_window.py (z. B. Vorher/Nachher-Panel, Phasenbericht).
+    modern_window._de_num ist funktional identisch (AST-getestet).
+    """
+    return f"{float(value):.{max(0, int(digits))}f}".replace(".", ",")
