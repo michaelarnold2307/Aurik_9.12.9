@@ -18100,18 +18100,23 @@ class UnifiedRestorerV3:
         }
         _post_defect_result = None
         try:
-            _post_defect_result = self.defect_scanner.scan(
-                restored_audio,
-                sample_rate,
-                material_type,
-                file_ext=_file_ext_for_scan,
-                # Fix 10: _mc_result (MediumDetectionResult) aus Pre-Analysis weitergeben,
-                # damit DefectScanner.scan() MediumDetector.detect() NICHT nochmals auf dem
-                # restaurierten Audio aufruft — verhindert §2.47a-Verletzung (Doppeldetektion).
-                forensic_medium_result=_forensic_chain_result
-                if (_forensic_chain_result := getattr(self, "_forensic_chain_result", None))
-                else (_mc_result if hasattr(_mc_result, "transfer_chain") else None),
-            )
+            if not (_chunked_tail_skip and not _chunked_last):
+                # §P0-1 (d): Post-Scan (B2/m1b-Datenquelle, §v10.702) nur auf
+                # dem letzten Chunk — reine Analytik, kein Audio-Eingriff.
+                # Die song-globale m1b-Auswertung in _restore_chunked nutzt
+                # den Last-Chunk-Scan.
+                _post_defect_result = self.defect_scanner.scan(
+                    restored_audio,
+                    sample_rate,
+                    material_type,
+                    file_ext=_file_ext_for_scan,
+                    # Fix 10: _mc_result (MediumDetectionResult) aus Pre-Analysis weitergeben,
+                    # damit DefectScanner.scan() MediumDetector.detect() NICHT nochmals auf dem
+                    # restaurierten Audio aufruft — verhindert §2.47a-Verletzung (Doppeldetektion).
+                    forensic_medium_result=_forensic_chain_result
+                    if (_forensic_chain_result := getattr(self, "_forensic_chain_result", None))
+                    else (_mc_result if hasattr(_mc_result, "transfer_chain") else None),
+                )
             if _post_defect_result is not None:
                 _result_defect_scores = {
                     dt: _post_defect_result.scores[dt].severity for dt in DefectType if dt in _post_defect_result.scores

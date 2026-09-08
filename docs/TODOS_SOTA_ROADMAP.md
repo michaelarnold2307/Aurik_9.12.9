@@ -28,7 +28,7 @@
   `_run_song_level_tail(assembled_audio, …)`-Aufruf am Ende von `_restore_chunked`;
   per-Chunk-restore() erhält einen Flag, der diese Blöcke überspringt. Chunk-lokal
   bleiben: Strength-Envelope, Phasen-Loop, FC-Iterationen, PMGG.
-- **Status 2026-09-08: TEILWEISE UMGESETZT (Slice A + a1 + a2 + b + c).**
+- **Status 2026-09-08: VOLLSTÄNDIG UMGESETZT (Slice A + Blöcke a–d).**
   `_should_run_end_gate_cascade()` + Kwargs `_chunked_tail_skip`/`_chunked_last`;
   im Chunked-Pfad läuft die End-Gate-Recovery-Kaskade nur noch auf dem letzten Chunk.
   Block a1: `_measure_goals_for_tail()` überspringt `measure_all()` auf
@@ -39,7 +39,10 @@
   `_run_inviting_gate_measure()` — Einladungs-Gate-Messung nur letzter Chunk +
   einmal song-global nach Assembly (`inviting_gate_song_level`). Block c:
   `_collect_reporting_analytics` nur letzter Chunk (`analytics_last_chunk`).
-  Tests: 13 Fälle. Verbleibend: (d) Audibility-Gate/B2-Scan-Deferral.
+  Block d: B2-Post-Scan (`defect_scanner.scan`) nur letzter Chunk — der
+  Last-Chunk-Scan speist die song-globale m1b-Auswertung. Nur reine Analytik
+  ist deferriert; der Audio-Pfad (Phasen, FC, MDEM, Goosebumps, Export) bleibt
+  unverändert. Tests: 13 Fälle + Restorer-Suiten 298 passed.
 - **Akzeptanz:** 224-s-Referenzlauf ≤ 40 min Gesamtlaufzeit; 3-Zellen-Output bleibt bit-identisch
   (Determinismus §G5); alle song-globalen Gates laufen nachweislich auf dem assemblierten Song.
 
