@@ -11,6 +11,7 @@
 | M | TASK_CHANGES.md | modifiziert |
 | M | backend/core/unified_restorer_v3.py | modifiziert |
 | M | plugins/basicpitch_plugin.py | modifiziert |
+| ?? | docs/reports/current/2026-09-08_envelope_root_cause_sota_fixes_matrix.md | ungetrackt |
 | M | backend/core/musical_goals/musical_goals_metrics.py | modifiziert |
 | M | backend/core/feedback_chain.py | modifiziert |
 | M | backend/core/inviting_sound_gate.py | modifiziert |
@@ -93,4 +94,8 @@
   InvalidArgument „Got: 2757 Expected: 43844“ → §V6-ML→DSP-Fallback (pYIN-Ersatzpfad).
   Fix: Else-Zweig padet/truncatet jetzt auf `_fixed_chunk_len` (nur wenn gesetzt).
   Smoke-Test: `analyze()` auf 0.08-s-Segment läuft durch (BasicPitchResult statt Fallback).
+- **Session-Dokumentation**: Alle Erkenntnisse, Beweise, Commits und offenen Arbeitspakete in
+  `docs/reports/current/2026-09-08_envelope_root_cause_sota_fixes_matrix.md` (9 Abschnitte:
+  Root-Cause, 6 Punkte + 2 Zusatzfixes, Matrix-Vergleich, GUI-Smoke, offene Punkte, Commits,
+  Verifikation, Dateiübersicht).
 
