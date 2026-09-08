@@ -441,13 +441,16 @@ class BSRoFormerPlugin:
             # with heavy swap pressure (confirmed: 9 GB consumed per 15s chunk on 32 GB, 2026-05-01).
             # Reduction schedule: avail<16GB→5s(T=500,~0.5GB), 16-24GB→7s(T=700,~1GB), >24GB→10s(T=1000,~2GB).
             # Adaptive OOM-retry: if a segment still OOMs, halve chunk size and retry once.
+            # §Fix 2026-09-08: zwei except-Blöcke hintereinander — der zweite war
+            # unerreichbar und _avail_mbr nie gebunden (UnboundLocalError bei JEDEM
+            # Lauf → Top-Stufe fiel immer in den Fallback, §V6-Verstoß).
+            _avail_mbr = 16.0  # konservativer Fallback, wenn psutil fehlt
             try:
                 import psutil as _psutil_mbr
 
+                _avail_mbr = float(_psutil_mbr.virtual_memory().available / (1024**3))
             except Exception:
                 logger.warning("ML→DSP-Fallback aktiviert", exc_info=True)  # §V6 (copilot-instructions.md)
-            except Exception:
-                _avail_mbr = 16.0  # conservative fallback
             if _avail_mbr < 16.0:
                 _CHUNK_S = 5
             elif _avail_mbr < 24.0:

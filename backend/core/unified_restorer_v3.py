@@ -35220,7 +35220,9 @@ class UnifiedRestorerV3:
                     phase_id=phase_metadata.phase_id,
                     sr=int(kwargs.get("sample_rate", 48000) or 48000),
                 )
-                if not _tc_result.ok or _tc_result.gain_step_db > 1.5:
+                # §P1-3: Effektive Gain-Step-Schwelle = max(1.5 dB, lokale
+                # Maskierungs-JND) — maskierte Sprünge lösen keine Rescue aus.
+                if not _tc_result.ok or _tc_result.gain_step_db > _tc_result.gain_step_threshold_db:
                     _tc_meta = getattr(self, "_phase_metadata_accumulator", None)
                     if isinstance(_tc_meta, dict):
                         _tc_meta.setdefault("temporal_continuity", {})[phase_metadata.phase_id] = {

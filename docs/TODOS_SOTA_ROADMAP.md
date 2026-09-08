@@ -130,7 +130,9 @@
   repariert — der Formant-Guard war ein stummer No-op; Exceptions laufen jetzt
   als warning. Tests: `tests/unit/test_p1_3_masking_jnd_guards.py` (12 Fälle:
   maskiert vs. unmaskiert je Guard, Burg-Regression, NaN-Schutz) + Bestandssuiten grün.
-  OFFEN: Gain-Step-Toleranzen (Folge-Slice).
+  §Gain-Step (2026-09-08): `temporal_continuity_guard` — effektive Schwelle =
+  max(1,5 dB, JND) via `gain_step_threshold_db` im Result; uv3-Rescue-Trigger nutzt
+  dieselbe Schwelle. **P1-3 damit VOLLSTÄNDIG UMGESETZT** (SCK/WBG/ATI/Formant/Gain-Step).
 
 ## TODO-P1-4 · Externe Blind-Hörstudie + GPU-A/B-Kalibration
 

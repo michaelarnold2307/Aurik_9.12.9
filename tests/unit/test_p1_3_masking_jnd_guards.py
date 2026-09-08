@@ -300,3 +300,37 @@ class TestFormantMaskingJND:
         a = _burg_lpc(rng.standard_normal(32000), order=16)
         assert a.shape == (17,)
         assert np.all(np.isfinite(a))
+
+
+# ── §Gain-Step: effektive Schwelle = max(1,5 dB, JND) ───────────────────────
+
+
+class TestGainStepMaskingJND:
+    def test_unmasked_gain_step_fixed_threshold_and_warning(self, caplog) -> None:
+        from backend.core.temporal_continuity_guard import check_temporal_continuity
+
+        rng = np.random.default_rng(21)
+        pre = (0.4 * rng.standard_normal(SR * 2)).astype(np.float32)
+        post = (pre * 2.0).astype(np.float32)  # +6 dB Gain-Sprung
+        with patch(
+            "backend.core.temporal_continuity_guard.estimate_delta_masking_jnd_db",
+            return_value=_jnd(0.0, above_db=6.0),
+        ), caplog.at_level("WARNING", logger="backend.core.temporal_continuity_guard"):
+            r = check_temporal_continuity(pre, post, "phase_test", SR)
+        assert r.gain_step_threshold_db == 1.5
+        assert r.gain_step_db > 5.0
+        assert any("Mikro-Klick-Risiko" in rec.message for rec in caplog.records)
+
+    def test_masked_gain_step_raises_threshold_no_warning(self, caplog) -> None:
+        from backend.core.temporal_continuity_guard import check_temporal_continuity
+
+        rng = np.random.default_rng(21)
+        pre = (0.4 * rng.standard_normal(SR * 2)).astype(np.float32)
+        post = (pre * 1.9).astype(np.float32)  # ≈ +5,6 dB — unter dem 6-dB-JND-Cap
+        with patch(
+            "backend.core.temporal_continuity_guard.estimate_delta_masking_jnd_db",
+            return_value=_jnd(6.0),
+        ), caplog.at_level("WARNING", logger="backend.core.temporal_continuity_guard"):
+            r = check_temporal_continuity(pre, post, "phase_test", SR)
+        assert r.gain_step_threshold_db == 6.0  # max(1,5; 6,0)
+        assert not any("Mikro-Klick-Risiko" in rec.message for rec in caplog.records)

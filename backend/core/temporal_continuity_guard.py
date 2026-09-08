@@ -23,11 +23,14 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from backend.core.residuum_masking import estimate_delta_masking_jnd_db
+
 logger = logging.getLogger(__name__)
 
 # Schwellwerte (kanonisch, §2.69)
 _VARIANCE_RATIO_WARN: float = 2.5
 _VARIANCE_RATIO_CRITICAL: float = 8.0
+_GAIN_STEP_THRESHOLD_DB: float = 1.5  # §2.69: fester Gain-Sprung-Schwellwert
 
 # Frame-Parameter für librosa.feature.rms
 _FRAME_LENGTH: int = 2048
@@ -44,7 +47,9 @@ class TemporalContinuityResult:
         phase_id:       ID der geprüften Phase.
         critical:       True wenn variance_ratio > 8.0.
         gain_step_db:   Abrupter Gain-Sprung an der Phasengrenze (§2.69 v10.0.0).
-                        > 1.5 dB → WARNING (Mikro-Klick-Risiko). Kein Veto.
+                        > gain_step_threshold_db → WARNING (Mikro-Klick-Risiko). Kein Veto.
+        gain_step_threshold_db: Effektive Schwelle = max(1.5 dB, lokale
+                        Maskierungs-JND, §P1-3 Hörordnung Ebene 2).
     """
 
     ok: bool
@@ -52,6 +57,7 @@ class TemporalContinuityResult:
     phase_id: str
     critical: bool = False
     gain_step_db: float = 0.0
+    gain_step_threshold_db: float = _GAIN_STEP_THRESHOLD_DB
 
 
 def check_temporal_continuity(
@@ -113,11 +119,18 @@ def check_temporal_continuity(
         post_boundary_rms = float(np.mean(rms_post) + 1e-12)
         gain_step_db = float(abs(20.0 * np.log10(post_boundary_rms / pre_boundary_rms)))
         gain_step_db = float(np.nan_to_num(gain_step_db, nan=0.0, posinf=0.0, neginf=0.0))
-        if gain_step_db > 1.5:
+        # §P1-3 (Hörordnung Ebene 2): Effektive Schwelle = max(fest, lokale
+        # Maskierungs-JND). Ein maskierter Gain-Sprung ist unhörbar → kein
+        # Mikro-Klick-Risiko, keine Warnung, kein Rescue-Trigger.
+        _jnd = estimate_delta_masking_jnd_db(pre, post, sr)
+        _eff_threshold_db = max(_GAIN_STEP_THRESHOLD_DB, float(_jnd.jnd_db))
+        if gain_step_db > _eff_threshold_db:
             logger.warning(
-                "TemporalContinuityGuard §2.69 gain_step_db=%.2f dB > 1.5 dB Verarbeitungsschritt=%s — Mikro-Klick-Risiko",
+                "TemporalContinuityGuard §2.69 gain_step_db=%.2f dB > %.2f dB Verarbeitungsschritt=%s — Mikro-Klick-Risiko (§P1-3 JND=%.2f dB)",
                 gain_step_db,
+                _eff_threshold_db,
                 phase_id,
+                _jnd.jnd_db,
             )
 
         if critical:
@@ -145,6 +158,7 @@ def check_temporal_continuity(
             phase_id=phase_id,
             critical=critical,
             gain_step_db=round(gain_step_db, 3),
+            gain_step_threshold_db=round(_eff_threshold_db, 3),
         )
 
     except Exception as exc:  # pylint: disable=broad-except
