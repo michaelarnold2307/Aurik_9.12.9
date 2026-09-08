@@ -28,16 +28,16 @@
   `_run_song_level_tail(assembled_audio, …)`-Aufruf am Ende von `_restore_chunked`;
   per-Chunk-restore() erhält einen Flag, der diese Blöcke überspringt. Chunk-lokal
   bleiben: Strength-Envelope, Phasen-Loop, FC-Iterationen, PMGG.
-- **Status 2026-09-08: TEILWEISE UMGESETZT (Slice A + a1).**
+- **Status 2026-09-08: TEILWEISE UMGESETZT (Slice A + a1 + a2).**
   `_should_run_end_gate_cascade()` + Kwargs `_chunked_tail_skip`/`_chunked_last`;
-  im Chunked-Pfad läuft die End-Gate-Recovery-Kaskade nur noch auf dem letzten Chunk
-  (m1b führt sie song-global aus). Block a1: `_measure_goals_for_tail()` überspringt
-  `measure_all()` auf Nicht-letzten-Chunks (~40–60 s × 7 Ersparnis je Song);
-  `_restore_chunked` misst die GOAL_SCORECARD einmal auf dem assemblierten Song
-  und injiziert `musical_goals` in das Ergebnis. Tests:
-  `tests/unit/test_p0_1_end_gate_chunking.py` (11 Fälle). Verbleibende Blöcke:
-  (b) Einladungs-Gate, (c) MQA/_collect_reporting_analytics, (d) Audibility-Gate —
-  plus Vollextraktion als `_run_song_level_tail`-Methode (Monolith-Surgery).
+  im Chunked-Pfad läuft die End-Gate-Recovery-Kaskade nur noch auf dem letzten Chunk.
+  Block a1: `_measure_goals_for_tail()` überspringt `measure_all()` auf
+  Nicht-letzten-Chunks; `_restore_chunked` misst die GOAL_SCORECARD einmal auf dem
+  assemblierten Song. Block a2: `_run_song_level_end_gate()` — die 654-Zeilen-Kaskade
+  als Methode extrahiert und läuft nach der Assembly EINMAL song-global (kompensiert
+  Slice A qualitativ; metadata `p0_1_song_end_gate_applied`). Tests: 11 Fälle.
+  Verbleibende Blöcke: (b) Einladungs-Gate, (c) MQA/_collect_reporting_analytics,
+  (d) Audibility-Gate.
 - **Akzeptanz:** 224-s-Referenzlauf ≤ 40 min Gesamtlaufzeit; 3-Zellen-Output bleibt bit-identisch
   (Determinismus §G5); alle song-globalen Gates laufen nachweislich auf dem assemblierten Song.
 
