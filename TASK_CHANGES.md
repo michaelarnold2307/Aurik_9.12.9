@@ -1,14 +1,15 @@
 # TASK_CHANGES — Live-Ledger der aktuellen Aufgabe
 
-> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-08 18:55 CEST).
+> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-08 18:59 CEST).
 > CI (`ci-lite.yml` pr-evidence-gate) erzwingt Abdeckung: jede geänderte Code-Datei muss hier stehen.
 
 ## Geänderte Dateien
 
 | Status | Pfad | Art |
 |---|---|---|
-| M | Aurik10/ui/help_system.py | modifiziert |
-| ?? | tests/unit/test_help_system_errorsimplifier.py | ungetrackt |
+| M | Aurik10/ui/keyboard_shortcuts.py | modifiziert |
+| M | docs/TODOS_SOTA_ROADMAP.md | modifiziert |
+| ?? | tests/unit/test_keyboard_export_logic.py | ungetrackt |
 
 ## Entscheidungen
 

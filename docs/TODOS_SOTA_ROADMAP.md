@@ -227,6 +227,21 @@
   Defektkategorie herunter; behobene Chips bleiben grün über Re-Renders; zweiter Song
   zählt erneut korrekt.
 
+## TODO-P1-11 · GUI-Funktionen debuggen (Abdeckungs-Lücken schließen) — UMGESETZT 2026-09-08
+
+- **Befund (Abdeckungs-Audit):** 12/22 GUI-Module hatten KEINEN Test-Import; die
+  Daten-/Entscheidungslogik (Radar-Farben, Fehlertexte, Tasten, Presets, Startup-Reihenfolge)
+  war nur manuell verifiziert — genau dort lagen die P1-9/P1-10-Bugs.
+- **Lösung (§GUI-T1…T4, pure Logik extrahiert + Tests):**
+  T1 `musical_goals_radar`: `goal_bar_state()` + `build_radar_update_payload()` (5 Fälle).
+  T2 `main.py`-Startup-Vertrag: GPU vor ModernMainWindow, __main__-Guard, -B-Launcher (4 Fälle).
+  T3 `help_system.ErrorSimplifier`: Exception-Klassenname wird einbezogen — Befund dabei:
+  `MemoryError("x")` wurde als Roh-Text „x“ angezeigt statt der freundlichen Meldung (7 Fälle).
+  T4 `keyboard_shortcuts` (`key_action`/`seek_frac`) + `export_presets`-Presets-Vertrag (3 Fälle).
+- **Beleg:** 39 GUI-Tests grün; ruff clean.
+- **Akzeptanz:** Alle vier Entscheidungsketten sind headless-verifiziert; künftige
+  Änderungen an Farben/Tasten/Presets/Fehlertexten brechen sofort einen Test.
+
 ## TODO-P2-1 · Hygiene: UTF-16-Bereinigung + Monolith-Hinweis — ERLEDIGT 2026-09-08 (Guard-Teil)
 
 - **Befund (gemessen 2026-09-08):** Alle 3175 getrackten Textdateien sind valides UTF-8;
