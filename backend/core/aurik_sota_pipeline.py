@@ -21,6 +21,13 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+def _get_session_manager():
+    """§15.9/P1-1: Zentrale ONNX-Session-Residency (kein Reload je Aufruf)."""
+    from backend.core.ml.session_manager import get_session_manager
+
+    return get_session_manager()
+
+
 @dataclass
 class PipelineResult:
     audio: np.ndarray
@@ -52,8 +59,6 @@ def enhance_music(audio: np.ndarray, sample_rate: int = 44100) -> np.ndarray:
     try:
         from pathlib import Path
 
-        import onnxruntime as ort
-
         model_path = (
             Path(__file__).resolve().parent.parent.parent
             / "models"
@@ -64,7 +69,7 @@ def enhance_music(audio: np.ndarray, sample_rate: int = 44100) -> np.ndarray:
             logger.debug("MelBandRoformer nicht gefunden")
             return audio
 
-        session = ort.InferenceSession(str(model_path), providers=["ROCMExecutionProvider", "CPUExecutionProvider"])
+        session = _get_session_manager().acquire("melbandroformer", str(model_path))
         logger.info("MelBandRoformer: %s", session.get_providers()[0])
 
         # MelBandRoformer needs Mel spectrogram [1, duration, 60, 384]

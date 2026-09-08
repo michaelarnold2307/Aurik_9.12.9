@@ -22,30 +22,19 @@ logger = logging.getLogger(__name__)
 
 AVAILABLE_STEMS = ["vocals", "drums", "bass", "other"]
 
-# ONNX Runtime Session Cache (eine Session pro Prozess, GPU-fähig)
-_ort_session_cache: dict[str, Any] = {}
-
-
+# §15.9/P1-1: ONNX-Sessions laufen über den zentralen InferenceSessionManager
+# (Residency je Session, LRU-Eviction, Memory-Limit — kein Prozess-Eigen-Cache).
 def _get_ort_session(model_path: str) -> Any:
-    """ONNX-Session mit GPU→CPU-Fallback. Cached pro model_path."""
-    import onnxruntime as ort
+    """ONNX-Session über den zentralen InferenceSessionManager (§15.9, P1-1).
 
-    if model_path in _ort_session_cache:
-        return _ort_session_cache[model_path]
+    Residency: Ein zweiter Lauf in derselben Session bekommt die bereits
+    geladene Session zurück (kein Modell-Nachladen); LRU-Eviction und
+    Memory-Limit setzt der Manager zentral durch. Der Manager-Loader
+    nutzt zusätzlich den MIGraphX-Adapter (§v10.40) und ORT_ENABLE_ALL.
+    """
+    from backend.core.ml.session_manager import get_session_manager
 
-    for provider in ("ROCMExecutionProvider", "MIGraphXExecutionProvider", "CPUExecutionProvider"):
-        try:
-            sess = ort.InferenceSession(model_path, providers=[provider])
-            logger.info("Demucs ONNX: %s", sess.get_providers()[0])
-            _ort_session_cache[model_path] = sess
-            return sess
-        except Exception:
-            logger.debug("Stiller optionaler Ausnahmefall ignoriert", exc_info=True)
-            continue
-
-    sess = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
-    _ort_session_cache[model_path] = sess
-    return sess
+    return get_session_manager().acquire("demucs_htdemucs_6s", model_path)
 
 
 def restore_per_source(
