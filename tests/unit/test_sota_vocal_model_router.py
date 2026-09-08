@@ -28,6 +28,20 @@ def test_stem_routing_policy_detects_live_like_material_values():
     assert prefer_demucs_native_from_material("cd_digital") is False
 
 
+@pytest.mark.unit
+def test_coerce_like_mono_stem_to_stereo_reference_broadcasts_channels():
+    """§Fix 2026-09-08: 1D-Stem → (2,N)-Referenz: Kanal-Broadcast statt
+    (N,N)-Allokation (vorher 215-GiB-MemoryError bei 5 s Audio)."""
+    from backend.core.dsp.sota_vocal_model_router import SotaVocalModelRouter
+
+    ref = np.zeros((2, 1000), dtype=np.float32)
+    stem = np.linspace(-1.0, 1.0, 1000).astype(np.float32)
+    out = SotaVocalModelRouter._coerce_like(stem, ref)
+    assert out.shape == (2, 1000)
+    assert np.allclose(out[0], stem)
+    assert np.allclose(out[1], stem)
+
+
 def test_router_preflight_skips_roformer_on_low_ram(monkeypatch):
     from backend.core.dsp.sota_vocal_model_router import SotaVocalModelRouter
 

@@ -733,7 +733,10 @@ class SotaVocalModelRouter:
         if ref.ndim == 1 and arr.ndim == 2:
             arr = arr.mean(axis=1 if arr.shape[0] == ref.shape[0] else 0)
         elif ref.ndim == 2 and arr.ndim == 1:
-            arr = np.repeat(arr[:, None], ref.shape[1], axis=1)
+            # §Fix 2026-09-08: vorher np.repeat(arr[:, None], ref.shape[1], axis=1)
+            # → (N, N)-Allokation (215 GiB bei 5 s Audio) statt (2, N).
+            # 1D-Stem (Mono-Verarbeitung) entlang der KANAL-Achse wiederholen.
+            arr = np.repeat(arr[None, :], ref.shape[0], axis=0)
 
         if arr.ndim != ref.ndim:
             return np.zeros_like(ref, dtype=np.float32)  # type: ignore[no-any-return]
