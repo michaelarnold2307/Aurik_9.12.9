@@ -143,6 +143,30 @@
 - **Akzeptanz:** Nächster Lauf ohne „ML→DSP-Fallback“-Traceback für DeepFilterNet;
   Rauschunterdrückung über trainiertes DFN statt OMLSA.
 
+## TODO-P1-7 · Keine hörbaren Restdefekte: m1b intern ausführen (Stufe-2-Nachbehandlung)
+
+- **Ziel (User-Anforderung 2026-09-08):** In allen Importfiles sollen keine hörbaren
+  Restdefekte übrig bleiben — bei vollem Erhalt von Musikalität und Klang, soweit möglich.
+- **Befund (§v10.703 Defekt-Countdown, Lauf 2026-09-08):** 46 gefunden → 42 über
+  Hörbarkeits-Schwelle → 3 behoben → **42 über Schwelle verbleibend**. Die m1b-Queue
+  (Hörbarkeits-Gate → `deferred_phases`) wurde bisher NUR in die GUI-KMV-Queue gestellt;
+  im Headless-/CLI-Flow konsumierte niemand sie → Restdefekte blieben unangetastet.
+- **Lösung (§P1-7):** `_run_m1b_targeted_retry()` in `unified_restorer_v3.py` führt die
+  sicher zugeordneten Retry-Phasen (`DEFECT_RETRY_PHASE_MAP`: hum/clicks/crackle/wow-flutter/
+  hiss/reverb/echo/compression) intern EINMAL aus: nur Phasen mit klarer Typ-Zuordnung
+  (§V7 kein „mehr von allem“), verbotene Phasen (§0a) ausgeschlossen, Re-Entry-Guard
+  `_m1b_pass_active`, deterministisch, bei Fehler/keiner Ausführung bleibt das Original
+  (kein Audio-Ersatz). Verkabelt: (1) restore()-Tail nach dem Hörbarkeits-Gate
+  (`m1b_retry_applied`/`m1b_retry_types` im Ergebnis-Metadata), (2) `_restore_chunked`
+  nach der Song-Assembly (song-global, letzter Chunk-Scan bestimmt die Typen).
+- **Beleg:** `tests/unit/test_m1b_targeted_retry.py` (6 Fälle, grün: nur gemappte Phasen,
+  §0a-Ausschluss, Re-Entry-Guard, no-exec → None, Chunk-Shift-Restore);
+  Restorer-Suiten 289 passed.
+- **Akzeptanz:** Nächster Referenzlauf: `n_audible_unmasked` deutlich reduziert (Ziel: 0,
+  soweit physisch möglich — `physical_cap`-Typen dokumentiert ausgenommen);
+  `m1b_retry_applied=True` im Metadata; keine Verschlechterung von
+  authentizitaet/natuerlichkeit (GOAL_SCORECARD ≥ Vorlauf).
+
 ## TODO-P2-1 · Hygiene: UTF-16-Bereinigung + Monolith-Hinweis — ERLEDIGT 2026-09-08 (Guard-Teil)
 
 - **Befund (gemessen 2026-09-08):** Alle 3175 getrackten Textdateien sind valides UTF-8;

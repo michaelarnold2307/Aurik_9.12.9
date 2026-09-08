@@ -22719,6 +22719,41 @@ class UnifiedRestorerV3:
                         )
                 except Exception as _ag_retry_exc:
                     logger.debug("§Hörbarkeits-Gate m1b-Queue nicht blockierend: %s", _ag_retry_exc)
+            # §P1-7 (2026-09-08): m1b intern AUSFÜHREN statt nur in die
+            # GUI-KMV-Queue zu stellen — gezielte Zweitbehandlung hörbarer
+            # Restdefekte (nur sichere Phasen-Zuordnung, max. 1 Pass).
+            if (
+                not _chunked_tail_skip
+                and not _ag_report.gate_passed
+                and _ag_report.improvable_types
+            ):
+                try:
+                    _m1b_audio = self._run_m1b_targeted_retry(
+                        restored_audio,
+                        sample_rate,
+                        material_type,
+                        defect_result,
+                        list(_ag_report.improvable_types),
+                        original_audio_for_goals,
+                        _applicable_goals,
+                        _material_phase_initial_strengths,
+                        _pipeline_quality_mode_override,
+                        _reconstruction_ctx,
+                        _phoneme_timeline,
+                        _lge_trans_pre,
+                        _phase_quiet_edge_profile,
+                        _pipeline_confidence,
+                        progress_callback=progress_callback,
+                    )
+                    if _m1b_audio is not None:
+                        restored_audio = _m1b_audio
+                        if hasattr(result, "audio"):
+                            result.audio = _m1b_audio
+                        if isinstance(getattr(result, "metadata", None), dict):
+                            result.metadata["m1b_retry_applied"] = True
+                            result.metadata["m1b_retry_types"] = list(_ag_report.improvable_types)
+                except Exception as _m1b_exc:
+                    logger.debug("§P1-7 m1b nicht blockierend: %s", _m1b_exc)
             if hasattr(result, "metadata") and isinstance(result.metadata, dict):
                 result.metadata["audibility_gate"] = _ag_report.to_metadata()
         except Exception as _ag_exc:
@@ -44791,6 +44826,98 @@ class UnifiedRestorerV3:
             "violations": _mg_violations,
         }
 
+    def _run_m1b_targeted_retry(
+        self,
+        audio: np.ndarray,
+        sample_rate: int,
+        material_type: Any,
+        defect_result: Any | None,
+        improvable_types: list[str],
+        original_reference: np.ndarray | None,
+        applicable_goals: Any,
+        material_initial_strengths: dict,
+        quality_mode_override: Any,
+        reconstruction_context: dict,
+        phoneme_timeline: Any,
+        pre_transcription: Any,
+        quiet_edge_profile: Any,
+        pipeline_confidence: float,
+        *,
+        progress_callback: Any = None,
+    ) -> np.ndarray | None:
+        """§P1-7 m1b: Gezielte Stufe-2-Nachbehandlung hörbarer Restdefekte.
+
+        Ziel (§v10.703-Befund: 42 hörbare Restdefekte): nach dem
+        Hörbarkeits-Gate werden die nachbehandlungswürdigen Typen NICHT nur
+        in die GUI-KMV-Queue gestellt, sondern intern einmalig mit den
+        sicher zugeordneten Retry-Phasen nachbehandelt (DEFECT_RETRY_PHASE_MAP).
+        Kein blindes „mehr von allem“ (§V7): nur Phasen mit klarer Zuordnung,
+        verbotene Phasen (§0a) ausgeschlossen, max. 1 Pass pro restore()
+        (_m1b_pass_active), kein Tail-Re-Entry → keine Rekursion, deterministisch.
+        Rückgabe: nachbehandeltes Audio oder None (keine Aktion).
+        """
+        if getattr(self, "_m1b_pass_active", False):
+            return None
+        try:
+            from backend.core.defect_audibility_gate import retry_phases_for_types as _m1b_map
+        except Exception:
+            return None
+        _retry = list(dict.fromkeys(_m1b_map(list(improvable_types or []))))
+        _FORBIDDEN = {"phase_21_exciter", "phase_35_multiband_compression", "phase_42_vocal_enhancement"}
+        _retry = [p for p in _retry if p not in _FORBIDDEN]
+        if not _retry:
+            return None
+        _t0 = time.monotonic()
+        self._m1b_pass_active = True
+        self._consecutive_quality_degradations = 0
+        self._emergency_stop_requested = False
+        _ctx_shift = None
+        try:
+            if isinstance(getattr(self, "_restoration_context", None), dict):
+                _ctx_shift = self._restoration_context.pop("chunk_start_sample", None)
+            _m1b_out, _m1b_exec, _m1b_skip, _m1b_def = self._execute_pipeline(
+                audio,
+                sample_rate,
+                material_type,
+                defect_result,
+                selected_phases=_retry,
+                progress_callback=progress_callback,
+                audio_update_callback=None,
+                restorability_score=float(getattr(self, "_last_restorability_score", 70.0)),
+                applicable_goals=applicable_goals,
+                material_initial_strengths=material_initial_strengths,
+                quality_mode_override=quality_mode_override,
+                no_rt_limit=False,
+                reconstruction_context=reconstruction_context,
+                phoneme_timeline=phoneme_timeline,
+                pre_transcription=pre_transcription,
+                graceful_stop_event=self._graceful_stop_event,
+                original_audio_reference=original_reference,
+                quiet_edge_profile=quiet_edge_profile,
+                pipeline_confidence=float(pipeline_confidence or 0.7),
+            )
+            _dt = time.monotonic() - _t0
+            if not _m1b_exec:
+                logger.warning(
+                    "§m1b: Retry-Phasen %s erzeugten keine Ausführung — kein Audio-Ersatz.",
+                    _retry,
+                )
+                return None
+            logger.info(
+                "🔧 §m1b: %d Retry-Phasen (%s) in %.1fs — Restdefekt-Nachbehandlung abgeschlossen",
+                len(_m1b_exec),
+                ", ".join(str(p) for p in _m1b_exec),
+                _dt,
+            )
+            return _m1b_out  # type: ignore[no-any-return]
+        except Exception as _m1b_exc:
+            logger.warning("§m1b: gezielte Nachbehandlung fehlgeschlagen (kein Audio-Ersatz): %s", _m1b_exc)
+            return None
+        finally:
+            self._m1b_pass_active = False
+            if _ctx_shift is not None and isinstance(getattr(self, "_restoration_context", None), dict):
+                self._restoration_context["chunk_start_sample"] = _ctx_shift
+
     def _measure_goals_for_tail(
         self,
         mg_checker,
@@ -45180,6 +45307,45 @@ class UnifiedRestorerV3:
             except Exception as _segex_exc:
                 logger.warning("§P0-1 Song-End-Gate nicht verfügbar: %s", _segex_exc)
 
+            # §P1-7 (2026-09-08): m1b song-global im Chunked-Pfad — der letzte
+            # Chunk-Scan bestimmt die nachbehandlungswürdigen Typen.
+            _m1b_chunked_flag = False
+            _m1b_chunked_types: list[str] = []
+            try:
+                from backend.core.defect_audibility_gate import evaluate_defect_audibility as _m1b_eval
+
+                _m1b_mat = getattr(_first_result, "material_type", MaterialType.UNKNOWN)
+                _m1b_data = getattr(self, "_defect_reduction_per_type", None) or {}
+                _m1b_rep = _m1b_eval(
+                    _m1b_data if isinstance(_m1b_data, dict) else {},
+                    material_key=str(getattr(_m1b_mat, "value", str(_m1b_mat))).lower(),
+                    chain_depth=int(getattr(self, "_transfer_chain_depth", 1) or 1),
+                )
+                if not _m1b_rep.gate_passed and _m1b_rep.improvable_types:
+                    _m1b_chunked = self._run_m1b_targeted_retry(
+                        output,
+                        sample_rate,
+                        _m1b_mat,
+                        None,
+                        list(_m1b_rep.improvable_types),
+                        audio,
+                        [],
+                        {},
+                        None,
+                        {},
+                        None,
+                        None,
+                        None,
+                        float(getattr(self, "_pipeline_confidence", 0.7)),
+                        progress_callback=progress_callback,
+                    )
+                    if _m1b_chunked is not None:
+                        output = _m1b_chunked
+                        _m1b_chunked_flag = True
+                        _m1b_chunked_types = list(_m1b_rep.improvable_types)
+            except Exception as _m1bc_exc:
+                logger.debug("§P1-7 m1b chunked nicht blockierend: %s", _m1bc_exc)
+
             # Cache-Cleanup
             try:
                 from backend.api.bridge import clear_defect_cache
@@ -45197,6 +45363,9 @@ class UnifiedRestorerV3:
             _meta["chunks_total"] = len(chunks)
             _meta["chunks_completed"] = _chunk_count
             _meta["p0_1_song_end_gate_applied"] = bool(_song_end_gate_applied)
+            if _m1b_chunked_flag:
+                _meta["m1b_retry_applied"] = True
+                _meta["m1b_retry_types"] = list(_m1b_chunked_types)
 
             return RestorationResult(
                 audio=output,

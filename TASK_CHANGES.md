@@ -1,17 +1,15 @@
 # TASK_CHANGES — Live-Ledger der aktuellen Aufgabe
 
-> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-08 15:55 CEST).
+> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-08 16:23 CEST).
 > CI (`ci-lite.yml` pr-evidence-gate) erzwingt Abdeckung: jede geänderte Code-Datei muss hier stehen.
 
 ## Geänderte Dateien
 
 | Status | Pfad | Art |
 |---|---|---|
+| M | backend/core/unified_restorer_v3.py | modifiziert |
 | M | docs/TODOS_SOTA_ROADMAP.md | modifiziert |
-| M | plugins/deepfilternet_v3_ii_plugin.py | modifiziert |
-| M | scripts/export_df_musik_onnx.py | modifiziert |
-| M | tests/unit/test_deepfilternet_v3_ii_chunking.py | modifiziert |
-| ?? | tests/unit/test_deepfilternet_plugin_alpha.py | ungetrackt |
+| ?? | tests/unit/test_m1b_targeted_retry.py | ungetrackt |
 
 ## Entscheidungen
 
