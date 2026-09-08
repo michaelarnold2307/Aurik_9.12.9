@@ -24023,6 +24023,12 @@ class ModernMainWindow(QMainWindow):
             # Preserve original scan scores so chips can animate red → amber → green
             # during restoration even after individual scores are zeroed per phase.
             # label_map is defined below; we store all numeric fields and filter there.
+            # §P1-10 (2026-09-08): Neuer Lauf → Zähl-Zustand zurücksetzen, sonst
+            # lecken Behebungen/Chips des vorherigen Songs in diesen Lauf.
+            self._resolved_defects_accumulated = set()
+            self._defect_chip_counts = None
+            self._defect_chip_total = 0
+            self._defect_chips_done = []
             self._defect_initial_scores = {
                 k: v for k, v in defects.items() if isinstance(v, (int, float)) and k not in ("status", "_no_anim")
             }
