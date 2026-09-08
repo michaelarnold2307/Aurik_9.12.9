@@ -14056,29 +14056,11 @@ class UnifiedRestorerV3:
             logger.debug("wiederherstellen: silent except suppressed", exc_info=True)
 
         # ── STUFE 8: AUSGABE (Humanization, ML-Hybrid, Listening-EQ, Export) ──
-        # §v10.0.5 Final Polish: Era-authentischer EQ + Noise-Shaped Dither
-        # vor dem Export. Kombiniert apply_era_eq + apply_noise_shaped_dither +
-        # CD noise texture in einem Durchlauf. Läuft VOR OneTakeExport, damit
-        # dessen True-Peak-Korrektur das geditherte Signal sauber hält.
-        try:
-            from backend.core.dsp.final_polish import apply_final_polish
-
-            _polish_decade = int(getattr(self, "_restoration_context", {}).get("decade", 1980) or 1980)
-            _polish_mat = str(getattr(self, "_restoration_context", {}).get("primary_material", "digital"))
-            restored_audio = apply_final_polish(
-                restored_audio,
-                sample_rate,
-                decade=_polish_decade,
-                bit_depth=24 if self.is_studio_mode() else 16,
-            )
-            logger.info(
-                "§v10.0.5 FinalPolish: era=%d mat=%s bits=%d",
-                _polish_decade,
-                _polish_mat,
-                24 if self.is_studio_mode() else 16,
-            )
-        except Exception as _polish_exc:
-            logger.debug("§v10.0.5 FinalPolish not verfuegbar: %s", _polish_exc)
+        # §P1-8 (2026-09-08): FinalPolish (Era-EQ + Noise-Shaped Dither) und
+        # OneTakeExport (LUFS/True-Peak) laufen jetzt am TAIL-ENDE, NACH der
+        # m1b-Nachbehandlung — Dither ist der letzte Quantisierungsschritt
+        # (§V5) und LUFS/TP gelten für das FINALE Audio, nicht für einen
+        # Zwischenstand vor Stufe-2.
 
         # §Anti-Fatigue-Pass (Hörordnung §6/§V7 [copilot-instructions.md, Workaround-Verbot]): komponenten-getriebene
         # Hörermüdungs-Prävention VOR dem Export-Gate — Do-No-Harm.
@@ -14102,18 +14084,9 @@ class UnifiedRestorerV3:
         except Exception as _afp_exc:
             logger.debug("§Anti-Fatigue nicht blockierend: %s", _afp_exc)
 
-        # §v10.17 OneTakeExport: Export-Qualität garantieren
-        try:
-            from backend.core.one_take_export import OneTakeExport
+        # §Anti-Fatigue-Pass — bleibt VOR dem Export (Do-No-Harm vor Finalisierung)
 
-            _ote = OneTakeExport.prepare(restored_audio, sample_rate, is_studio_2026=self.is_studio_mode())
-            if _ote.passed or _ote.retries < 3:
-                restored_audio = _ote.audio
-                logger.info("OneTakeExport: %d retries, corrections=%s", _ote.retries, _ote.corrections)
-            else:
-                logger.warning("OneTakeExport FAIL: %s", _ote.quality_report.get("errors", []))
-        except Exception:
-            logger.debug("OneTakeExport not verfuegbar", exc_info=True)
+        # §P1-8: OneTakeExport läuft am Tail-Ende nach der m1b-Nachbehandlung.
 
         # §T HumanizationPass — gegen Hörermüdigkeit (LETZTER DSP-Schritt)
         try:
@@ -22758,6 +22731,47 @@ class UnifiedRestorerV3:
                 result.metadata["audibility_gate"] = _ag_report.to_metadata()
         except Exception as _ag_exc:
             logger.debug("§Hörbarkeits-Gate nicht blockierend: %s", _ag_exc)
+
+        # ═══════════════════════════════════════════════════════════════════
+        # §P1-8 EXPORT-FINALISIERUNG — NACH m1b/Stufe-2 (2026-09-08)
+        # Dither ist der letzte Quantisierungsschritt (§V5), LUFS/True-Peak
+        # gelten für das FINALE Audio. Alle DSP/ML-Schritte (Humanization,
+        # PerceptualExportOptimizer, MDEM, Goosebumps, m1b-Retry) laufen
+        # davor auf voller Float-Präzision.
+        # ═══════════════════════════════════════════════════════════════════
+        try:
+            from backend.core.dsp.final_polish import apply_final_polish
+
+            _polish_decade = int(getattr(self, "_restoration_context", {}).get("decade", 1980) or 1980)
+            _polish_mat = str(getattr(self, "_restoration_context", {}).get("primary_material", "digital"))
+            restored_audio = apply_final_polish(
+                restored_audio,
+                sample_rate,
+                decade=_polish_decade,
+                bit_depth=24 if self.is_studio_mode() else 16,
+            )
+            logger.info(
+                "§P1-8 FinalPolish (nach m1b): era=%d mat=%s bits=%d",
+                _polish_decade,
+                _polish_mat,
+                24 if self.is_studio_mode() else 16,
+            )
+        except Exception as _polish_exc:
+            logger.debug("§P1-8 FinalPolish not verfuegbar: %s", _polish_exc)
+
+        try:
+            from backend.core.one_take_export import OneTakeExport
+
+            _ote = OneTakeExport.prepare(restored_audio, sample_rate, is_studio_2026=self.is_studio_mode())
+            if _ote.passed or _ote.retries < 3:
+                restored_audio = _ote.audio
+                logger.info("§P1-8 OneTakeExport (nach m1b): %d retries, corrections=%s", _ote.retries, _ote.corrections)
+            else:
+                logger.warning("OneTakeExport FAIL: %s", _ote.quality_report.get("errors", []))
+        except Exception:
+            logger.debug("OneTakeExport not verfuegbar", exc_info=True)
+        if hasattr(result, "audio"):
+            result.audio = restored_audio
 
         logger.info(
             "✅ Restoration vollstaendig: %.1fs (%.2f× RT), Quality: %.1f%%",
@@ -45345,6 +45359,26 @@ class UnifiedRestorerV3:
                         _m1b_chunked_types = list(_m1b_rep.improvable_types)
             except Exception as _m1bc_exc:
                 logger.debug("§P1-7 m1b chunked nicht blockierend: %s", _m1bc_exc)
+
+            # §P1-8 (2026-09-08): Nach der song-globalen m1b die
+            # Export-Finalisierung auf das FINALE Audio anwenden — nur
+            # OneTakeExport (LUFS/True-Peak-Zielkorrektur, idempotent);
+            # FinalPolish (Era-EQ) lief bereits je Chunk und darf nicht
+            # doppelt angewendet werden.
+            if _m1b_chunked_flag:
+                try:
+                    from backend.core.one_take_export import OneTakeExport
+
+                    _ote_c = OneTakeExport.prepare(output, sample_rate, is_studio_2026=self.is_studio_mode())
+                    if _ote_c.passed or _ote_c.retries < 3:
+                        output = _ote_c.audio
+                        logger.info(
+                            "§P1-8 OneTakeExport (nach m1b, chunked): %d retries, corrections=%s",
+                            _ote_c.retries,
+                            _ote_c.corrections,
+                        )
+                except Exception as _otec_exc:
+                    logger.debug("§P1-8 OneTakeExport chunked nicht blockierend: %s", _otec_exc)
 
             # Cache-Cleanup
             try:

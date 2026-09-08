@@ -167,6 +167,25 @@
   `m1b_retry_applied=True` im Metadata; keine Verschlechterung von
   authentizitaet/natuerlichkeit (GOAL_SCORECARD ≥ Vorlauf).
 
+## TODO-P1-8 · Export NACH dem 2. Durchgang — FinalPolish/OneTakeExport ans Tail-Ende — UMGESETZT 2026-09-08
+
+- **Befund (User-Frage 2026-09-08):** Lief der Export nach dem 2. Durchgang? Nein —
+  `apply_final_polish` (Era-EQ + Noise-Shaped Dither) und `OneTakeExport.prepare`
+  (LUFS/True-Peak) liefen bei Z. 14059/14105 MITTEN im Tail (STUFE-8), die
+  m1b-Nachbehandlung erst bei Z. 22730 — der m1b-Output wurde nie neu exportiert:
+  Dither/LUFS/TP galten für einen Zwischenstand, Humanization/PEO/MDEM/Goosebumps/m1b
+  liefen teils auf bereits gedithertem Audio.
+- **Lösung (§P1-8):** Export-Finalisierung (FinalPolish → OneTakeExport) ans TAIL-ENDE
+  verschoben — NACH m1b. Dither ist damit der letzte Quantisierungsschritt (§V5),
+  LUFS/True-Peak gelten für das FINALE Audio, alle DSP/ML-Schritte laufen auf voller
+  Float-Präzision. `result.audio` wird nach der Finalisierung aktualisiert.
+  Chunked-Pfad: nach song-globaler m1b nur OneTakeExport (idempotente Zielkorrektur);
+  FinalPolish lief je Chunk und wird nicht doppelt angewendet (kein Doppel-EQ).
+- **Beleg:** Restorer-Suiten 296 passed (inkl. Alignment); Linter/GEBOTE clean.
+- **Akzeptanz:** Referenzlauf: Log zeigt „§P1-8 FinalPolish (nach m1b)“ und
+  „§P1-8 OneTakeExport (nach m1b)“ AM ENDE; LUFS/TP im Zielband; bit-identischer
+  3-Zellen-Output (Determinismus §G5 innerhalb der Version).
+
 ## TODO-P2-1 · Hygiene: UTF-16-Bereinigung + Monolith-Hinweis — ERLEDIGT 2026-09-08 (Guard-Teil)
 
 - **Befund (gemessen 2026-09-08):** Alle 3175 getrackten Textdateien sind valides UTF-8;
