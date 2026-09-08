@@ -20,10 +20,19 @@ class _FakeRestorer(UnifiedRestorerV3):
         self._m1b_pass_active = False
         self._graceful_stop_event = None
         self._pipeline_calls: list[dict] = []
+        self._progress_events: list[tuple] = []
 
     def _execute_pipeline(self, *args, **kwargs) -> tuple:
         self._pipeline_calls.append(kwargs)
         sel = kwargs.get("selected_phases") or []
+        # §P1-9: Pipeline ruft den Progress-Callback mit 3 Argumenten auf
+        _pc = kwargs.get("progress_callback")
+        if _pc is not None:
+            try:
+                _pc(50.0, "phase_test", 1.5)
+            except TypeError as _te:
+                self._progress_events.append(("TypeError", str(_te)))
+                return np.ones(10, dtype=np.float32), list(sel), [], []
         if not sel:
             return np.zeros(10, dtype=np.float32), [], [], []
         return np.ones(10, dtype=np.float32), list(sel), [], []
@@ -60,6 +69,37 @@ def test_retry_runs_mapped_phases_only() -> None:
     # Chunk-Verschiebung wurde für den song-globalen Pass entfernt
     assert "chunk_start_sample" not in r._restoration_context
     assert r._m1b_pass_active is False  # finally hat zurückgesetzt
+
+
+def test_progress_adapter_matches_gui_signature() -> None:
+    """§P1-9: m1b reicht den GUI-Callback über den 4-arg-Adapter durch —
+    eine strikte 4-arg-GUI-Signatur darf keine TypeError erzeugen."""
+    r = _FakeRestorer()
+    seen: list[tuple] = []
+
+    def _strict_gui_cb(pct: float, msg: str, elapsed_s: float, metrics) -> None:
+        seen.append((pct, msg, elapsed_s, metrics))
+
+    out = r._run_m1b_targeted_retry(
+        np.zeros(10, dtype=np.float32),
+        48000,
+        "vinyl",
+        None,
+        ["hum"],
+        None,
+        [],
+        {},
+        None,
+        {},
+        None,
+        None,
+        None,
+        0.7,
+        progress_callback=_strict_gui_cb,
+    )
+    assert out is not None
+    assert r._progress_events == []  # kein TypeError in der Pipeline
+    assert seen == [(50.0, "phase_test", 1.5, None)]
 
 
 def test_forbidden_phases_excluded() -> None:

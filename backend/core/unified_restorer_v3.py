@@ -44844,7 +44844,9 @@ class UnifiedRestorerV3:
                 material_type,
                 defect_result,
                 selected_phases=_retry,
-                progress_callback=progress_callback,
+                progress_callback=(lambda pct, phase, elapsed=0.0: progress_callback(pct, phase, elapsed, None))
+                if progress_callback is not None
+                else None,  # §P1-9: 4-arg-Adapter wie im Haupt-Call (§v10.702 P1)
                 audio_update_callback=None,
                 restorability_score=float(getattr(self, "_last_restorability_score", 70.0)),
                 applicable_goals=applicable_goals,
@@ -45244,6 +45246,25 @@ class UnifiedRestorerV3:
                     _next_pct = int(100.0 * (i + 1) / len(chunks))
 
                     def _make_chunk_pc(base, ceiling, orig_cb):
+                        import threading as _pc_threading
+
+                        _last = [float(base)]
+                        _lock = _pc_threading.Lock()
+                        _stop = _pc_threading.Event()
+                        _t0 = [time.perf_counter()]
+
+                        def _emit(mapped, msg, elapsed=0.0):
+                            with _lock:
+                                if mapped < _last[0]:
+                                    mapped = _last[0]
+                                else:
+                                    _last[0] = mapped
+                            try:
+                                return orig_cb(mapped, msg, elapsed)
+                            except Exception:
+                                logger.debug("Chunk-Progress-Callback fehlgeschlagen", exc_info=True)
+                                return None
+
                         def _wrapper(pct, msg, elapsed=0.0):
                             # §v10.702 P2: float-Präzision + round() statt int()-Trunkierung
                             # Verhindert dass viele pct-Werte auf denselben mapped-Wert fallen
@@ -45253,8 +45274,28 @@ class UnifiedRestorerV3:
                             # §v10.460: msg original durchreichen — GUI braucht
                             # originale Phase-Namen für Waveform-Icon + Stage-Visuals
                             # + Defekt-Countdown (Chips zählen live mit).
-                            return orig_cb(mapped, msg, elapsed)
+                            return _emit(mapped, msg, elapsed)
 
+                        def _heartbeat():
+                            # §P1-9 (2026-09-08): Hält den Balken zwischen echten
+                            # Events am Leben — Befund: Stillstand bei 26,88 %
+                            # (20-min-Lücken in Pre-Analyse/Tail je Folge-Chunk).
+                            # Asymptotisch zur Chunk-Decke, nie darüber; echte
+                            # Events übernehmen (monotones Maximum).
+                            while not _stop.wait(2.0):
+                                _elapsed = time.perf_counter() - _t0[0]
+                                _frac = 1.0 - float(np.exp(-_elapsed / 30.0))
+                                _mapped = round(base + (_frac * 0.985) * (ceiling - base), 1)
+                                _mapped = min(_mapped, ceiling - 0.05)
+                                _emit(_mapped, "Verarbeitung…", _elapsed)
+
+                        _hb_thread = _pc_threading.Thread(
+                            target=_heartbeat,
+                            daemon=True,
+                            name=f"aurik_chunk_pc_hb_{int(base)}",
+                        )
+                        _hb_thread.start()
+                        _wrapper._stop_heartbeat = _stop.set  # type: ignore[attr-defined]
                         return _wrapper
 
                     _chunk_pc = _make_chunk_pc(_base_pct, _next_pct, progress_callback)
@@ -45278,6 +45319,14 @@ class UnifiedRestorerV3:
                     )
                     results.append(_ChunkResult(chunk, sample_rate, i, start, end))
                     _all_warnings.append(f"Chunk {i + 1} failed: {_chunk_exc}")
+                finally:
+                    # §P1-9: Chunk-Heartbeat stoppen, sobald der Chunk fertig ist
+                    try:
+                        _stop_hb = getattr(_chunk_pc, "_stop_heartbeat", None)
+                        if _stop_hb is not None:
+                            _stop_hb()
+                    except Exception:
+                        logger.debug("Chunk-Heartbeat-Stop fehlgeschlagen", exc_info=True)
 
             output = cp.collect_results(results, sample_rate)  # type: ignore[arg-type]
             logger.info(

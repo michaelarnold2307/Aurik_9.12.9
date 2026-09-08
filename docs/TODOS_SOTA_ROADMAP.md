@@ -191,6 +191,23 @@
   „§P1-8 OneTakeExport (nach m1b)“ AM ENDE; LUFS/TP im Zielband; bit-identischer
   3-Zellen-Output (Determinismus §G5 innerhalb der Version).
 
+## TODO-P1-9 · Fortschrittsanzeige-Stillstand bei 26,88 % — Chunk-Heartbeat + m1b-Adapter — UMGESETZT 2026-09-08
+
+- **Befund (User 2026-09-08):** Fortschrittsbalken bleibt ab 26,88 % stehen (Chunked-Lauf);
+  GUI-Watchdog meldete bereits „W-PROGRESS-STALE — Bar-Step-Abweichung >15%“.
+  26,88 % = Chunk 2 (Fenster 25–37) bei Chunk-lokal 15,67 % — nach `_cb(15)`
+  („Klangleitplanken“) bis zur nächsten Emission (`_cb(16)`/Pipeline-Start) liegen
+  je Folge-Chunk Minuten ohne Fortschritts-Event (Pre-Analyse-Bypass + Tail-Lücken).
+- **Lösung (§P1-9):** (1) Chunk-Progress-Heartbeat in `_make_chunk_pc`: Daemon-Thread
+  emittiert alle 2 s monotones Mikro-Progress (asymptotisch zur Chunk-Decke, nie darüber);
+  echte Events übernehmen per Monoton-Maximum; Stopp via `finally` nach jedem Chunk.
+  (2) m1b-Progress-Adapter: `_run_m1b_targeted_retry` reicht den GUI-Callback jetzt über
+  den 4-arg-Adapter (pct, msg, elapsed, metrics=None) durch — konsistent mit dem Haupt-Call.
+- **Beleg:** `tests/unit/test_m1b_targeted_retry.py` (7 Fälle, neu: GUI-Signatur-Adapter);
+  Restorer-Suiten 292 passed; Linter/GEBOTE clean.
+- **Akzeptanz:** Referenzlauf: Balken bewegt sich kontinuierlich (kein Stillstand >30 s je
+  Chunk; Watchdog ohne W-PROGRESS-STALE); Balken erreicht 100 % erst nach Assembly.
+
 ## TODO-P2-1 · Hygiene: UTF-16-Bereinigung + Monolith-Hinweis — ERLEDIGT 2026-09-08 (Guard-Teil)
 
 - **Befund (gemessen 2026-09-08):** Alle 3175 getrackten Textdateien sind valides UTF-8;
