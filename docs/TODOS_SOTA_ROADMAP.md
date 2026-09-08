@@ -20,6 +20,14 @@
 - **Beleg:** `backend/core/unified_restorer_v3.py` `_restore_chunked` (GOAL_SCORECARD/Recovery je
   `restore()`-Aufruf); `pipeline.instructions.md` §2.45b (EmotionalArc), §2.44 (HPI als Export-Gate);
   Session-Befund: 8–9 Runden je Chunk, 3 h 19–38 min/Lauf.
+- **Extraktionsgrenzen (aus Session-Analyse 2026-09-08, restore()-Tail in unified_restorer_v3.py):**
+  Song-globale Blöcke, die nach der Chunk-Assembly EINMAL laufen sollen:
+  (a) GOAL_SCORECARD + End-Gate-Recovery-Kaskade (~Z. 16600–17200),
+  (b) Einladungs-Gate (~Z. 17972), (c) MQA/_collect_reporting_analytics (~Z. 18667),
+  (d) Audibility-Gate + m1b-Queue (~Z. 23260–23340). Vorschlag: neuer
+  `_run_song_level_tail(assembled_audio, …)`-Aufruf am Ende von `_restore_chunked`;
+  per-Chunk-restore() erhält einen Flag, der diese Blöcke überspringt. Chunk-lokal
+  bleiben: Strength-Envelope, Phasen-Loop, FC-Iterationen, PMGG.
 - **Akzeptanz:** 224-s-Referenzlauf ≤ 40 min Gesamtlaufzeit; 3-Zellen-Output bleibt bit-identisch
   (Determinismus §G5); alle song-globalen Gates laufen nachweislich auf dem assemblierten Song.
 
@@ -35,6 +43,9 @@
   Tiefenanalyse Abschnitt A.2.
 - **Akzeptanz:** Neuer Test schlägt bei jeder Divergenz fehl; CI grün; keine stillen Default-Tier-3-Fälle
   für bekannte Goals.
+- **Status 2026-09-08: UMGESETZT** — `GOAL_ALIASES` + `canonical_goal()` + `verify_map_consistency()`
+  in `goal_priority_protocol.py`; `hearing_tier()`/`priority_of()` nutzen die Kanonisierung;
+  Sync-Test `tests/unit/test_goal_tier_map_sync.py` (5 Tests) läuft in unit-smoke/coverage.
 
 ## TODO-P0-3 · Budget-Wahrheit: drei Zahlen in eine konvergieren
 
