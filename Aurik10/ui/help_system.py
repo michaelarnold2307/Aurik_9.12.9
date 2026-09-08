@@ -95,8 +95,17 @@ class ErrorSimplifier:
 
     @classmethod
     def simplify(cls, error: Any) -> str:
-        """Vereinfacht einen Fehler. Gibt Laien-Nachricht zurück."""
-        msg = str(error) if error else ""
+        """Vereinfacht einen Fehler. Gibt Laien-Nachricht zurück.
+
+        §GUI-T3 (2026-09-08): Für Exception-Instanzen wird der KLASSENNAME
+        mit einbezogen — sonst fielen Exceptions mit leerer/plain Message
+        (z. B. MemoryError("x") → str "x") durch alle Pattern und wurden
+        roh angezeigt statt der freundlichen Meldung.
+        """
+        if isinstance(error, BaseException):
+            msg = f"{type(error).__name__}: {error}"
+        else:
+            msg = str(error) if error else ""
         msg_lower = msg.lower()
 
         for pattern, key in cls._PATTERNS:
