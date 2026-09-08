@@ -16740,659 +16740,25 @@ class UnifiedRestorerV3:
                 logger.warning("GOAL_SCORECARD log fehlgeschlagen (nicht blockierend): %s", _sc_exc, exc_info=True)
 
             if _should_run_end_gate_cascade(_mg_violations, _chunked_tail_skip, _chunked_last):
-                # §P0-1 Song-Ebene-Analytik: Im Chunked-Pfad läuft die
-                # End-Gate-Kaskade nur auf dem letzten Chunk (bzw. einmal
-                # song-global in der Stufe-2-Nachbehandlung).
-                # v10.0.0: Musical Goals Re-Pass in UV3 entfernt — wissenschaftlich nicht
-                # gerechtfertigt (Ephraim & Malah 1984: cascaded identical processing amplifies
-                # STFT roundtrip errors). Stattdessen: material-sichere End-Gate-Recovery
-                # über gewichtete Blend-Kaskaden ohne zusätzliche Signalprozessor-Kaskadierung.
-                _initial_mg_violations = list(_mg_violations)
-                _goal_recovery_meta = {
-                    "attempted": True,
-                    "initial_violations": list(_initial_mg_violations),
-                    "p1p2_blend_applied": False,
-                    "global_blend_applied": False,
-                }
-                # §v10.0.4 Restorability-adaptives Log-Level
-                _mg_rest = float(getattr(self, "_last_restorability_score", 70.0))
-                if _mg_rest >= 70.0:
-                    logger.warning(
-                        "🎵 Musical Goals Verletzungen (%d/%d): %s — autonome End-Gate-Wiederherstellung aktiv",
-                        len(_mg_violations),
-                        len(_goal_vector_keys),
-                        ", ".join(_mg_violations),
-                    )
-                else:
-                    logger.info(
-                        "🎵 Musical Goals Verletzungen (%d/%d): %s — erwartet für restorability=%.0f",
-                        len(_mg_violations),
-                        len(_goal_vector_keys),
-                        ", ".join(_mg_violations),
-                        _mg_rest,
-                    )
-
-                # §2.59.6 End-Gate Time-Guard: Maximal 300s für Recovery-Kaskade.
-                # Verhindert Endlos-Oszillation wenn Blends keine Verbesserung bringen.
-                # Nach Timeout: bester bisheriger Kandidat wird exportiert.
-                _ENDGATE_TIMEOUT_S = 300.0
-                _endgate_t0 = time.monotonic()
-                _endgate_measure_count = 0
-                _ENDGATE_MAX_MEASURES = 25  # ~3.5 min bei 8.5s/measure
-
-                # §9.8 End-Gate: P1/P2 Goal Recovery Cascade
-                _P1P2_GOALS = {
-                    "natuerlichkeit",
-                    "authentizitaet",
-                    "tonal_center",
-                    "timbre_authentizitaet",
-                    "artikulation",
-                    "transient_energie",  # §v10.14: Transientenzerstörung (0.054→0.71 gap)
-                    "emotionalitaet",  # §v10.14: Emotionsbogen-Verlust (0.088→0.80 gap)
-                }
-                _p1p2_violations = [g for g in _mg_violations if g in _P1P2_GOALS]
-                # §v10.x Shape-Guard (Befund 2026-08-22): Blend nur bei identischen
-                # Shapes — sonst mischt NumPy-Broadcasting Chunk- und Voll-Song-
-                # Signale (FATAL: 10.7M vs. 1.44M).
-                if (
-                    _p1p2_violations
-                    and original_audio_for_goals is not None
-                    and restored_audio.shape == original_audio_for_goals.shape
-                ):
-                    _BLEND_ALPHAS = [0.92, 0.85]  # §PERF: nur 2 Alphas testen, Post-Pipeline übernimmt Rest
-                    _best_blend_audio = None
-                    _best_blend_scores = None
-                    _best_blend_alpha = None
-                    _best_resolved_count = 0
-                    _best_regression_count = float("inf")
-
-                    for _alpha in _BLEND_ALPHAS:
-                        if (
-                            time.monotonic() - _endgate_t0 > _ENDGATE_TIMEOUT_S
-                            or _endgate_measure_count >= _ENDGATE_MAX_MEASURES
-                        ):
-                            break
-                        try:
-                            _blended = np.clip(
-                                _alpha * restored_audio + (1.0 - _alpha) * original_audio_for_goals,
-                                -1.0,
-                                1.0,
-                            )
-                            _blend_scores = _mg_checker.measure_all(
-                                _blended, sample_rate, reference=_mg_ref, material_type=_ccr_mat_val
-                            )
-                            _endgate_measure_count += 1
-                            _resolved = sum(
-                                1
-                                for g in _p1p2_violations
-                                if _blend_scores.get(g, 0.0) >= _effective_goal_thresholds.get(g, 0.85)
-                            )
-                            _regressions = sum(
-                                1
-                                for g in _musical_goal_scores
-                                if _blend_scores.get(g, 0.0) < _musical_goal_scores.get(g, 0.0) - 0.02
-                            )
-
-                            logger.debug(
-                                "End-Gate P1/P2: alpha=%.2f → resolved=%d/%d, regressions=%d",
-                                _alpha,
-                                _resolved,
-                                len(_p1p2_violations),
-                                _regressions,
-                            )
-
-                            if _resolved > _best_resolved_count or (
-                                _resolved == _best_resolved_count and _regressions < _best_regression_count
-                            ):
-                                _best_resolved_count = _resolved
-                                _best_regression_count = _regressions
-                                _best_blend_audio = _blended
-                                _best_blend_scores = _blend_scores
-                                _best_blend_alpha = _alpha
-                                if _resolved == len(_p1p2_violations) and _regressions == 0:
-                                    break
-                        except Exception as _blend_iter_exc:
-                            logger.debug("End-Gate P1/P2 blend alpha=%.2f fehlgeschlagen: %s", _alpha, _blend_iter_exc)
-
-                    # §v10.14 Severe-Degradation-Fallback: Wenn milde Alphas
-                    # < 50 % der P1/P2-Verletzungen lösen, zusätzlich α=0.70 testen.
-                    if _best_resolved_count < max(1, len(_p1p2_violations) // 2):
-                        for _alpha in [0.70]:
-                            if (
-                                time.monotonic() - _endgate_t0 > _ENDGATE_TIMEOUT_S
-                                or _endgate_measure_count >= _ENDGATE_MAX_MEASURES
-                            ):
-                                break
-                            try:
-                                _blended = np.clip(
-                                    _alpha * restored_audio + (1.0 - _alpha) * original_audio_for_goals,
-                                    -1.0,
-                                    1.0,
-                                )
-                                _blend_scores = _mg_checker.measure_all(
-                                    _blended, sample_rate, reference=_mg_ref, material_type=_ccr_mat_val
-                                )
-                                _endgate_measure_count += 1
-                                _resolved = sum(
-                                    1
-                                    for g in _p1p2_violations
-                                    if _blend_scores.get(g, 0.0) >= _effective_goal_thresholds.get(g, 0.85)
-                                )
-                                _regressions = sum(
-                                    1
-                                    for g in _musical_goal_scores
-                                    if _blend_scores.get(g, 0.0) < _musical_goal_scores.get(g, 0.0) - 0.02
-                                )
-                                if _resolved > _best_resolved_count or (
-                                    _resolved == _best_resolved_count and _regressions < _best_regression_count
-                                ):
-                                    _best_resolved_count = _resolved
-                                    _best_regression_count = _regressions
-                                    _best_blend_audio = _blended
-                                    _best_blend_scores = _blend_scores
-                                    _best_blend_alpha = _alpha
-                                    if _resolved == len(_p1p2_violations) and _regressions == 0:
-                                        break
-                            except Exception as _blend_iter_exc:
-                                logger.debug(
-                                    "End-Gate P1/P2 fallback alpha=%.2f fehlgeschlagen: %s", _alpha, _blend_iter_exc
-                                )
-
-                    if (
-                        _best_blend_audio is not None
-                        and _best_blend_scores is not None
-                        and _best_resolved_count > 0
-                        and _best_regression_count <= 1
-                    ):
-                        logger.info(
-                            "🔄 End-Gate: P1/P2 Wiederherstellung Blend (alpha=%.2f) — %d/%d wiederhergestellt",
-                            _best_blend_alpha,
-                            _best_resolved_count,
-                            len(_p1p2_violations),
-                        )
-                        restored_audio = _best_blend_audio
-                        _musical_goal_scores = _best_blend_scores
-                        _musical_excellence_score = sum(_best_blend_scores.values()) / max(len(_best_blend_scores), 1)
-                        _mg_violations = [
-                            k
-                            for k in _musical_goal_scores
-                            if k in _applicable_goal_names
-                            and float(_musical_goal_scores.get(k, 0.0)) < _effective_goal_thresholds.get(k, 0.85)
-                        ]
-                        _goal_recovery_meta["p1p2_blend_applied"] = True
-                        _goal_recovery_meta["p1p2_blend_alpha"] = float(_best_blend_alpha or 0.0)
-                    else:
-                        logger.debug("End-Gate: P1/P2-Wiederherstellung nicht übernommen")
-
-                # Universal Recovery Cascade: alle verbleibenden Goal-Verletzungen
-                # mit weighted-gap minimieren, nicht nur P1/P2.
-                _remaining_violations = list(_mg_violations)
-                if (
-                    _remaining_violations
-                    and original_audio_for_goals is not None
-                    and restored_audio.shape == original_audio_for_goals.shape
-                ):
-                    _gw = getattr(self, "_song_goal_weights", None)
-                    _current_gap, _current_n = _compute_weighted_goal_gap(
-                        _musical_goal_scores,
-                        _effective_goal_thresholds,
-                        _applicable_goal_names,
-                        _gw,
-                    )
-                    _UNIVERSAL_ALPHAS = [0.96, 0.92, 0.88, 0.84, 0.80, 0.75, 0.70, 0.64]
-                    _best_u_audio = None
-                    _best_u_scores = None
-                    _best_u_alpha = None
-                    _best_u_gap = _current_gap
-                    _best_u_n = _current_n
-                    _best_u_rank = _rank_goal_recovery_candidate(
-                        scores=_musical_goal_scores,
-                        baseline_scores=_musical_goal_scores,
-                        thresholds=_effective_goal_thresholds,
-                        applicable_goals=_applicable_goal_names,
-                        goal_weights=_gw,
-                    )
-
-                    for _alpha in _UNIVERSAL_ALPHAS:
-                        try:
-                            _blended = np.clip(
-                                _alpha * restored_audio + (1.0 - _alpha) * original_audio_for_goals,
-                                -1.0,
-                                1.0,
-                            )
-                            _scores_u = _mg_checker.measure_all(
-                                _blended, sample_rate, reference=_mg_ref, material_type=_ccr_mat_val
-                            )
-                            _endgate_measure_count += 1
-                            _gap_u, _n_u = _compute_weighted_goal_gap(
-                                _scores_u,
-                                _effective_goal_thresholds,
-                                _applicable_goal_names,
-                                _gw,
-                            )
-                            _rank_u = _rank_goal_recovery_candidate(
-                                scores=_scores_u,
-                                baseline_scores=_musical_goal_scores,
-                                thresholds=_effective_goal_thresholds,
-                                applicable_goals=_applicable_goal_names,
-                                goal_weights=_gw,
-                            )
-
-                            logger.debug(
-                                "End-Gate Universal: alpha=%.2f n=%d gap=%.5f rank=%s",
-                                _alpha,
-                                _n_u,
-                                _gap_u,
-                                _rank_u,
-                            )
-
-                            if (
-                                _n_u < _best_u_n
-                                or (_n_u == _best_u_n and _gap_u < _best_u_gap - 1e-5)
-                                or (_n_u == _best_u_n and abs(_gap_u - _best_u_gap) <= 1e-5 and _rank_u < _best_u_rank)
-                            ):
-                                _best_u_audio = _blended
-                                _best_u_scores = _scores_u
-                                _best_u_alpha = _alpha
-                                _best_u_gap = _gap_u
-                                _best_u_n = _n_u
-                                _best_u_rank = _rank_u
-                                if _n_u == 0 and _gap_u <= 1e-6:
-                                    break
-                        except Exception as _univ_exc:
-                            logger.debug("End-Gate Universal blend alpha=%.2f fehlgeschlagen: %s", _alpha, _univ_exc)
-
-                    if (
-                        _best_u_audio is not None
-                        and _best_u_scores is not None
-                        and (_best_u_n < _current_n or _best_u_gap < _current_gap - 1e-4)
-                    ):
-                        logger.info(
-                            "🔄 End-Gate: Universal Goal-Wiederherstellung (alpha=%.2f) — violations %d→%d, gap %.5f→%.5f",
-                            _best_u_alpha,
-                            _current_n,
-                            _best_u_n,
-                            _current_gap,
-                            _best_u_gap,
-                        )
-                        restored_audio = _best_u_audio
-                        _musical_goal_scores = _best_u_scores
-                        _musical_excellence_score = sum(_best_u_scores.values()) / max(len(_best_u_scores), 1)
-                        _mg_violations = [
-                            k
-                            for k in _musical_goal_scores
-                            if k in _applicable_goal_names
-                            and float(_musical_goal_scores.get(k, 0.0)) < _effective_goal_thresholds.get(k, 0.85)
-                        ]
-                        _goal_recovery_meta["global_blend_applied"] = True
-                        _goal_recovery_meta["global_blend_alpha"] = float(_best_u_alpha or 0.0)
-
-                # Final Goal-Directed Candidate Ranking: compare the current recovery
-                # against safe rollback/checkpoint candidates and only switch when the
-                # weighted goal-gap improves. This is the first export-quality recovery
-                # layer: it favors a musically valid candidate over a merely last-run one.
-                # §2.59.6: Übersprungen wenn End-Gate-Budget erschöpft.
-                _endgate_elapsed = time.monotonic() - _endgate_t0
-                if _endgate_elapsed > _ENDGATE_TIMEOUT_S or _endgate_measure_count >= _ENDGATE_MAX_MEASURES:
-                    logger.info(
-                        "End-Gate Time-Guard: Candidate Ranking übersprungen (elapsed=%.0fs, measures=%d)",
-                        _endgate_elapsed,
-                        _endgate_measure_count,
-                    )
-                try:
-                    _ranking_weights = getattr(self, "_song_goal_weights", None)
-                    _scan_meta: dict[str, Any] = {}
-                    if isinstance(getattr(self, "_restoration_context", None), dict):
-                        _scan_meta = self._restoration_context.get("defect_scan_metadata", {}) or {}
-                    _hpi_penalty, _carrier_penalty, _original_penalty = _compute_goal_candidate_source_penalties(
-                        _scan_meta
-                    )
-                    _goal_recovery_meta["material_causal_penalties"] = {
-                        "hpi_best_checkpoint": float(_hpi_penalty),
-                        "best_carrier_checkpoint": float(_carrier_penalty),
-                        "original_audio": float(_original_penalty),
-                        "material_defect_consistency_flag": bool(
-                            _scan_meta.get("material_defect_consistency_flag", False)
-                        ),
-                        "material_defect_consistency_warning_count": int(
-                            _scan_meta.get("material_defect_consistency_warning_count", 0) or 0
-                        ),
-                    }
-                    _current_rank = _rank_goal_recovery_candidate(
-                        scores=_musical_goal_scores,
-                        baseline_scores=_musical_goal_scores,
-                        thresholds=_effective_goal_thresholds,
-                        applicable_goals=_applicable_goal_names,
-                        goal_weights=_ranking_weights,
-                    )
-                    _ranked_candidates: list[dict[str, Any]] = [
-                        {
-                            "name": "current",
-                            "audio": restored_audio,
-                            "scores": _musical_goal_scores,
-                            "rank": _current_rank,
-                            # §2.80 Transparenz-Objektiv für den aktuellen Kandidaten
-                            "transparency_objective": float(
-                                np.clip(
-                                    0.35 * float(_musical_goal_scores.get("transparenz", 0.80))
-                                    + 0.30 * float(_musical_goal_scores.get("timbre_authentizitaet", 0.80))
-                                    + 0.20 * float(_musical_goal_scores.get("emotionalitaet", 0.80))
-                                    + 0.15 * float(_musical_goal_scores.get("micro_dynamics", 0.80)),
-                                    0.0,
-                                    1.0,
-                                )
-                            ),
-                        }
-                    ]
-                    _candidate_sources: list[tuple[str, Any, float]] = []
-                    _waerme_rescue_meta: dict[str, float | bool] = {}
-                    if getattr(self, "_hpi_best_rollback_audio", None) is not None:
-                        _candidate_sources.append(("hpi_best_checkpoint", self._hpi_best_rollback_audio, _hpi_penalty))
-                    if getattr(self, "_best_carrier_checkpoint", None) is not None:
-                        _candidate_sources.append(
-                            ("best_carrier_checkpoint", self._best_carrier_checkpoint, _carrier_penalty)
-                        )
-                    if original_audio_for_goals is not None:
-                        _candidate_sources.append(("original_audio", original_audio_for_goals, _original_penalty))
-
-                    if "waerme" in set(_remaining_violations):
-                        _waerme_audio, _waerme_rescue_meta = _build_waerme_focus_rescue_candidate(
-                            restored_audio,
-                            original_audio_for_goals,
-                            sample_rate,
-                            max_spatial_drop_db=0.35,
-                        )
-                        if _waerme_audio is not None:
-                            _candidate_sources.append(("waerme_focus_rescue", _waerme_audio, 0.010))
-                        _goal_recovery_meta["waerme_focus_rescue"] = dict(_waerme_rescue_meta)
-
-                    # §PERF Plateau-Detection: initialisiere Zähler vor Candidate-Schleife
-                    _eg_plateau_streak = 0
-                    _eg_plateau_last_v: frozenset | None = None
-                    for _cand_name, _cand_audio_raw, _cand_penalty in _candidate_sources:
-                        # §2.59.6: End-Gate-Budget-Guard — Abbruch wenn Zeit/Maße erschöpft
-                        if (
-                            time.monotonic() - _endgate_t0 > _ENDGATE_TIMEOUT_S
-                            or _endgate_measure_count >= _ENDGATE_MAX_MEASURES
-                        ):
-                            logger.info(
-                                "End-Gate Grenze-Guard: Candidate-Loop abgebrochen (%.0fs, %d measures)",
-                                time.monotonic() - _endgate_t0,
-                                _endgate_measure_count,
-                            )
-                            break
-                        try:
-                            if (
-                                _cand_audio_raw is None
-                                or not hasattr(_cand_audio_raw, "shape")
-                                or _cand_audio_raw.shape != restored_audio.shape
-                            ):
-                                continue
-                            _cand_audio = np.clip(
-                                np.nan_to_num(_cand_audio_raw, nan=0.0, posinf=0.0, neginf=0.0),
-                                -1.0,
-                                1.0,
-                            )
-                            _candidate_variants = [(_cand_name, _cand_audio, _cand_penalty)]
-                            for _alpha in _goal_candidate_blend_alphas(
-                                _cand_name,
-                                recovery_goals=_remaining_violations,
-                            ):
-                                _candidate_variants.append(
-                                    (
-                                        f"blend_{_cand_name}_{_alpha:.2f}",
-                                        np.clip(
-                                            _alpha * restored_audio + (1.0 - _alpha) * _cand_audio,
-                                            -1.0,
-                                            1.0,
-                                        ),
-                                        _cand_penalty * (1.0 - _alpha),
-                                    )
-                                )
-                            for _variant_name, _variant_audio, _variant_penalty in _candidate_variants:
-                                _variant_scores = _mg_checker.measure_all(
-                                    _variant_audio,
-                                    sample_rate,
-                                    reference=_mg_ref,
-                                    material_type=_ccr_mat_val,
-                                )
-                                _endgate_measure_count += 1
-                                # §PERF Plateau-Detection: wenn 3+ konsekutive Varianten
-                                # identische Violation-Sets liefern, brechen wir ab.
-                                _variant_violations = frozenset(
-                                    k
-                                    for k in _variant_scores
-                                    if k in _applicable_goal_names
-                                    and float(_variant_scores.get(k, 0.0)) < _effective_goal_thresholds.get(k, 0.85)
-                                )
-                                if _variant_violations == _eg_plateau_last_v:
-                                    _eg_plateau_streak += 1
-                                    if _eg_plateau_streak >= 3:
-                                        logger.debug(
-                                            "End-Gate Plateau: %d identische Violation-Sets — "
-                                            "breche Candidate-Varianten ab",
-                                            _eg_plateau_streak,
-                                        )
-                                        break
-                                else:
-                                    _eg_plateau_streak = 1
-                                    _eg_plateau_last_v = _variant_violations
-                                _variant_rank = _rank_goal_recovery_candidate(
-                                    scores=_variant_scores,
-                                    baseline_scores=_musical_goal_scores,
-                                    thresholds=_effective_goal_thresholds,
-                                    applicable_goals=_applicable_goal_names,
-                                    goal_weights=_ranking_weights,
-                                    preservation_penalty=float(_variant_penalty),
-                                )
-                                # §2.80 Transparenz-Objektiv — kein hörbarer Eingriff als
-                                # Soft-Tiebreaker (kein Hard-Gate). Verwendet Musical-Goal-Proxys:
-                                # transparenz (artifact_freedom), timbre_authentizitaet (timbral_fidelity),
-                                # emotionalitaet (emotional_arc), micro_dynamics (micro_dyn_preservation).
-                                _t_obj_80 = float(
-                                    np.clip(
-                                        0.35 * float(_variant_scores.get("transparenz", 0.80))
-                                        + 0.30 * float(_variant_scores.get("timbre_authentizitaet", 0.80))
-                                        + 0.20 * float(_variant_scores.get("emotionalitaet", 0.80))
-                                        + 0.15 * float(_variant_scores.get("micro_dynamics", 0.80)),
-                                        0.0,
-                                        1.0,
-                                    )
-                                )
-                                _ranked_candidates.append(
-                                    {
-                                        "name": _variant_name,
-                                        "audio": _variant_audio,
-                                        "scores": _variant_scores,
-                                        "rank": _variant_rank,
-                                        "transparency_objective": _t_obj_80,
-                                    }
-                                )
-                        except Exception as _candidate_exc:
-                            logger.debug("End-Gate candidate %s fehlgeschlagen: %s", _cand_name, _candidate_exc)
-
-                    # §2.80 Transparenz-Objektiv: Primär nach Rank (Hard-Gates),
-                    # Tiebreaker nach höchstem transparency_objective (kein hörbarer Eingriff).
-                    # Hörordnung Ebene 3: Kandidaten, die ein Stufe-1/2-Ziel gegen
-                    # den aktuellen Stand senken, während sie nur Stufe-3/4-Ziele
-                    # verbessern, werden im Ranking nach hinten gestellt (strikte Dominanz).
-                    _current_scores_for_ho = next(
-                        (c.get("scores") or {} for c in _ranked_candidates if c.get("name") == "current"),
-                        {},
-                    )
-                    try:
-                        from backend.core.goal_priority_protocol import (
-                            get_goal_priority_protocol as _get_gpp_eg,
-                        )
-
-                        _gpp_eg = _get_gpp_eg()
-                    except Exception:
-                        _gpp_eg = None
-
-                    def _final_rank_key_80(item: dict) -> tuple:
-                        base = item["rank"]  # 8-Tuple (violations, critical_violations, …)
-                        # Negieren: höheres t_obj → niedrigerer Tiebreaker → wird bevorzugt
-                        t_neg = -float(item.get("transparency_objective", 0.0) or 0.0)
-                        _ho_pen = 0
-                        _sc = item.get("scores") or {}
-                        if _gpp_eg is not None and _current_scores_for_ho:
-                            _dropped_hi = False
-                            _gained_lo = False
-                            for _g_ho3, _v_c in _sc.items():
-                                _v_ref = float(_current_scores_for_ho.get(_g_ho3, _v_c))
-                                _d_ho3 = float(_v_c) - _v_ref
-                                _t_ho3 = int(_gpp_eg.hearing_tier(str(_g_ho3)))
-                                if _d_ho3 < -_gpp_eg.REGRESSION_EPSILON and _t_ho3 <= 2:
-                                    _dropped_hi = True
-                                if _d_ho3 > _gpp_eg.REGRESSION_EPSILON and _t_ho3 >= 3:
-                                    _gained_lo = True
-                            if _dropped_hi and _gained_lo:
-                                _ho_pen = 1
-                        # Einbetten zwischen Position 6 (regressions) und 7 (-excellence)
-                        return (_ho_pen, *base[:7], t_neg, *base[7:])
-
-                    _best_ranked = min(_ranked_candidates, key=_final_rank_key_80)
-                    if _best_ranked["name"] != "current" and _best_ranked["rank"] < _current_rank:
-                        logger.info(
-                            "🔄 End-Gate: Goal-Candidate-Ranking wählt %s — rank %s→%s t_obj=%.3f",
-                            _best_ranked["name"],
-                            _current_rank,
-                            _best_ranked["rank"],
-                            float(_best_ranked.get("transparency_objective", 0.0) or 0.0),
-                        )
-                        restored_audio = _best_ranked["audio"]
-                        _musical_goal_scores = _best_ranked["scores"]
-                        _musical_excellence_score = sum(_musical_goal_scores.values()) / max(
-                            len(_musical_goal_scores), 1
-                        )
-                        _mg_violations = [
-                            k
-                            for k in _musical_goal_scores
-                            if k in _applicable_goal_names
-                            and float(_musical_goal_scores.get(k, 0.0)) < _effective_goal_thresholds.get(k, 0.85)
-                        ]
-                        _goal_recovery_meta["candidate_ranking_applied"] = True
-                        _goal_recovery_meta["candidate_ranking_best"] = str(_best_ranked["name"])
-                        _goal_recovery_meta["candidate_ranking_before"] = list(_current_rank)
-                        _goal_recovery_meta["candidate_ranking_after"] = list(_best_ranked["rank"])
-                        _goal_recovery_meta["transparency_objective"] = float(
-                            _best_ranked.get("transparency_objective", 0.0) or 0.0
-                        )
-                        _goal_recovery_meta["waerme_focus_rescue_applied"] = str(_best_ranked["name"]).startswith(
-                            "waerme_focus_rescue"
-                        )
-                    else:
-                        _goal_recovery_meta["candidate_ranking_applied"] = False
-                        _goal_recovery_meta["candidate_ranking_best"] = "current"
-                        _goal_recovery_meta["transparency_objective"] = float(
-                            _ranked_candidates[0].get("transparency_objective", 0.0) or 0.0
-                        )
-                        _goal_recovery_meta["waerme_focus_rescue_applied"] = False
-                    _goal_recovery_meta["candidate_ranking_evaluated"] = len(_ranked_candidates)
-                except Exception as _candidate_ranking_exc:
-                    logger.debug("End-Gate Goal-Candidate-Ranking uebersprungen: %s", _candidate_ranking_exc)
-                    _goal_recovery_meta["candidate_ranking_error"] = type(_candidate_ranking_exc).__name__
-
-                _goal_recovery_meta["final_violations"] = list(_mg_violations)
-                _goal_recovery_meta["resolved_count"] = max(0, len(_initial_mg_violations) - len(_mg_violations))
-                _goal_recovery_meta["resolved"] = len(_mg_violations) == 0
-                self._phase_metadata_accumulator["goal_directed_candidate_recovery"] = dict(_goal_recovery_meta)
-
-                # §MG-SHORT-EXCERPT-TOL [non-blocking]: kurze Excerpts sind für
-                # bestimmte P4/P5-Ziele statistisch instabil. Kleine Defizite nicht
-                # als harte Verletzung werten.
-                _mg_deficits: dict[str, float] = {}
-                if _mg_violations:
-                    for _g in list(_mg_violations):
-                        _mg_deficits[_g] = float(_effective_goal_thresholds.get(_g, 0.85)) - float(
-                            _musical_goal_scores.get(_g, 0.0)
-                        )
-
-                if _mg_violations and _excerpt_duration_s <= 12.0:
-                    _short_tol = {
-                        "bass_kraft": 0.05,
-                        "brillanz": 0.05,
-                        "transparenz": 0.05,
-                        "raumtiefe": 0.05,
-                        "separation_fidelity": 0.05,
-                        "waerme": 0.08,
-                        "transient_energie": 0.05,
-                        "authentizitaet": 0.04,
-                    }
-                    if _excerpt_duration_s <= 4.0:
-                        # Ultra-kurze Excerpts sind fuer P3/P4-Goals besonders instabil.
-                        # Defekte weiterhin maximal bekaempfen, aber keine unphysikalischen
-                        # Zielverletzungen als harte Degradierung werten.
-                        _short_tol.update(
-                            {
-                                "brillanz": 0.10,
-                                "transparenz": 0.08,
-                                "waerme": 0.10,
-                                "transient_energie": 0.10,
-                                "authentizitaet": 0.06,
-                            }
-                        )
-                    _mg_violations = [
-                        _g for _g in _mg_violations if _mg_deficits.get(_g, 0.0) > float(_short_tol.get(_g, 0.0))
-                    ]
-                    _goal_recovery_meta["short_excerpt_tolerance_applied"] = True
-                    _goal_recovery_meta["short_excerpt_duration_s"] = float(_excerpt_duration_s)
-                    _goal_recovery_meta["final_violations"] = list(_mg_violations)
-                    _goal_recovery_meta["resolved_count"] = max(0, len(_initial_mg_violations) - len(_mg_violations))
-                    _goal_recovery_meta["resolved"] = len(_mg_violations) == 0
-
-                _short_minor_goal_set = {
-                    "bass_kraft",
-                    "brillanz",
-                    "transparenz",
-                    "waerme",
-                    "raumtiefe",
-                    "separation_fidelity",
-                    "transient_energie",
-                    "authentizitaet",
-                }
-                _is_minor_short_excerpt_only = bool(
-                    _excerpt_duration_s <= 12.0
-                    and _mg_violations
-                    and len(_mg_violations) <= 1
-                    and all(_g in _short_minor_goal_set for _g in _mg_violations)
+                # §P0-1 Block a2: Kaskade als Methode (unveraendertes Verhalten;
+                # im Chunked-Pfad nur letzter Chunk, Slice A).
+                _end_gate_out = self._run_song_level_end_gate(
+                    restored_audio,
+                    original_audio_for_goals,
+                    sample_rate,
+                    material_type,
+                    _mg_checker,
+                    _mg_ref,
+                    _musical_goal_scores,
+                    _effective_goal_thresholds,
+                    _applicable_goal_names,
+                    _excerpt_duration_s,
+                    _fail_reasons,
                 )
+                restored_audio = _end_gate_out["audio"]
+                _musical_goal_scores = _end_gate_out["scores"]
+                _musical_excellence_score = _end_gate_out["excellence"]
 
-                if _mg_violations:
-                    if _is_minor_short_excerpt_only:
-                        logger.info(
-                            "§MG-SHORT-EXCERPT-TOL: minor single-goal violation auf %.2fs als Advisory de-eskaliert: %s",
-                            _excerpt_duration_s,
-                            _mg_violations,
-                        )
-                        _goal_recovery_meta["minor_short_excerpt_advisory"] = list(_mg_violations)
-                    else:
-                        _fail_reasons.append(
-                            {
-                                "component": "MusicalGoalsChecker",
-                                "error_code": "MUSICAL_GOALS_VIOLATION",
-                                "severity": "degraded",
-                                "violated_goals": _mg_violations,
-                                "scores": {
-                                    k: round(float(_musical_goal_scores.get(k, 0.0)), 4) for k in _mg_violations
-                                },
-                                "thresholds": {
-                                    k: round(float(_effective_goal_thresholds.get(k, 0.85)), 4) for k in _mg_violations
-                                },
-                                "deficits": {k: round(float(_mg_deficits.get(k, 0.0)), 4) for k in _mg_violations},
-                                "recovery": {
-                                    "attempted": True,
-                                    "resolved_count": _goal_recovery_meta["resolved_count"],
-                                    "initial_violation_count": len(_initial_mg_violations),
-                                    "final_violation_count": len(_mg_violations),
-                                },
-                                "damage_control_policy": {
-                                    "name": "maximum_defect_suppression_without_music_damage",
-                                    "music_damage_forbidden": True,
-                                    "strategy": "safe_limit_degraded_if_required",
-                                },
-                            }
-                        )
             else:
                 logger.info(
                     "🎵 Musical Goals: alle %d Ziele erfüllt (Ø %.3f)",
@@ -44723,6 +44089,708 @@ class UnifiedRestorerV3:
             logger.debug("Stiller optionaler Ausnahmefall ignoriert", exc_info=True)
         return {"checks_performed": 0, "rollbacks_triggered": 0, "available": False}
 
+    def _run_song_level_end_gate(
+        self,
+        restored_audio,
+        original_audio_for_goals,
+        sample_rate,
+        material_type,
+        mg_checker,
+        mg_ref,
+        musical_goal_scores,
+        effective_goal_thresholds,
+        applicable_goal_names,
+        excerpt_duration_s,
+        fail_reasons,
+    ) -> dict[str, Any]:
+        """§P0-1 Block a2: End-Gate-Recovery-Kaskade als Methode extrahiert.
+
+        Im Chunked-Pfad laeuft sie einmal song-global nach der Assembly
+        (_restore_chunked, auf dem assemblierten Song); restore() ruft sie
+        unveraendert auf (Slice A: nur letzter Chunk). Die Kaskade mischt
+        Original-/Checkpoint-Anteile ein, wenn anwendbare Goals ihre
+        Schwellwerte verfehlen — ohne zusaetzliche Signalprozessor-Kaskadierung
+        (Ephraim & Malah 1984). Rueckgabe: audio/scores/excellence/violations.
+        """
+        _ccr_mat_val = str(getattr(material_type, "value", material_type) or "unknown").lower()
+        _goal_vector_keys = sorted(effective_goal_thresholds.keys())
+        _musical_goal_scores = dict(musical_goal_scores)
+        _musical_excellence_score = sum(_musical_goal_scores.values()) / max(len(_musical_goal_scores), 1)
+        _mg_violations = [
+            k
+            for k in _goal_vector_keys
+            if (
+                k in applicable_goal_names
+                and float(_musical_goal_scores.get(k, 0.0)) < effective_goal_thresholds.get(k, 0.85)
+            )
+        ]
+        _mg_ref = mg_ref
+        _mg_checker = mg_checker
+        _excerpt_duration_s = excerpt_duration_s
+        _applicable_goal_names = applicable_goal_names
+        _effective_goal_thresholds = effective_goal_thresholds
+        _fail_reasons = fail_reasons
+        # §P0-1 Song-Ebene-Analytik: Im Chunked-Pfad läuft die
+        # End-Gate-Kaskade nur auf dem letzten Chunk (bzw. einmal
+        # song-global in der Stufe-2-Nachbehandlung).
+        # v10.0.0: Musical Goals Re-Pass in UV3 entfernt — wissenschaftlich nicht
+        # gerechtfertigt (Ephraim & Malah 1984: cascaded identical processing amplifies
+        # STFT roundtrip errors). Stattdessen: material-sichere End-Gate-Recovery
+        # über gewichtete Blend-Kaskaden ohne zusätzliche Signalprozessor-Kaskadierung.
+        _initial_mg_violations = list(_mg_violations)
+        _goal_recovery_meta = {
+            "attempted": True,
+            "initial_violations": list(_initial_mg_violations),
+            "p1p2_blend_applied": False,
+            "global_blend_applied": False,
+        }
+        # §v10.0.4 Restorability-adaptives Log-Level
+        _mg_rest = float(getattr(self, "_last_restorability_score", 70.0))
+        if _mg_rest >= 70.0:
+            logger.warning(
+                "🎵 Musical Goals Verletzungen (%d/%d): %s — autonome End-Gate-Wiederherstellung aktiv",
+                len(_mg_violations),
+                len(_goal_vector_keys),
+                ", ".join(_mg_violations),
+            )
+        else:
+            logger.info(
+                "🎵 Musical Goals Verletzungen (%d/%d): %s — erwartet für restorability=%.0f",
+                len(_mg_violations),
+                len(_goal_vector_keys),
+                ", ".join(_mg_violations),
+                _mg_rest,
+            )
+
+        # §2.59.6 End-Gate Time-Guard: Maximal 300s für Recovery-Kaskade.
+        # Verhindert Endlos-Oszillation wenn Blends keine Verbesserung bringen.
+        # Nach Timeout: bester bisheriger Kandidat wird exportiert.
+        _ENDGATE_TIMEOUT_S = 300.0
+        _endgate_t0 = time.monotonic()
+        _endgate_measure_count = 0
+        _ENDGATE_MAX_MEASURES = 25  # ~3.5 min bei 8.5s/measure
+
+        # §9.8 End-Gate: P1/P2 Goal Recovery Cascade
+        _P1P2_GOALS = {
+            "natuerlichkeit",
+            "authentizitaet",
+            "tonal_center",
+            "timbre_authentizitaet",
+            "artikulation",
+            "transient_energie",  # §v10.14: Transientenzerstörung (0.054→0.71 gap)
+            "emotionalitaet",  # §v10.14: Emotionsbogen-Verlust (0.088→0.80 gap)
+        }
+        _p1p2_violations = [g for g in _mg_violations if g in _P1P2_GOALS]
+        # §v10.x Shape-Guard (Befund 2026-08-22): Blend nur bei identischen
+        # Shapes — sonst mischt NumPy-Broadcasting Chunk- und Voll-Song-
+        # Signale (FATAL: 10.7M vs. 1.44M).
+        if (
+            _p1p2_violations
+            and original_audio_for_goals is not None
+            and restored_audio.shape == original_audio_for_goals.shape
+        ):
+            _BLEND_ALPHAS = [0.92, 0.85]  # §PERF: nur 2 Alphas testen, Post-Pipeline übernimmt Rest
+            _best_blend_audio = None
+            _best_blend_scores = None
+            _best_blend_alpha = None
+            _best_resolved_count = 0
+            _best_regression_count = float("inf")
+
+            for _alpha in _BLEND_ALPHAS:
+                if (
+                    time.monotonic() - _endgate_t0 > _ENDGATE_TIMEOUT_S
+                    or _endgate_measure_count >= _ENDGATE_MAX_MEASURES
+                ):
+                    break
+                try:
+                    _blended = np.clip(
+                        _alpha * restored_audio + (1.0 - _alpha) * original_audio_for_goals,
+                        -1.0,
+                        1.0,
+                    )
+                    _blend_scores = _mg_checker.measure_all(
+                        _blended, sample_rate, reference=_mg_ref, material_type=_ccr_mat_val
+                    )
+                    _endgate_measure_count += 1
+                    _resolved = sum(
+                        1
+                        for g in _p1p2_violations
+                        if _blend_scores.get(g, 0.0) >= _effective_goal_thresholds.get(g, 0.85)
+                    )
+                    _regressions = sum(
+                        1
+                        for g in _musical_goal_scores
+                        if _blend_scores.get(g, 0.0) < _musical_goal_scores.get(g, 0.0) - 0.02
+                    )
+
+                    logger.debug(
+                        "End-Gate P1/P2: alpha=%.2f → resolved=%d/%d, regressions=%d",
+                        _alpha,
+                        _resolved,
+                        len(_p1p2_violations),
+                        _regressions,
+                    )
+
+                    if _resolved > _best_resolved_count or (
+                        _resolved == _best_resolved_count and _regressions < _best_regression_count
+                    ):
+                        _best_resolved_count = _resolved
+                        _best_regression_count = _regressions
+                        _best_blend_audio = _blended
+                        _best_blend_scores = _blend_scores
+                        _best_blend_alpha = _alpha
+                        if _resolved == len(_p1p2_violations) and _regressions == 0:
+                            break
+                except Exception as _blend_iter_exc:
+                    logger.debug("End-Gate P1/P2 blend alpha=%.2f fehlgeschlagen: %s", _alpha, _blend_iter_exc)
+
+            # §v10.14 Severe-Degradation-Fallback: Wenn milde Alphas
+            # < 50 % der P1/P2-Verletzungen lösen, zusätzlich α=0.70 testen.
+            if _best_resolved_count < max(1, len(_p1p2_violations) // 2):
+                for _alpha in [0.70]:
+                    if (
+                        time.monotonic() - _endgate_t0 > _ENDGATE_TIMEOUT_S
+                        or _endgate_measure_count >= _ENDGATE_MAX_MEASURES
+                    ):
+                        break
+                    try:
+                        _blended = np.clip(
+                            _alpha * restored_audio + (1.0 - _alpha) * original_audio_for_goals,
+                            -1.0,
+                            1.0,
+                        )
+                        _blend_scores = _mg_checker.measure_all(
+                            _blended, sample_rate, reference=_mg_ref, material_type=_ccr_mat_val
+                        )
+                        _endgate_measure_count += 1
+                        _resolved = sum(
+                            1
+                            for g in _p1p2_violations
+                            if _blend_scores.get(g, 0.0) >= _effective_goal_thresholds.get(g, 0.85)
+                        )
+                        _regressions = sum(
+                            1
+                            for g in _musical_goal_scores
+                            if _blend_scores.get(g, 0.0) < _musical_goal_scores.get(g, 0.0) - 0.02
+                        )
+                        if _resolved > _best_resolved_count or (
+                            _resolved == _best_resolved_count and _regressions < _best_regression_count
+                        ):
+                            _best_resolved_count = _resolved
+                            _best_regression_count = _regressions
+                            _best_blend_audio = _blended
+                            _best_blend_scores = _blend_scores
+                            _best_blend_alpha = _alpha
+                            if _resolved == len(_p1p2_violations) and _regressions == 0:
+                                break
+                    except Exception as _blend_iter_exc:
+                        logger.debug(
+                            "End-Gate P1/P2 fallback alpha=%.2f fehlgeschlagen: %s", _alpha, _blend_iter_exc
+                        )
+
+            if (
+                _best_blend_audio is not None
+                and _best_blend_scores is not None
+                and _best_resolved_count > 0
+                and _best_regression_count <= 1
+            ):
+                logger.info(
+                    "🔄 End-Gate: P1/P2 Wiederherstellung Blend (alpha=%.2f) — %d/%d wiederhergestellt",
+                    _best_blend_alpha,
+                    _best_resolved_count,
+                    len(_p1p2_violations),
+                )
+                restored_audio = _best_blend_audio
+                _musical_goal_scores = _best_blend_scores
+                _musical_excellence_score = sum(_best_blend_scores.values()) / max(len(_best_blend_scores), 1)
+                _mg_violations = [
+                    k
+                    for k in _musical_goal_scores
+                    if k in _applicable_goal_names
+                    and float(_musical_goal_scores.get(k, 0.0)) < _effective_goal_thresholds.get(k, 0.85)
+                ]
+                _goal_recovery_meta["p1p2_blend_applied"] = True
+                _goal_recovery_meta["p1p2_blend_alpha"] = float(_best_blend_alpha or 0.0)
+            else:
+                logger.debug("End-Gate: P1/P2-Wiederherstellung nicht übernommen")
+
+        # Universal Recovery Cascade: alle verbleibenden Goal-Verletzungen
+        # mit weighted-gap minimieren, nicht nur P1/P2.
+        _remaining_violations = list(_mg_violations)
+        if (
+            _remaining_violations
+            and original_audio_for_goals is not None
+            and restored_audio.shape == original_audio_for_goals.shape
+        ):
+            _gw = getattr(self, "_song_goal_weights", None)
+            _current_gap, _current_n = _compute_weighted_goal_gap(
+                _musical_goal_scores,
+                _effective_goal_thresholds,
+                _applicable_goal_names,
+                _gw,
+            )
+            _UNIVERSAL_ALPHAS = [0.96, 0.92, 0.88, 0.84, 0.80, 0.75, 0.70, 0.64]
+            _best_u_audio = None
+            _best_u_scores = None
+            _best_u_alpha = None
+            _best_u_gap = _current_gap
+            _best_u_n = _current_n
+            _best_u_rank = _rank_goal_recovery_candidate(
+                scores=_musical_goal_scores,
+                baseline_scores=_musical_goal_scores,
+                thresholds=_effective_goal_thresholds,
+                applicable_goals=_applicable_goal_names,
+                goal_weights=_gw,
+            )
+
+            for _alpha in _UNIVERSAL_ALPHAS:
+                try:
+                    _blended = np.clip(
+                        _alpha * restored_audio + (1.0 - _alpha) * original_audio_for_goals,
+                        -1.0,
+                        1.0,
+                    )
+                    _scores_u = _mg_checker.measure_all(
+                        _blended, sample_rate, reference=_mg_ref, material_type=_ccr_mat_val
+                    )
+                    _endgate_measure_count += 1
+                    _gap_u, _n_u = _compute_weighted_goal_gap(
+                        _scores_u,
+                        _effective_goal_thresholds,
+                        _applicable_goal_names,
+                        _gw,
+                    )
+                    _rank_u = _rank_goal_recovery_candidate(
+                        scores=_scores_u,
+                        baseline_scores=_musical_goal_scores,
+                        thresholds=_effective_goal_thresholds,
+                        applicable_goals=_applicable_goal_names,
+                        goal_weights=_gw,
+                    )
+
+                    logger.debug(
+                        "End-Gate Universal: alpha=%.2f n=%d gap=%.5f rank=%s",
+                        _alpha,
+                        _n_u,
+                        _gap_u,
+                        _rank_u,
+                    )
+
+                    if (
+                        _n_u < _best_u_n
+                        or (_n_u == _best_u_n and _gap_u < _best_u_gap - 1e-5)
+                        or (_n_u == _best_u_n and abs(_gap_u - _best_u_gap) <= 1e-5 and _rank_u < _best_u_rank)
+                    ):
+                        _best_u_audio = _blended
+                        _best_u_scores = _scores_u
+                        _best_u_alpha = _alpha
+                        _best_u_gap = _gap_u
+                        _best_u_n = _n_u
+                        _best_u_rank = _rank_u
+                        if _n_u == 0 and _gap_u <= 1e-6:
+                            break
+                except Exception as _univ_exc:
+                    logger.debug("End-Gate Universal blend alpha=%.2f fehlgeschlagen: %s", _alpha, _univ_exc)
+
+            if (
+                _best_u_audio is not None
+                and _best_u_scores is not None
+                and (_best_u_n < _current_n or _best_u_gap < _current_gap - 1e-4)
+            ):
+                logger.info(
+                    "🔄 End-Gate: Universal Goal-Wiederherstellung (alpha=%.2f) — violations %d→%d, gap %.5f→%.5f",
+                    _best_u_alpha,
+                    _current_n,
+                    _best_u_n,
+                    _current_gap,
+                    _best_u_gap,
+                )
+                restored_audio = _best_u_audio
+                _musical_goal_scores = _best_u_scores
+                _musical_excellence_score = sum(_best_u_scores.values()) / max(len(_best_u_scores), 1)
+                _mg_violations = [
+                    k
+                    for k in _musical_goal_scores
+                    if k in _applicable_goal_names
+                    and float(_musical_goal_scores.get(k, 0.0)) < _effective_goal_thresholds.get(k, 0.85)
+                ]
+                _goal_recovery_meta["global_blend_applied"] = True
+                _goal_recovery_meta["global_blend_alpha"] = float(_best_u_alpha or 0.0)
+
+        # Final Goal-Directed Candidate Ranking: compare the current recovery
+        # against safe rollback/checkpoint candidates and only switch when the
+        # weighted goal-gap improves. This is the first export-quality recovery
+        # layer: it favors a musically valid candidate over a merely last-run one.
+        # §2.59.6: Übersprungen wenn End-Gate-Budget erschöpft.
+        _endgate_elapsed = time.monotonic() - _endgate_t0
+        if _endgate_elapsed > _ENDGATE_TIMEOUT_S or _endgate_measure_count >= _ENDGATE_MAX_MEASURES:
+            logger.info(
+                "End-Gate Time-Guard: Candidate Ranking übersprungen (elapsed=%.0fs, measures=%d)",
+                _endgate_elapsed,
+                _endgate_measure_count,
+            )
+        try:
+            _ranking_weights = getattr(self, "_song_goal_weights", None)
+            _scan_meta: dict[str, Any] = {}
+            if isinstance(getattr(self, "_restoration_context", None), dict):
+                _scan_meta = self._restoration_context.get("defect_scan_metadata", {}) or {}
+            _hpi_penalty, _carrier_penalty, _original_penalty = _compute_goal_candidate_source_penalties(
+                _scan_meta
+            )
+            _goal_recovery_meta["material_causal_penalties"] = {
+                "hpi_best_checkpoint": float(_hpi_penalty),
+                "best_carrier_checkpoint": float(_carrier_penalty),
+                "original_audio": float(_original_penalty),
+                "material_defect_consistency_flag": bool(
+                    _scan_meta.get("material_defect_consistency_flag", False)
+                ),
+                "material_defect_consistency_warning_count": int(
+                    _scan_meta.get("material_defect_consistency_warning_count", 0) or 0
+                ),
+            }
+            _current_rank = _rank_goal_recovery_candidate(
+                scores=_musical_goal_scores,
+                baseline_scores=_musical_goal_scores,
+                thresholds=_effective_goal_thresholds,
+                applicable_goals=_applicable_goal_names,
+                goal_weights=_ranking_weights,
+            )
+            _ranked_candidates: list[dict[str, Any]] = [
+                {
+                    "name": "current",
+                    "audio": restored_audio,
+                    "scores": _musical_goal_scores,
+                    "rank": _current_rank,
+                    # §2.80 Transparenz-Objektiv für den aktuellen Kandidaten
+                    "transparency_objective": float(
+                        np.clip(
+                            0.35 * float(_musical_goal_scores.get("transparenz", 0.80))
+                            + 0.30 * float(_musical_goal_scores.get("timbre_authentizitaet", 0.80))
+                            + 0.20 * float(_musical_goal_scores.get("emotionalitaet", 0.80))
+                            + 0.15 * float(_musical_goal_scores.get("micro_dynamics", 0.80)),
+                            0.0,
+                            1.0,
+                        )
+                    ),
+                }
+            ]
+            _candidate_sources: list[tuple[str, Any, float]] = []
+            _waerme_rescue_meta: dict[str, float | bool] = {}
+            if getattr(self, "_hpi_best_rollback_audio", None) is not None:
+                _candidate_sources.append(("hpi_best_checkpoint", self._hpi_best_rollback_audio, _hpi_penalty))
+            if getattr(self, "_best_carrier_checkpoint", None) is not None:
+                _candidate_sources.append(
+                    ("best_carrier_checkpoint", self._best_carrier_checkpoint, _carrier_penalty)
+                )
+            if original_audio_for_goals is not None:
+                _candidate_sources.append(("original_audio", original_audio_for_goals, _original_penalty))
+
+            if "waerme" in set(_remaining_violations):
+                _waerme_audio, _waerme_rescue_meta = _build_waerme_focus_rescue_candidate(
+                    restored_audio,
+                    original_audio_for_goals,
+                    sample_rate,
+                    max_spatial_drop_db=0.35,
+                )
+                if _waerme_audio is not None:
+                    _candidate_sources.append(("waerme_focus_rescue", _waerme_audio, 0.010))
+                _goal_recovery_meta["waerme_focus_rescue"] = dict(_waerme_rescue_meta)
+
+            # §PERF Plateau-Detection: initialisiere Zähler vor Candidate-Schleife
+            _eg_plateau_streak = 0
+            _eg_plateau_last_v: frozenset | None = None
+            for _cand_name, _cand_audio_raw, _cand_penalty in _candidate_sources:
+                # §2.59.6: End-Gate-Budget-Guard — Abbruch wenn Zeit/Maße erschöpft
+                if (
+                    time.monotonic() - _endgate_t0 > _ENDGATE_TIMEOUT_S
+                    or _endgate_measure_count >= _ENDGATE_MAX_MEASURES
+                ):
+                    logger.info(
+                        "End-Gate Grenze-Guard: Candidate-Loop abgebrochen (%.0fs, %d measures)",
+                        time.monotonic() - _endgate_t0,
+                        _endgate_measure_count,
+                    )
+                    break
+                try:
+                    if (
+                        _cand_audio_raw is None
+                        or not hasattr(_cand_audio_raw, "shape")
+                        or _cand_audio_raw.shape != restored_audio.shape
+                    ):
+                        continue
+                    _cand_audio = np.clip(
+                        np.nan_to_num(_cand_audio_raw, nan=0.0, posinf=0.0, neginf=0.0),
+                        -1.0,
+                        1.0,
+                    )
+                    _candidate_variants = [(_cand_name, _cand_audio, _cand_penalty)]
+                    for _alpha in _goal_candidate_blend_alphas(
+                        _cand_name,
+                        recovery_goals=_remaining_violations,
+                    ):
+                        _candidate_variants.append(
+                            (
+                                f"blend_{_cand_name}_{_alpha:.2f}",
+                                np.clip(
+                                    _alpha * restored_audio + (1.0 - _alpha) * _cand_audio,
+                                    -1.0,
+                                    1.0,
+                                ),
+                                _cand_penalty * (1.0 - _alpha),
+                            )
+                        )
+                    for _variant_name, _variant_audio, _variant_penalty in _candidate_variants:
+                        _variant_scores = _mg_checker.measure_all(
+                            _variant_audio,
+                            sample_rate,
+                            reference=_mg_ref,
+                            material_type=_ccr_mat_val,
+                        )
+                        _endgate_measure_count += 1
+                        # §PERF Plateau-Detection: wenn 3+ konsekutive Varianten
+                        # identische Violation-Sets liefern, brechen wir ab.
+                        _variant_violations = frozenset(
+                            k
+                            for k in _variant_scores
+                            if k in _applicable_goal_names
+                            and float(_variant_scores.get(k, 0.0)) < _effective_goal_thresholds.get(k, 0.85)
+                        )
+                        if _variant_violations == _eg_plateau_last_v:
+                            _eg_plateau_streak += 1
+                            if _eg_plateau_streak >= 3:
+                                logger.debug(
+                                    "End-Gate Plateau: %d identische Violation-Sets — "
+                                    "breche Candidate-Varianten ab",
+                                    _eg_plateau_streak,
+                                )
+                                break
+                        else:
+                            _eg_plateau_streak = 1
+                            _eg_plateau_last_v = _variant_violations
+                        _variant_rank = _rank_goal_recovery_candidate(
+                            scores=_variant_scores,
+                            baseline_scores=_musical_goal_scores,
+                            thresholds=_effective_goal_thresholds,
+                            applicable_goals=_applicable_goal_names,
+                            goal_weights=_ranking_weights,
+                            preservation_penalty=float(_variant_penalty),
+                        )
+                        # §2.80 Transparenz-Objektiv — kein hörbarer Eingriff als
+                        # Soft-Tiebreaker (kein Hard-Gate). Verwendet Musical-Goal-Proxys:
+                        # transparenz (artifact_freedom), timbre_authentizitaet (timbral_fidelity),
+                        # emotionalitaet (emotional_arc), micro_dynamics (micro_dyn_preservation).
+                        _t_obj_80 = float(
+                            np.clip(
+                                0.35 * float(_variant_scores.get("transparenz", 0.80))
+                                + 0.30 * float(_variant_scores.get("timbre_authentizitaet", 0.80))
+                                + 0.20 * float(_variant_scores.get("emotionalitaet", 0.80))
+                                + 0.15 * float(_variant_scores.get("micro_dynamics", 0.80)),
+                                0.0,
+                                1.0,
+                            )
+                        )
+                        _ranked_candidates.append(
+                            {
+                                "name": _variant_name,
+                                "audio": _variant_audio,
+                                "scores": _variant_scores,
+                                "rank": _variant_rank,
+                                "transparency_objective": _t_obj_80,
+                            }
+                        )
+                except Exception as _candidate_exc:
+                    logger.debug("End-Gate candidate %s fehlgeschlagen: %s", _cand_name, _candidate_exc)
+
+            # §2.80 Transparenz-Objektiv: Primär nach Rank (Hard-Gates),
+            # Tiebreaker nach höchstem transparency_objective (kein hörbarer Eingriff).
+            # Hörordnung Ebene 3: Kandidaten, die ein Stufe-1/2-Ziel gegen
+            # den aktuellen Stand senken, während sie nur Stufe-3/4-Ziele
+            # verbessern, werden im Ranking nach hinten gestellt (strikte Dominanz).
+            _current_scores_for_ho = next(
+                (c.get("scores") or {} for c in _ranked_candidates if c.get("name") == "current"),
+                {},
+            )
+            try:
+                from backend.core.goal_priority_protocol import (
+                    get_goal_priority_protocol as _get_gpp_eg,
+                )
+
+                _gpp_eg = _get_gpp_eg()
+            except Exception:
+                _gpp_eg = None
+
+            def _final_rank_key_80(item: dict) -> tuple:
+                base = item["rank"]  # 8-Tuple (violations, critical_violations, …)
+                # Negieren: höheres t_obj → niedrigerer Tiebreaker → wird bevorzugt
+                t_neg = -float(item.get("transparency_objective", 0.0) or 0.0)
+                _ho_pen = 0
+                _sc = item.get("scores") or {}
+                if _gpp_eg is not None and _current_scores_for_ho:
+                    _dropped_hi = False
+                    _gained_lo = False
+                    for _g_ho3, _v_c in _sc.items():
+                        _v_ref = float(_current_scores_for_ho.get(_g_ho3, _v_c))
+                        _d_ho3 = float(_v_c) - _v_ref
+                        _t_ho3 = int(_gpp_eg.hearing_tier(str(_g_ho3)))
+                        if _d_ho3 < -_gpp_eg.REGRESSION_EPSILON and _t_ho3 <= 2:
+                            _dropped_hi = True
+                        if _d_ho3 > _gpp_eg.REGRESSION_EPSILON and _t_ho3 >= 3:
+                            _gained_lo = True
+                    if _dropped_hi and _gained_lo:
+                        _ho_pen = 1
+                # Einbetten zwischen Position 6 (regressions) und 7 (-excellence)
+                return (_ho_pen, *base[:7], t_neg, *base[7:])
+
+            _best_ranked = min(_ranked_candidates, key=_final_rank_key_80)
+            if _best_ranked["name"] != "current" and _best_ranked["rank"] < _current_rank:
+                logger.info(
+                    "🔄 End-Gate: Goal-Candidate-Ranking wählt %s — rank %s→%s t_obj=%.3f",
+                    _best_ranked["name"],
+                    _current_rank,
+                    _best_ranked["rank"],
+                    float(_best_ranked.get("transparency_objective", 0.0) or 0.0),
+                )
+                restored_audio = _best_ranked["audio"]
+                _musical_goal_scores = _best_ranked["scores"]
+                _musical_excellence_score = sum(_musical_goal_scores.values()) / max(
+                    len(_musical_goal_scores), 1
+                )
+                _mg_violations = [
+                    k
+                    for k in _musical_goal_scores
+                    if k in _applicable_goal_names
+                    and float(_musical_goal_scores.get(k, 0.0)) < _effective_goal_thresholds.get(k, 0.85)
+                ]
+                _goal_recovery_meta["candidate_ranking_applied"] = True
+                _goal_recovery_meta["candidate_ranking_best"] = str(_best_ranked["name"])
+                _goal_recovery_meta["candidate_ranking_before"] = list(_current_rank)
+                _goal_recovery_meta["candidate_ranking_after"] = list(_best_ranked["rank"])
+                _goal_recovery_meta["transparency_objective"] = float(
+                    _best_ranked.get("transparency_objective", 0.0) or 0.0
+                )
+                _goal_recovery_meta["waerme_focus_rescue_applied"] = str(_best_ranked["name"]).startswith(
+                    "waerme_focus_rescue"
+                )
+            else:
+                _goal_recovery_meta["candidate_ranking_applied"] = False
+                _goal_recovery_meta["candidate_ranking_best"] = "current"
+                _goal_recovery_meta["transparency_objective"] = float(
+                    _ranked_candidates[0].get("transparency_objective", 0.0) or 0.0
+                )
+                _goal_recovery_meta["waerme_focus_rescue_applied"] = False
+            _goal_recovery_meta["candidate_ranking_evaluated"] = len(_ranked_candidates)
+        except Exception as _candidate_ranking_exc:
+            logger.debug("End-Gate Goal-Candidate-Ranking uebersprungen: %s", _candidate_ranking_exc)
+            _goal_recovery_meta["candidate_ranking_error"] = type(_candidate_ranking_exc).__name__
+
+        _goal_recovery_meta["final_violations"] = list(_mg_violations)
+        _goal_recovery_meta["resolved_count"] = max(0, len(_initial_mg_violations) - len(_mg_violations))
+        _goal_recovery_meta["resolved"] = len(_mg_violations) == 0
+        self._phase_metadata_accumulator["goal_directed_candidate_recovery"] = dict(_goal_recovery_meta)
+
+        # §MG-SHORT-EXCERPT-TOL [non-blocking]: kurze Excerpts sind für
+        # bestimmte P4/P5-Ziele statistisch instabil. Kleine Defizite nicht
+        # als harte Verletzung werten.
+        _mg_deficits: dict[str, float] = {}
+        if _mg_violations:
+            for _g in list(_mg_violations):
+                _mg_deficits[_g] = float(_effective_goal_thresholds.get(_g, 0.85)) - float(
+                    _musical_goal_scores.get(_g, 0.0)
+                )
+
+        if _mg_violations and _excerpt_duration_s <= 12.0:
+            _short_tol = {
+                "bass_kraft": 0.05,
+                "brillanz": 0.05,
+                "transparenz": 0.05,
+                "raumtiefe": 0.05,
+                "separation_fidelity": 0.05,
+                "waerme": 0.08,
+                "transient_energie": 0.05,
+                "authentizitaet": 0.04,
+            }
+            if _excerpt_duration_s <= 4.0:
+                # Ultra-kurze Excerpts sind fuer P3/P4-Goals besonders instabil.
+                # Defekte weiterhin maximal bekaempfen, aber keine unphysikalischen
+                # Zielverletzungen als harte Degradierung werten.
+                _short_tol.update(
+                    {
+                        "brillanz": 0.10,
+                        "transparenz": 0.08,
+                        "waerme": 0.10,
+                        "transient_energie": 0.10,
+                        "authentizitaet": 0.06,
+                    }
+                )
+            _mg_violations = [
+                _g for _g in _mg_violations if _mg_deficits.get(_g, 0.0) > float(_short_tol.get(_g, 0.0))
+            ]
+            _goal_recovery_meta["short_excerpt_tolerance_applied"] = True
+            _goal_recovery_meta["short_excerpt_duration_s"] = float(_excerpt_duration_s)
+            _goal_recovery_meta["final_violations"] = list(_mg_violations)
+            _goal_recovery_meta["resolved_count"] = max(0, len(_initial_mg_violations) - len(_mg_violations))
+            _goal_recovery_meta["resolved"] = len(_mg_violations) == 0
+
+        _short_minor_goal_set = {
+            "bass_kraft",
+            "brillanz",
+            "transparenz",
+            "waerme",
+            "raumtiefe",
+            "separation_fidelity",
+            "transient_energie",
+            "authentizitaet",
+        }
+        _is_minor_short_excerpt_only = bool(
+            _excerpt_duration_s <= 12.0
+            and _mg_violations
+            and len(_mg_violations) <= 1
+            and all(_g in _short_minor_goal_set for _g in _mg_violations)
+        )
+
+        if _mg_violations:
+            if _is_minor_short_excerpt_only:
+                logger.info(
+                    "§MG-SHORT-EXCERPT-TOL: minor single-goal violation auf %.2fs als Advisory de-eskaliert: %s",
+                    _excerpt_duration_s,
+                    _mg_violations,
+                )
+                _goal_recovery_meta["minor_short_excerpt_advisory"] = list(_mg_violations)
+            else:
+                _fail_reasons.append(
+                    {
+                        "component": "MusicalGoalsChecker",
+                        "error_code": "MUSICAL_GOALS_VIOLATION",
+                        "severity": "degraded",
+                        "violated_goals": _mg_violations,
+                        "scores": {
+                            k: round(float(_musical_goal_scores.get(k, 0.0)), 4) for k in _mg_violations
+                        },
+                        "thresholds": {
+                            k: round(float(_effective_goal_thresholds.get(k, 0.85)), 4) for k in _mg_violations
+                        },
+                        "deficits": {k: round(float(_mg_deficits.get(k, 0.0)), 4) for k in _mg_violations},
+                        "recovery": {
+                            "attempted": True,
+                            "resolved_count": _goal_recovery_meta["resolved_count"],
+                            "initial_violation_count": len(_initial_mg_violations),
+                            "final_violation_count": len(_mg_violations),
+                        },
+                        "damage_control_policy": {
+                            "name": "maximum_defect_suppression_without_music_damage",
+                            "music_damage_forbidden": True,
+                            "strategy": "safe_limit_degraded_if_required",
+                        },
+                    }
+                )
+
+        return {
+            "audio": restored_audio,
+            "scores": _musical_goal_scores,
+            "excellence": _musical_excellence_score,
+            "violations": _mg_violations,
+        }
+
     def _measure_goals_for_tail(
         self,
         mg_checker,
@@ -45061,6 +45129,57 @@ class UnifiedRestorerV3:
             except Exception as _sg_exc:
                 logger.warning("§P0-1 Song-SCORECARD nicht verfügbar: %s", _sg_exc)
 
+            # §P0-1 Block a2: End-Gate-Recovery-Kaskade einmal auf dem
+            # assemblierten Song (statt 8× chunk-lokal). Blendet Original-/
+            # Checkpoint-Anteile ein, wenn anwendbare Goals ihre Schwellwerte
+            # verfehlen — non-blocking, deterministisch.
+            _song_end_gate_applied = False
+            try:
+                from backend.core.musical_goals.musical_goals_metrics import (
+                    MusicalGoalsChecker as _SgChecker2,
+                )
+
+                _sg_checker2 = _SgChecker2(mode=getattr(getattr(self.config, "mode", None), "value", "restoration"))
+                _song_thresholds = dict(_sg_checker2.thresholds)
+                try:
+                    from backend.core.musical_goals.adaptive_goals_system import get_adaptive_goals_and_config
+
+                    _song_ag = get_adaptive_goals_and_config(
+                        output,
+                        sample_rate,
+                        getattr(_first_result, "material_type", MaterialType.UNKNOWN),
+                        None,
+                        restorability_score=float(getattr(self, "_last_restorability_score", 70.0)),
+                    )
+                    for _gn, _gv in self._resolve_adaptive_goal_thresholds(_song_ag).items():
+                        if _gn in _song_thresholds:
+                            _song_thresholds[_gn] = float(_gv)
+                except Exception as _sagt_exc:
+                    logger.debug("§P0-1 Song-Thresholds adaptiv nicht verfügbar: %s", _sagt_exc)
+                if _song_goals and _song_thresholds:
+                    _song_eg_out = self._run_song_level_end_gate(
+                        output,
+                        audio,
+                        sample_rate,
+                        getattr(_first_result, "material_type", MaterialType.UNKNOWN),
+                        _sg_checker2,
+                        audio,
+                        dict(_song_goals),
+                        _song_thresholds,
+                        set(_song_thresholds.keys()),
+                        float(output.shape[0] / max(int(sample_rate), 1)),
+                        [],
+                    )
+                    output = _song_eg_out["audio"]
+                    _song_goals = _song_eg_out["scores"]
+                    _song_end_gate_applied = True
+                    logger.info(
+                        "🔄 §P0-1 Song-End-Gate nach Assembly: violations=%d",
+                        len(_song_eg_out["violations"]),
+                    )
+            except Exception as _segex_exc:
+                logger.warning("§P0-1 Song-End-Gate nicht verfügbar: %s", _segex_exc)
+
             # Cache-Cleanup
             try:
                 from backend.api.bridge import clear_defect_cache
@@ -45077,6 +45196,7 @@ class UnifiedRestorerV3:
             _meta["chunked_streaming"] = True
             _meta["chunks_total"] = len(chunks)
             _meta["chunks_completed"] = _chunk_count
+            _meta["p0_1_song_end_gate_applied"] = bool(_song_end_gate_applied)
 
             return RestorationResult(
                 audio=output,
