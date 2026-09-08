@@ -10,6 +10,7 @@
 | M | .gitignore | modifiziert |
 | M | TASK_CHANGES.md | modifiziert |
 | M | backend/core/unified_restorer_v3.py | modifiziert |
+| M | plugins/basicpitch_plugin.py | modifiziert |
 | M | backend/core/musical_goals/musical_goals_metrics.py | modifiziert |
 | M | backend/core/feedback_chain.py | modifiziert |
 | M | backend/core/inviting_sound_gate.py | modifiziert |
@@ -87,4 +88,9 @@
   Separatoren pathologisch: 0.11 vs. tonal 0.0177–0.0205); Toleranz 0.03 dokumentiert
   (GPU-Kernel-Varianz MIOpen ±0.003, HTDemucs-Bound 0.02 bleibt im Kommentar).
   Ergebnis: 13/13 Tests grün — Coverage-Gate wieder durchlaufbar.
+- **BasicPitch-Fixed-Length-Fix (Matrix-Befund Punkt 6)**: `_analyze_onnx` padete/truncatete
+  kurze Eingaben NICHT auf die Static-Shape-Länge des Modells (43844 Samples) → ONNX
+  InvalidArgument „Got: 2757 Expected: 43844“ → §V6-ML→DSP-Fallback (pYIN-Ersatzpfad).
+  Fix: Else-Zweig padet/truncatet jetzt auf `_fixed_chunk_len` (nur wenn gesetzt).
+  Smoke-Test: `analyze()` auf 0.08-s-Segment läuft durch (BasicPitchResult statt Fallback).
 

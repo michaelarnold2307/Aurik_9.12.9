@@ -295,6 +295,16 @@ class BasicPitchPlugin:
                 frame_times_s = np.concatenate(all_frame_times).astype(np.float32)
             else:
                 model_in = audio_m[np.newaxis, :] if audio_m.ndim == 1 else np.asarray(audio_m).reshape(1, -1)
+                # §Fixed-Length-Fix (2026-09-08): Static-Shape-Modelle (z.B. 43844
+                # Samples) akzeptieren auch KURZE Eingaben nur exakt in der
+                # erwarteten Länge — padden/truncaten, sonst ONNX InvalidArgument
+                # (Matrix-Befund: 'Got: 2757 Expected: 43844' → ML→DSP-Fallback).
+                if _fixed_chunk_len is not None and model_in.shape[-1] != _fixed_chunk_len:
+                    if model_in.shape[-1] < _fixed_chunk_len:
+                        _pad_w = [(0, 0)] * (model_in.ndim - 1) + [(0, _fixed_chunk_len - model_in.shape[-1])]
+                        model_in = np.pad(model_in, _pad_w, mode="constant")
+                    else:
+                        model_in = model_in[..., :_fixed_chunk_len]
                 model_in = model_in.astype(np.float32)
                 if expected_rank == 3 and model_in.ndim == 2:
                     model_in = model_in[:, :, np.newaxis]
