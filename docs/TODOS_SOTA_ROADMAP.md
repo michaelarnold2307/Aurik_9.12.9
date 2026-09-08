@@ -100,6 +100,15 @@
   `backend/core/residuum_masking.py` (bereits maskierungsbasiert — als Muster).
 - **Akzeptanz:** Guard-Entscheidungen mit Maskierungskontext nachweisbar (Logs); Regressionstests für
   maskierte vs. unmaskierte Fälle.
+- **Status 2026-09-08: SCK/WBG/ATI UMGESETZT** — `estimate_delta_masking_jnd_db()` in
+  `backend/core/residuum_masking.py` (ISO-11172-3-Spread auf den Phasen-Delta,
+  freq_range-Fenster, 6-dB-Cap, konservativ 0 bei Müll-Daten). §ATI: Toleranz =
+  max(1,5 dB, JND) mit Log-Kontext. §WBG: maskierter Verlust-Anteil zählt nicht
+  zum kumulativen Verlust (vorherige Verluste bleiben wirksam). §SCK:
+  maskierte Abweichung relaxiert die Korrelations-Schwelle begrenzt (max. −0,20
+  bei voller 6-dB-JND, linear). Tests: `tests/unit/test_p1_3_masking_jnd_guards.py`
+  (maskiert vs. unmaskiert je Guard, Deterministisch, NaN-Schutz) + Bestandssuiten grün.
+  OFFEN: Formant-§0p- und Gain-Step-Toleranzen (Folge-Slice).
 
 ## TODO-P1-4 · Externe Blind-Hörstudie + GPU-A/B-Kalibration
 

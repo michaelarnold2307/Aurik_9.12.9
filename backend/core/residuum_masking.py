@@ -332,8 +332,111 @@ def estimate_residuum_salience_batch(
     return out
 
 
+# ── P1-3: Lokale Maskierungs-JND für Phasen-Deltas ────────────────────────
+
+_DELTA_JND_CAP_DB = 6.0  # Obergrenze der maskierten Toleranz-Erhöhung (1 Bark-Spread-Schritt)
+
+
+@dataclass
+class DeltaMaskingJNDResult:
+    """Ergebnis der P1-3-Maskierungs-JND-Schätzung für einen Phasen-Delta.
+
+    Attributes:
+        jnd_db: Maskierte Delta-Marge in dB [0, _DELTA_JND_CAP_DB].
+            Guards setzen ihre effektive Toleranz auf max(fest, jnd_db).
+        delta_above_db: Wie weit das lauteste Delta-Band ÜBER der Schwelle
+            liegt (0 = vollständig maskiert, >0 = exponiert).
+        threshold_db: Maximale Maskierungsschwelle über die Bänder (Log-Kontext).
+    """
+
+    jnd_db: float
+    delta_above_db: float
+    threshold_db: float
+
+
+def estimate_delta_masking_jnd_db(
+    pre: np.ndarray,
+    post: np.ndarray,
+    sr: int,
+    *,
+    freq_range_hz: tuple[float, float] | None = None,
+) -> DeltaMaskingJNDResult:
+    """P1-3 (Hörordnung Ebene 2): Schätzt, wie viele dB des Phasen-Deltas
+    ``d = post − pre`` durch das Signal selbst verdeckt werden.
+
+    Guard-Kontrakt (dsp.instructions.md §WBG/§ATI/§SCK):
+        effektive_Toleranz = max(feste_Toleranz, jnd_db)
+    → Wenn der Phasen-Eingriff lokal maskiert ist, lösen die Guards keine
+      Rollbacks/Rücknahmen für unhörbare Abweichungen aus (weniger falsche
+      Rollbacks, weniger End-Gate-Recovery-Runden).
+
+    Methode: Bark-Spektrum des Signals (Median über Frames) → ISO-11172-3-
+    Spread-Schwelle (27 dB/Bark, +3 dB Offset) → Abstand des Delta-Spektrums
+    unterhalb der Schwelle. Konservativ: Bei nicht auswertbarem Input wird
+    jnd_db=0 angenommen (keine Maskierung unterstellt).
+
+    Args:
+        pre: Audio vor der Phase. Shape [N] oder [2, N] / [N, 2].
+        post: Audio nach der Phase (gleiche Shape).
+        sr: Sample-Rate.
+        freq_range_hz: Optionales Frequenzfenster (f_low, f_high) — nur Bark-
+            Bänder mit Mittenfrequenz in diesem Bereich zählen.
+
+    Returns:
+        DeltaMaskingJNDResult (deterministisch, NaN/Inf-geschützt).
+    """
+    _cons = DeltaMaskingJNDResult(jnd_db=0.0, delta_above_db=0.0, threshold_db=-120.0)
+    try:
+        # Hörordnung: keine Audibility-Entscheidung aus Müll-Daten → nicht-finite
+        # Inputs fallen VOR der Sanitisierung konservativ auf jnd_db=0 zurück.
+        if not np.all(np.isfinite(pre)) or not np.all(np.isfinite(post)):
+            return _cons
+        pre = np.nan_to_num(pre, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float64)
+        post = np.nan_to_num(post, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float64)
+        if pre.shape != post.shape or pre.size < 256:
+            return _cons
+
+        # §2.51 Stereo-Axis-Invariante: channels-last (N, 2) korrekt behandeln
+        def _mono(x: np.ndarray) -> np.ndarray:
+            if x.ndim == 2:
+                _ax = 0 if x.shape[0] <= 2 else 1
+                return x.mean(axis=_ax)
+            return x
+
+        pre_mono = _mono(pre)
+        delta = _mono(post) - pre_mono
+
+        pre_frames, freqs = _stft_magnitude_db(pre_mono, sr)
+        pre_bands = _to_bark_bands(pre_frames, freqs)
+        thr = _spread_mask_threshold(pre_bands)
+
+        d_frames, _ = _stft_magnitude_db(delta, sr)
+        d_bands = _to_bark_bands(d_frames, freqs)
+
+        if freq_range_hz is not None:
+            _sel = (_BARK_CENTERS >= freq_range_hz[0]) & (_BARK_CENTERS <= freq_range_hz[1])
+            if not np.any(_sel):
+                return _cons
+            thr = thr[_sel]
+            d_bands = d_bands[_sel]
+
+        margin = thr - d_bands  # > 0 ⇒ Delta unter Schwelle (maskiert)
+        jnd_db = float(np.clip(np.max(margin), 0.0, _DELTA_JND_CAP_DB))
+        above = float(np.clip(np.max(d_bands - thr), 0.0, None))
+        return DeltaMaskingJNDResult(
+            jnd_db=round(jnd_db, 3),
+            delta_above_db=round(above, 3),
+            threshold_db=round(float(np.max(thr)), 2),
+        )
+    except Exception as exc:
+        logger.debug("estimate_delta_masking_jnd_db nicht blockierend: %s", exc)
+        return _cons
+
+
 __all__ = [
+    "DeltaMaskingJNDResult",
     "ResiduumMaskingResult",
+    "estimate_delta_masking_jnd_db",
     "estimate_residuum_salience",
     "estimate_residuum_salience_batch",
 ]

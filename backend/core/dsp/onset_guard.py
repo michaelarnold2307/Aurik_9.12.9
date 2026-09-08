@@ -20,6 +20,8 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     librosa = None  # type: ignore[assignment]
 
+from backend.core.residuum_masking import estimate_delta_masking_jnd_db
+
 logger = logging.getLogger(__name__)
 
 _ONSET_WINDOW_MS = 20.0  # Schutzfenster nach Transient
@@ -92,8 +94,22 @@ def apply_onset_protection_mask(
         if not onset_mask_arr.any():
             return post
 
+        # §P1-3 (Hörordnung Ebene 2): Effektive Toleranz = max(fest, lokale
+        # Maskierungs-JND). Transient-Onsets sind laut → maskieren den
+        # Phasen-Delta stark; dann begrenzen wir erst bei größeren
+        # Abweichungen (weniger unnötige Dry-Wet-Blends).
+        _jnd = estimate_delta_masking_jnd_db(pre, post, 48000)
+        _eff_max_db = max(float(max_delta_db), float(_jnd.jnd_db))
+        if _jnd.jnd_db > 0.1:
+            logger.info(
+                "§ATI Onset-Guard: §P1-3 Maskierungs-JND=%.2f dB → Toleranz %.2f dB (fest %.1f dB)",
+                _jnd.jnd_db,
+                _eff_max_db,
+                max_delta_db,
+            )
+
         # Schutz in Onset-Fenstern anwenden
-        max_ratio = float(10.0 ** (max_delta_db / 20.0))  # Linearer Schwellwert
+        max_ratio = float(10.0 ** (_eff_max_db / 20.0))  # Linearer Schwellwert
 
         if post.ndim == 2:
             result = post.copy()

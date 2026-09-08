@@ -18,6 +18,8 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.signal import butter, sosfiltfilt  # type: ignore[import-untyped]
 
+from backend.core.residuum_masking import estimate_delta_masking_jnd_db
+
 logger = logging.getLogger(__name__)
 
 # Wärmeband: 200–800 Hz
@@ -97,8 +99,14 @@ def measure_warmth_band_delta(
         loss_db = max(0.0, -delta_db)  # positiv = Verlust
         gain_db = max(0.0, delta_db)  # positiv = Gewinn
 
-        # Warmth-Blend basierend auf kumulativem Verlust (nach Aktualisierung)
-        total_loss = cumulative_loss_db + loss_db
+        # §P1-3 (Hörordnung Ebene 2): Der maskierte Anteil des aktuellen
+        # Phasen-Verlusts ist unhörbar und zählt NICHT zum kumulativen Verlust
+        # (weniger falsche Rollbacks). Vorherige Verluste bleiben voll wirksam.
+        _jnd = estimate_delta_masking_jnd_db(pre, post, sr, freq_range_hz=(_WARMTH_LOW_HZ, _WARMTH_HIGH_HZ))
+        _audible_loss_db = max(0.0, loss_db - float(_jnd.jnd_db))
+
+        # Warmth-Blend basierend auf kumulativem (hörbaren) Verlust
+        total_loss = cumulative_loss_db + _audible_loss_db
         if total_loss > WARMTH_LOSS_THRESHOLD_DB:
             blend = float(np.clip(1.0 - total_loss / WARMTH_MAX_LOSS_DB, 0.1, 1.0))
         else:
@@ -108,10 +116,12 @@ def measure_warmth_band_delta(
 
         if loss_db > 0.5:
             logger.info(
-                "§V25 Wärmeband-Guard: loss=%.2f dB (200–800 Hz) kumul=%.2f dB → blend=%.2f",
+                "§V25 Wärmeband-Guard: loss=%.2f dB (200–800 Hz) kumul=%.2f dB → blend=%.2f | §P1-3 Maskierungs-JND=%.2f dB → hörbarer Verlust=%.2f dB",
                 loss_db,
                 total_loss,
                 blend,
+                _jnd.jnd_db,
+                _audible_loss_db,
             )
 
         return WarmthBandResult(
