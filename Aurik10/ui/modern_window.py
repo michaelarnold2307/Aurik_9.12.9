@@ -2875,6 +2875,10 @@ class BatchProcessingThread(QThread):
                                         self._refresh_chips_display()
                             except Exception:
                                 pass
+                        # §GUI-T6: Live-15-Ziel-Radar während der Restaurierung
+                        _live_goals = metrics.get("goals")
+                        if _live_goals and hasattr(self, "_update_live_goal_radar"):
+                            self._update_live_goal_radar(dict(_live_goals))
                         # Guardian-Revert auch als Status-Text anzeigen
                         if metrics.get("guardian_reverted") and hasattr(self, "status_text"):
                             self._apply_status_text_style("error")
@@ -15416,6 +15420,21 @@ class ModernMainWindow(QMainWindow):
         if hasattr(self, "narrative_label"):
             self.narrative_label.setVisible(False)
         self._narrative_buffer = []
+
+    def _update_live_goal_radar(self, goals: dict) -> None:
+        """§GUI-T6: Aktualisiert das 15-Ziel-Radar LIVE während der Restaurierung.
+
+        Die Engine sendet je Phase den PMGG-Goal-Snapshot (live_metrics["goals"]);
+        das Radar zeigt damit den Qualitätsverlauf statt nur des Endstands.
+        Pure Datenweitergabe — das Widget klemmt selbst auf [0,1].
+        """
+        try:
+            _radar = getattr(self, "radar_widget", None)
+            if _radar is None:
+                return
+            _radar.update_scores(scores=dict(goals))
+        except Exception:
+            logger.debug("§GUI-T6 Live-Radar-Update fehlgeschlagen", exc_info=True)
 
     def _update_live_quality(self, metrics: dict | None = None) -> None:
         """§v10.14 P1: Aktualisiert die Live-Qualitätsanzeige während der Restaurierung."""
