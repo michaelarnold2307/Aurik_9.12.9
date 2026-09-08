@@ -2843,6 +2843,12 @@ class BatchProcessingThread(QThread):
                         # Chip-Zähler und Gesamtzahl subtrahieren (sobald Chips gesetzt).
                         _resolved_now = metrics.get("resolved") or []
                         if _resolved_now:
+                            # §P1-10 (2026-09-08): Behobene Typen KUMULIEREN —
+                            # _latest_live_metrics hält nur den letzten Diff; ohne
+                            # Akkumulator gingen frühere Behebungen verloren.
+                            _res_acc = set(getattr(self, "_resolved_defects_accumulated", set()))
+                            _res_acc |= {str(_r) for _r in _resolved_now}
+                            self._resolved_defects_accumulated = _res_acc
                             try:
                                 from Aurik10.ui.hearing_gates_summary import apply_resolved_defects as _ard
 
@@ -24450,15 +24456,23 @@ class ModernMainWindow(QMainWindow):
             # visible and transition red → amber → green as defects are resolved).
             _initial_sc = getattr(self, "_defect_initial_scores", {})
             _initial_has_defects = any(v > 0.01 for k, v in _initial_sc.items())
+            _done_filter = set(getattr(self, "_defect_chips_done", []))
             _active_defects_set: set[str] = (
                 {
                     {"noise": "noise_level"}.get(str(k), str(k))
                     for k in (defects.get("_active_defects") or [])
                     if {"noise": "noise_level"}.get(str(k), str(k)) in label_map
+                    and {"noise": "noise_level"}.get(str(k), str(k)) not in _done_filter  # §P1-10: behoben ≠ aktiv
                 }
                 if _real_repair_phase
                 else set()
             )
+            # §P1-10 (2026-09-08): Chip-Zähler einmalig aus dem aktiven Set
+            # initialisieren — ohne Initialisierung war die Rückwärtszählung
+            # (_on_batch_progress → apply_resolved_defects) ein No-op.
+            if _status == "correcting" and _active_defects_set and not getattr(self, "_defect_chip_counts", None):
+                self._defect_chip_counts = {_k: 1 for _k in sorted(_active_defects_set)}
+                self._defect_chip_total = len(_active_defects_set)
             if _status == "correcting" and _active_defects_set:
                 _initial_mut = getattr(self, "_defect_initial_scores", None)
                 if not isinstance(_initial_mut, dict):
@@ -24485,7 +24499,8 @@ class ModernMainWindow(QMainWindow):
             # Restzahl im Live-Label aktualisieren.
             if _status == "correcting" and getattr(self, "_latest_live_metrics", None):
                 try:
-                    _resolved_live = (self._latest_live_metrics or {}).get("resolved") or []
+                    # §P1-10: Kumulierte Behebungen anwenden (nicht nur letzter Diff)
+                    _resolved_live = sorted(getattr(self, "_resolved_defects_accumulated", set()))
                     if _resolved_live:
                         for _rk in _resolved_live:
                             _rk_s = str(_rk).lower()

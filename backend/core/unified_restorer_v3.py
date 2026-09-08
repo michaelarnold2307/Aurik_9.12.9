@@ -7818,6 +7818,10 @@ class UnifiedRestorerV3:
         # §v10.x Song-Isolation (§V8 (copilot-instructions.md)): MQA-Forwarding-Werte pro restore()-Aufruf
         # zurücksetzen — sonst leckt HPI/MUSHRA eines vorherigen Songs/Chunks
         # in den finalen Report (Befund 2026-08-22: HPI=0.85 gemessen, Report HPI=0.00).
+        # §P1-10 (2026-09-08): _resolved_sent_keys pro restore()-Aufruf zurücksetzen —
+        # sonst werden behobene Defekttypen nur im ersten Song/Chunk an die GUI
+        # gesendet und die Chip-Rückwärtszählung bleibt in Folgeläufen stumm.
+        self._resolved_sent_keys: set[str] = set()
         self._mqa_mushra = 0.0
         self._mqa_hpi = 0.0
         # §v10.x Additive Schritt-Zählung pro Song zurücksetzen.

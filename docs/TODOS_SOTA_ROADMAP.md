@@ -208,6 +208,25 @@
 - **Akzeptanz:** Referenzlauf: Balken bewegt sich kontinuierlich (kein Stillstand >30 s je
   Chunk; Watchdog ohne W-PROGRESS-STALE); Balken erreicht 100 % erst nach Assembly.
 
+## TODO-P1-10 · Defekt-Rückwärtszählung (Chips) + weitere GUI-Bugs — UMGESETZT 2026-09-08
+
+- **Befunde (Bug-Hunt 2026-09-08):** (1) `_defect_chip_counts`/`_defect_chip_total`
+  wurden in der GUI NIE initialisiert → `apply_resolved_defects({}, …)` war ein No-op —
+  die Chip-Rückwärtszählung lief ins Leere. (2) Die GUI verarbeitete nur den LETZTEN
+  `resolved`-Diff (`_latest_live_metrics`-Snapshot) — frühere Behebungen gingen verloren
+  und der aktive Defekt-Set wurde bei jedem Render aus der Scan-Liste neu aufgebaut
+  (behobene Typen kehrten zurück). (3) Backend: `_resolved_sent_keys` wurde nie
+  zurückgesetzt → behobene Typen nur im ersten Song/Chunk gesendet.
+- **Lösung (§P1-10):** (1) GUI initialisiert die Chip-Zähler beim ersten Render aus dem
+  aktiven Defekt-Set (ein Chip je Typ). (2) GUI kumuliert Behebungen in
+  `_resolved_defects_accumulated`; Render wendet den kumulierten Satz an und filtert
+  behobene Typen aus dem aktiven Set (`_done_filter`). (3) Backend setzt
+  `_resolved_sent_keys` pro restore()-Aufruf zurück (§V8-Song-Isolation).
+- **Beleg:** 27 GUI/m1b-Tests grün; Syntax/ruff clean; Restorer-Suiten grün.
+- **Akzeptanz:** GUI-Lauf: Chip-Zähler „Verbleibende Schäden“ zählt bei jeder behobenen
+  Defektkategorie herunter; behobene Chips bleiben grün über Re-Renders; zweiter Song
+  zählt erneut korrekt.
+
 ## TODO-P2-1 · Hygiene: UTF-16-Bereinigung + Monolith-Hinweis — ERLEDIGT 2026-09-08 (Guard-Teil)
 
 - **Befund (gemessen 2026-09-08):** Alle 3175 getrackten Textdateien sind valides UTF-8;
