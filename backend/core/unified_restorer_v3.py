@@ -16666,12 +16666,14 @@ class UnifiedRestorerV3:
                     _ccr_threshold,
                 )
 
-            _musical_goal_scores = _mg_checker.measure_all(
+            _musical_goal_scores = self._measure_goals_for_tail(
+                _mg_checker,
                 restored_audio,
                 sample_rate,
-                reference=_mg_ref,
-                material_type=_ccr_mat_val,
-                panns_singing=float(self._restoration_context.get("panns_singing", 0.0)),
+                _mg_ref,
+                _ccr_mat_val,
+                chunked_tail_skip=_chunked_tail_skip,
+                chunked_last=_chunked_last,
             )
             # §1.2 Teamwork-Invariante [RELEASE_MUST]: Pipeline-Ende MUSS den vollen
             # 15-Ziel-Vektor (effective thresholds) auswerten. Kein Goal darf durch
@@ -44721,6 +44723,36 @@ class UnifiedRestorerV3:
             logger.debug("Stiller optionaler Ausnahmefall ignoriert", exc_info=True)
         return {"checks_performed": 0, "rollbacks_triggered": 0, "available": False}
 
+    def _measure_goals_for_tail(
+        self,
+        mg_checker,
+        audio,
+        sample_rate,
+        reference,
+        material_type,
+        *,
+        chunked_tail_skip: bool = False,
+        chunked_last: bool = False,
+    ):
+        """§P0-1 Song-Ebene-Analytik (Block a1): measure_all() ist der teuerste
+        per-Chunk-Analytics-Block (~40–60 s je Chunk). Im Chunked-Pfad misst
+        nur der letzte Chunk (für die End-Gate-Kaskade, Slice A); die
+        song-globalen Scores werden einmal nach der Assembly in
+        _restore_chunked gemessen. Rückgabe {} heißt: Der Completeness-Check
+        füllt Defaults (0.0) — die Kaskade läuft via
+        _should_run_end_gate_cascade ohnehin nur auf dem letzten Chunk.
+        """
+        if chunked_tail_skip and not chunked_last:
+            logger.debug("§P0-1: measure_all für Chunk übersprungen (song-global nach Assembly)")
+            return {}
+        return mg_checker.measure_all(
+            audio,
+            sample_rate,
+            reference=reference,
+            material_type=material_type,
+            panns_singing=float(self._restoration_context.get("panns_singing", 0.0)),
+        )
+
     def _restore_chunked(
         self,
         audio: np.ndarray,
@@ -45008,6 +45040,27 @@ class UnifiedRestorerV3:
 
             cp.verify_crossfade(results, sample_rate)
 
+            # §P0-1 Song-Ebene-Analytik (Block a1): GOAL_SCORECARD einmal auf
+            # dem assemblierten Song messen (statt 8× je Chunk). Non-blocking —
+            # bei Fehler bleiben die Chunk-Werte aus _first_result erhalten.
+            _song_goals = None
+            try:
+                from backend.core.musical_goals.musical_goals_metrics import (
+                    MusicalGoalsChecker as _SongGoalsChecker,
+                )
+
+                _song_goals = self._measure_goals_for_tail(
+                    _SongGoalsChecker(mode=getattr(getattr(self.config, "mode", None), "value", "restoration")),
+                    output,
+                    sample_rate,
+                    audio,
+                    getattr(_first_result, "material_type", MaterialType.UNKNOWN),
+                )
+                if _song_goals:
+                    logger.info("🎯 §P0-1 Song-SCORECARD nach Assembly: %d Goals gemessen", len(_song_goals))
+            except Exception as _sg_exc:
+                logger.warning("§P0-1 Song-SCORECARD nicht verfügbar: %s", _sg_exc)
+
             # Cache-Cleanup
             try:
                 from backend.api.bridge import clear_defect_cache
@@ -45037,7 +45090,7 @@ class UnifiedRestorerV3:
                 rt_factor=getattr(_first_result, "rt_factor", 0.0),
                 warnings=_all_warnings,
                 metadata=_meta,
-                musical_goals=getattr(_first_result, "musical_goals", None),
+                musical_goals=_song_goals or getattr(_first_result, "musical_goals", None),
                 era_decade=getattr(_first_result, "era_decade", None),
                 confidence=getattr(_first_result, "confidence", 1.0),
                 restorability=getattr(_first_result, "restorability", None),
