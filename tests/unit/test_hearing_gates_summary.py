@@ -33,6 +33,12 @@ class TestStatus:
         m = _meta(audibility_gate={"gate_passed": True, "improvable_types": ["clicks"]})
         assert hearing_gate_status(m) == "yellow"
 
+    def test_green_m1b_applied(self) -> None:
+        # §P1-7: Backend hat die Stufe-2 intern ausgeführt → nicht mehr „gequeued“
+        m = _meta(audibility_gate={"gate_passed": True, "improvable_types": ["clicks"]},
+                  m1b_retry_applied=True)
+        assert hearing_gate_status(m) == "green"
+
     def test_red_vocal_revert(self) -> None:
         m = _meta(vocal_drive_hard_revert=True)
         assert hearing_gate_status(m) == "red"
@@ -56,6 +62,14 @@ class TestLines:
         det = hearing_gates_details(m)
         assert any("Restdefekte" in d for d in det)
         assert any("Stufe-2-Queue" in d for d in det)
+
+    def test_details_m1b_applied(self) -> None:
+        m = _meta(audibility_gate={"gate_passed": False, "n_audible_unmasked": 2,
+                                   "improvable_types": ["hum", "clicks"]},
+                  m1b_retry_applied=True)
+        det = hearing_gates_details(m)
+        assert any("Stufe-2: ausgeführt" in d for d in det)
+        assert not any("Stufe-2-Queue" in d for d in det)
 
     def test_details_wohlklang(self) -> None:
         det = hearing_gates_details(_meta(einladungs_gate_passed=True))

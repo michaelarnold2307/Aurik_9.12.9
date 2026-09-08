@@ -46,7 +46,7 @@ def hearing_gate_status(meta: dict) -> str:
     if (
         meta.get("einladungs_gate_corrected") is True
         or _num(ag.get("n_masked")) > 0
-        or bool(ag.get("improvable_types"))
+        or (bool(ag.get("improvable_types")) and meta.get("m1b_retry_applied") is not True)
         or meta.get("vocal_drive_blend", 1.0) < 1.0
     ):
         return "yellow"
@@ -71,7 +71,11 @@ def hearing_gates_details(meta: dict) -> list[str]:
         if _num(ag.get("n_audible_unmasked")) > 0:
             out.append(f"  hörbar: {int(_num(ag.get('n_audible_unmasked')))} Typ(en)")
         if ag.get("improvable_types"):
-            out.append("  Stufe-2-Queue: " + ", ".join(str(x) for x in ag["improvable_types"][:6]))
+            if meta.get("m1b_retry_applied") is True:
+                # §P1-7: Backend hat die Stufe-2-Nachbehandlung intern ausgeführt
+                out.append("  Stufe-2: ausgeführt (" + ", ".join(str(x) for x in ag["improvable_types"][:6]) + ")")
+            else:
+                out.append("  Stufe-2-Queue: " + ", ".join(str(x) for x in ag["improvable_types"][:6]))
         if _num(ag.get("n_masked")) > 0:
             out.append(f"  maskiert: {int(_num(ag.get('n_masked')))} Typ(en)")
     if wo.get("status") == "VIOLATION":
