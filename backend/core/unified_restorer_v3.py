@@ -7822,6 +7822,8 @@ class UnifiedRestorerV3:
         # sonst werden behobene Defekttypen nur im ersten Song/Chunk an die GUI
         # gesendet und die Chip-Rückwärtszählung bleibt in Folgeläufen stumm.
         self._resolved_sent_keys: set[str] = set()
+        # §GUI-T6: Live-Goal-Snapshot pro Song zurücksetzen (kein Stale-Leck).
+        self._live_goal_scores: dict[str, float] = {}
         self._mqa_mushra = 0.0
         self._mqa_hpi = 0.0
         # §v10.x Additive Schritt-Zählung pro Song zurücksetzen.
@@ -7963,6 +7965,8 @@ class UnifiedRestorerV3:
                         "hpi": float(getattr(self, "_phase_deltas", {}).get(phase, {}).get("hpi_live", 0.0) or 0.0),
                         "vqi": float(getattr(self, "_panns_singing", 0.0) or 0.0),
                         "resolved": _res_new,
+                        # §GUI-T6: Live-15-Ziel-Scores für das Radar (leer wenn noch nicht gemessen)
+                        "goals": dict(getattr(self, "_live_goal_scores", {}) or {}),
                     }
                     progress_callback(pct, _display, time.monotonic() - start_time, _live_metrics)
                 except Exception as _cb_exc:
@@ -18211,6 +18215,20 @@ class UnifiedRestorerV3:
                     if _defects_audible_post == 0
                     else f"⚠️ {_defects_audible_post} Defekte über Hörbarkeits-Schwelle",
                 )
+                # §GUI-T7 (2026-09-08): Countdown als sichtbare Statusmeldung an
+                # die GUI — der Nutzer sieht das definitive Ergebnis, nicht nur
+                # die Logzeile. Läuft nach _cb(98) → Fortschritt bleibt stehen.
+                try:
+                    if progress_callback is not None:
+                        _cd_msg = (
+                            "✅ Defekt-Countdown: keine hörbaren Restdefekte mehr"
+                            if _defects_audible_post == 0
+                            else f"🔧 Defekt-Countdown: {_defects_audible_post} über Hörbarkeits-Schwelle "
+                            f"({_defects_resolved} behoben, {_defects_masked_any} maskiert)"
+                        )
+                        progress_callback(98, _cd_msg, time.monotonic() - start_time, None)
+                except Exception:
+                    logger.debug("§GUI-T7 Countdown-Meldung fehlgeschlagen", exc_info=True)
                 logger.info(
                     "§B2 Per-Defekt-Reduktion: %s",
                     {
@@ -39948,6 +39966,13 @@ class UnifiedRestorerV3:
                             _pmgg_algo = str((_pmgg_entry.metadata or {}).get("algorithm", ""))
                             _phase_was_noop = _pmgg_algo.startswith("skipped_")
                             if _pmgg_scores_curr and not _phase_was_noop:
+                                # §GUI-T6 (2026-09-08): Live-Goal-Snapshot für die GUI —
+                                # das 15-Ziel-Radar aktualisiert sich während der
+                                # Restaurierung statt erst am Ende.
+                                self._live_goal_scores = {
+                                    str(_gk): round(float(_gv), 4)
+                                    for _gk, _gv in _pmgg_scores_curr.items()
+                                }
                                 try:
                                     from backend.core.goal_priority_protocol import (
                                         check_iteration_abort as _check_abort,
