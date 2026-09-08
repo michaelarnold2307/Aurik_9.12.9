@@ -114,7 +114,7 @@ class BSRoFormerPlugin:
             ),
             "sota_upgrade": {
                 "name": "Mel-RoFormer",
-                "url": ("https://huggingface.co/KimberleyJSN/melbandroformer/resolve/main/melbandroformer.onnx"),
+                "url": ("https://huggingface.co/KimberleyJSN/melbandroformer/resolve/main/MelBandRoformer.ckpt"),
                 "reference": "Chen et al. (2024) — Mel-Band RoFormer Music Source Separation",
                 "license": "MIT",
                 "sdr_gain_db": 0.6,
@@ -128,7 +128,19 @@ class BSRoFormerPlugin:
             # Spec: §4.4 Gesang-Isolierung (sota_upgrade via sota_upgrade-Feld)
             "sota_upgrade": {
                 "name": "BS-RoFormer",
-                "url": ("https://huggingface.co/BSRoFormer/bs_roformer/resolve/main/bs_roformer.onnx"),
+                # §Fix 2026-09-08: BSRoFormer/bs_roformer (HF) existiert nicht (404).
+                # Kanonischer UVR-Mirror: TRvlvr/model_repo GitHub-Release; lokal unter
+                # models/bs_roformer/model_bs_roformer_ep_317_sdr_12.9755.ckpt (609.7 MiB).
+                "url": (
+                    "https://github.com/TRvlvr/model_repo/releases/download/"
+                    "all_public_uvr_models/model_bs_roformer_ep_317_sdr_12.9755.ckpt"
+                ),
+                "local_path": (
+                    Path(__file__).parent.parent
+                    / "models"
+                    / "bs_roformer"
+                    / "model_bs_roformer_ep_317_sdr_12.9755.ckpt"
+                ),
                 "reference": (
                     "Lu et al. (2023) — Music Source Separation with Band-Split RoPE Transformer (arXiv:2309.02612)"
                 ),

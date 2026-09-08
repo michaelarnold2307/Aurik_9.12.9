@@ -50,23 +50,18 @@ class DemucsV4Plugin:
         if not os.path.exists(self._model_path):
             logger.warning("Demucs-Modell fehlt: %s — DSP-Fallback aktiv.", self._model_path)
             return
-        # §EXP-GUARD: Manifest-Check — experimental=true → kein ONNX-Load, DSP-Fallback
-        import json as _json  # pylint: disable=import-outside-toplevel
-
-        _manifest_path = os.path.join(os.path.dirname(__file__), "..", "models", "manifest.json")
-        try:
-            with open(_manifest_path, encoding="utf-8") as _mf:
-                _manifest = _json.load(_mf)
-            for _m in _manifest.get("models", []):
-                if _m.get("name") == "htdemucs_6s" and _m.get("experimental", False):
-                    logger.warning(
-                        "HTDemucs 6s: experimental=true im Manifest — "
-                        "fuer Produktion MDX23C (Kim_Vocal_2) verwenden. "
-                        "ONNX-Session nicht geladen, DSP-Fallback aktiv."
-                    )
-                    return  # self._session bleibt None → automatisch HPSS-Fallback
-        except Exception as _exc:
-            logger.debug("Operation failed (non-critical): %s", _exc)  # Manifest nicht lesbar → normaler Load
+        # §Fix 2026-09-08 (SOTA-Root-Cause): Das frühere Manifest-Gate
+        # (models/manifest.json, gitignored) deaktivierte die Demucs-Stufe
+        # STILL (experimental=True) — Verstoß §V6 und §V7. Produktions-Modelle
+        # werden jetzt standardmäßig geladen; ein expliziter, dokumentierter
+        # Opt-out ersetzt das stille Gate:
+        #     AURIK_DISABLE_HTDEMUCS_6S=1 → DSP-Fallback (Debug/Notbetrieb).
+        if os.environ.get("AURIK_DISABLE_HTDEMUCS_6S") == "1":
+            logger.warning(
+                "HTDemucs 6s: AURIK_DISABLE_HTDEMUCS_6S=1 gesetzt — "
+                "ONNX-Session nicht geladen, DSP-Fallback aktiv."
+            )
+            return
         try:
             import onnxruntime as ort  # pylint: disable=import-outside-toplevel
 
@@ -216,6 +211,14 @@ class DemucsV4Plugin:
 
         g = math.gcd(sr_from, sr_to)
         up, down = sr_to // g, sr_from // g
+        # §2.51 Stereo-Axis-Invariante: Plugin-Kontrakt ist channels-first (2, N).
+        # §Fix 2026-09-08: Vorher columns-Zugriff (audio[:, 0]) — für (2, N)-
+        # Eingaben lieferte das 2-Sample-Arrays → 2×2-Stems (stiller Müll).
+        if audio.ndim == 2 and audio.shape[0] == 2 and audio.shape[1] > 2:
+            ch0 = resample_poly(audio[0], up, down).astype(np.float32)
+            ch1 = resample_poly(audio[1], up, down).astype(np.float32)
+            n = min(len(ch0), len(ch1))
+            return np.stack([ch0[:n], ch1[:n]], axis=0)  # (2, n) channels-first
         left = resample_poly(audio[:, 0], up, down).astype(np.float32)
         right = resample_poly(audio[:, 1], up, down).astype(np.float32)
         n = min(len(left), len(right))
@@ -228,7 +231,7 @@ class DemucsV4Plugin:
 
         specs = []
         for ch in [0, 1]:
-            s = chunk[:, ch]
+            s = chunk[ch]  # §2.51 channels-first
             frames = []
             for i in range(_SPEC_FRAMES):
                 start = i * hop
@@ -247,10 +250,11 @@ class DemucsV4Plugin:
         return x[np.newaxis].astype(np.float32)  # type: ignore[no-any-return]  # [1,4,2048,336]
 
     def _infer_onnx(self, audio: np.ndarray, sr: int) -> dict[str, np.ndarray]:
-        n_orig = len(audio)
+        # §2.51: channels-first (2, N) — Originallänge ist die Sample-Achse
+        n_orig = audio.shape[1] if audio.ndim == 2 and audio.shape[0] == 2 else len(audio)
         # Resampling auf Modell-SR
         audio_r = self._resample(audio, sr, _SR)
-        n = len(audio_r)
+        n = audio_r.shape[1] if audio_r.ndim == 2 else len(audio_r)
 
         # Chunked Verarbeitung
         stride = _CHUNK
@@ -259,12 +263,12 @@ class DemucsV4Plugin:
 
         for i in range(n_chunks):
             start = i * stride
-            chunk = np.zeros((_CHUNK, 2), dtype=np.float32)
+            chunk = np.zeros((2, _CHUNK), dtype=np.float32)  # §2.51 channels-first
             end = min(start + _CHUNK, n)
-            chunk[: end - start] = audio_r[start:end]
+            chunk[:, : end - start] = audio_r[:, start:end]
 
             # Eingaben
-            inp = chunk.T[np.newaxis].astype(np.float32)  # [1,2,343980]
+            inp = chunk[np.newaxis].astype(np.float32)  # [1,2,343980]
             x = self._make_spec_cond(chunk)  # [1,4,2048,336]
 
             try:
@@ -280,8 +284,8 @@ class DemucsV4Plugin:
 
                 if result is not None and result.shape[1] == len(_STEMS):
                     for si, name in enumerate(_STEMS):
-                        seg = np.asarray(result)[0, si, :, : end - start].T  # [n, 2]
-                        out_stems[name][start:end] += seg[: end - start]
+                        seg = np.asarray(result)[0, si, :, : end - start]  # [2, n]
+                        out_stems[name][:, start:end] += seg[:, : end - start]
                 else:
                     raise ValueError(f"Unerwartetes Output-Shape: {[o.shape for o in outputs]}")
             except Exception as exc:
@@ -289,29 +293,30 @@ class DemucsV4Plugin:
                 logger.debug("Demucs Chunk %d Fehler: %s — DSP.", i, exc)
                 fb = self._hpss_fallback(chunk, _SR)
                 for k, v in fb.items():
-                    out_stems[k][start:end] += v[: end - start]
+                    out_stems[k][:, start:end] += v[:, : end - start]
 
         # Rückresampling auf Original-SR
         if sr != _SR:
             out_stems = {k: self._resample(v, _SR, sr) for k, v in out_stems.items()}
-        # Auf Originallänge kürzen
-        return {k: v[:n_orig] for k, v in out_stems.items()}
+        # Auf Originallänge kürzen (§2.51: channels-first → Achse 1 kürzen)
+        return {k: v[:, :n_orig] for k, v in out_stems.items()}
 
     @staticmethod
     def _hpss_fallback(audio: np.ndarray, _sr: int) -> dict[str, np.ndarray]:
-        """HPSS-basierter Stem-Fallback bei fehlendem Modell."""
+        """HPSS-basierter Stem-Fallback bei fehlendem Modell (channels-first, §2.51)."""
         try:
             import librosa  # pylint: disable=import-outside-toplevel
 
-            mono = audio[:, 0] if audio.ndim == 2 else audio
-            H, P = librosa.effects.hpss(mono)  # type: ignore[attr-defined]
-            if audio.ndim == 2:
-                H_st = np.stack([H, H], axis=1)
-                P_st = np.stack([P, P], axis=1)
-                res = audio - H_st - P_st
+            if audio.ndim == 2 and audio.shape[0] == 2 and audio.shape[1] > 2:
+                mono = audio[0]  # channels-first
+            elif audio.ndim == 2:
+                mono = audio[:, 0]  # channels-last
             else:
-                H_st, P_st = H, P
-                res = audio - H - P
+                mono = audio
+            H, P = librosa.effects.hpss(mono)  # type: ignore[attr-defined]
+            H_st = np.stack([H, H], axis=0)
+            P_st = np.stack([P, P], axis=0)
+            res = audio - H_st - P_st
             return {
                 "vocals": H_st,
                 "drums": P_st,

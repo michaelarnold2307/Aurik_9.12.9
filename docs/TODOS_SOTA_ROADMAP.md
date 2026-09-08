@@ -90,6 +90,24 @@
 - **Beleg:** `backend/core/sota_vocal_model_router.py:4,57–150` (aktuelle Kette BS-RoFormer → Demucs v4 → MDX23C);
   Tiefenanalyse A.1.
 - **Akzeptanz:** A/B-Metrik `separation_fidelity` + `singer_identity_cosine` ≥ MDX23C-Stand; Hörstichprobe.
+- **Status 2026-09-08: GEWICHTE BESCHAFFT + DEMUCS-STUFE REPARIERT** —
+  (1) Modell-Gewichte: `models/bs_roformer/model_bs_roformer_ep_317_sdr_12.9755.ckpt`
+  (609,7 MiB) vom kanonischen UVR-Mirror (TRvlvr/model_repo GitHub-Release) lokal
+  beschafft und als valides state_dict verifiziert (torch.load). Plugin-URLs
+  repariert: `BSRoFormer/bs_roformer` (HF-404) → TRvlvr-Release; KimberleyJSN-
+  Dateiname `melbandroformer.onnx` → `MelBandRoformer.ckpt`.
+  (2) Demucs-Stufe war STILL DEAKTIVIERT: models/manifest.json (gitignored)
+  markierte htdemucs_6s experimental=True → DemucsV4Plugin lud nie ONNX →
+  Router-Kette lief permanent auf HPSS-Fallback (§V6). SOTA-Fix: Manifest-Gate
+  entfernt (Produktions-Modelle laden standardmäßig), expliziter Opt-out
+  `AURIK_DISABLE_HTDEMUCS_6S=1`; DABEI Stereo-Achsen-Bug im Plugin behoben
+  (channels-first vs. -last → 2×2-Sample-Stems statt echter Separation) und
+  funktional verifiziert (6 Stems, shapes (2,N), keine NaN, CPU-Inferenz 2,2 s).
+  Tests: `tests/unit/test_demucs_stage_activation.py` (6 Fälle).
+  OFFEN: (a) VS-1/GSEP-Namen ließen sich nicht als öffentliche, lizenzklare
+  Modell-Repos verifizieren (SongEval-Leaderboard nicht erreichbar; SCNet ohne
+  öffentliche Gewichte) — bleibt Recherche-Folgepunkt; (b) ckpt→ONNX-Konversion
+  des 317er-Checkpoints für den ONNX-Pfad; (c) A/B-Metrik + Hörstichprobe.
 
 ## TODO-P1-3 · Audibility (JND/Masking) auf alle Schwellwert-Guards
 
