@@ -47,6 +47,57 @@ class GoalPriorityProtocol:
         "spatial_depth": 5,
     }
 
+    # §Goal-Aliases (2026-09-08, P0-2 Tier-Map-Sync): Kanonische Namen für
+    # Goal-Aliase aus musical_goals.instructions.md — verhindert stilles
+    # Defaulten (Priorität 5 / Tier 3) bei abweichenden Schreibweisen.
+    GOAL_ALIASES: dict[str, str] = {
+        "timbre": "timbre_authentizitaet",
+        "mikrodynamik": "micro_dynamics",
+        "sep_fidelity": "separation_fidelity",
+        "raumtiefe": "spatial_depth",
+    }
+
+    @classmethod
+    def canonical_goal(cls, goal: str) -> str:
+        """Kanonisiert einen Goal-Namen (Alias → kanonisch, Case/Zeichen-Normalisierung)."""
+        _g = str(goal or "").lower().replace(" ", "_").replace("-", "_")
+        _seen: set[str] = set()
+        while _g in cls.GOAL_ALIASES and _g not in _seen:
+            _seen.add(_g)
+            _g = cls.GOAL_ALIASES[_g]
+        return _g
+
+    @classmethod
+    def verify_map_consistency(cls) -> list[str]:
+        """Prüft die Konsistenz von PRIORITY_MAP und HEARING_TIER_MAP.
+
+        Beide Maps sind BEWUSST verschiedene Achsen (§2.29-Priorität für den
+        FC-Abort vs. Hörordnungs-Dominanzstufe) — der Sync-Test schützt vor
+        stiller Drift: (a) jede Prioritäts-Goal muss eine explizite Tier-
+        Zuordnung haben (kein Default-3), (b) normative Anker müssen halten,
+        (c) Aliase müssen auflösbar und zyklenfrei sein.
+        """
+        _problems: list[str] = []
+        _tier = cls.HEARING_TIER_MAP
+        # (a) Jede PRIORITY_MAP-Goal explizit in der Tier-Map?
+        for _g in cls.PRIORITY_MAP:
+            _c = cls.canonical_goal(_g)
+            if _c not in _tier:
+                _problems.append(f"PRIORITY_MAP-Goal '{_g}' (kanonisch '{_c}') fehlt in HEARING_TIER_MAP — würde still auf Tier 3 defaulten")
+        # (b) Normative Hörordnungs-Anker (hoerordnung.instructions.md §5)
+        _anchors = {"natuerlichkeit": 1, "waerme": 2, "transparenz": 3, "brillanz": 4}
+        for _g, _expected in _anchors.items():
+            if _tier.get(_g) != _expected:
+                _problems.append(f"Tier-Anker '{_g}' = {_tier.get(_g)}, erwartet {_expected}")
+        # (c) Aliase auflösbar und zyklenfrei (canonical_goal terminiert)
+        for _alias, _target in cls.GOAL_ALIASES.items():
+            _c = cls.canonical_goal(_alias)
+            if _c == _alias:
+                _problems.append(f"Alias '{_alias}' ist ein Selbst-Zyklus")
+            if _c not in _tier:
+                _problems.append(f"Alias '{_alias}' → '{_c}' fehlt in HEARING_TIER_MAP")
+        return _problems
+
     ABORT_PRIORITY_THRESHOLD: int = 2
     REGRESSION_EPSILON: float = (
         0.012  # §2.29: GOOD threshold (0.001 was too strict, caused FC abort on numerical noise)
@@ -85,7 +136,7 @@ class GoalPriorityProtocol:
 
         Unbekannte Goals → Stufe 3 (neutral, weder dominierend noch dominiert).
         """
-        _g = str(goal or "").lower().replace(" ", "_").replace("-", "_")
+        _g = self.canonical_goal(goal)
         return int(self.HEARING_TIER_MAP.get(_g, 3))
 
     def would_violate_hearing_order(self, improving_goal: str, at_cost_of: str) -> bool:
@@ -159,7 +210,7 @@ class GoalPriorityProtocol:
 
     def priority_of(self, goal: str) -> int:
         """Gibt die Prioritätsstufe eines Goals zurück (1 = höchste, 5 = niedrigste)."""
-        return int(self.PRIORITY_MAP.get(goal, 5))
+        return int(self.PRIORITY_MAP.get(self.canonical_goal(goal), 5))
 
     def sort_goals_by_priority(self, goals: list[str]) -> list[str]:
         """Sortiert Goals aufsteigend nach Prioritätsstufe."""

@@ -243,6 +243,15 @@ Die Budget-Tabelle wird maschinell je Zelle von
 `scripts/benchmark_effizienz_matrix.py --ci --enforce-budget` geprüft;
 Verletzungen werden im Ergebnis-JSON unter dem Schlüssel `budget_violations`
 gemeldet und führen im CI-Modus zu Exit 1. Die Pipeline reicht dazu seit
+
+**Budget-Wahrheit (P0-3, 2026-09-08):** Drei Budget-Größen koexistieren und müssen
+in EINE Norm konvergieren: (1) diese Tabelle (Per-Operation-Budgets, maschinell
+enforced), (2) der End-to-End-Guard `performance_guard.py` (32× RT für alle Modi,
+§2.38 KMV normativ), (3) die real gemessenen **53× RT** (Matrix-Endlauf 2026-09-07/08).
+Die Diskrepanz stammt aus per-Chunk statt per-Song laufender Analytik/End-Gate —
+Ziel und Akzeptanzkriterium: `docs/TODOS_SOTA_ROADMAP.md` TODO-P0-1 (Song-Ebene-
+Analytik) und TODO-P0-3. Bis dahin gilt: 32×-Guard ist die verbindliche End-to-End-
+Norm; diese Tabelle regelt die Per-Operation-Budgets.
 v10.0.20 reale Per-Operation-Timings als `metadata["pipeline_budget_timings"]`
 nach außen; fehlende Timings werden als `null` dokumentiert (nicht geschätzt).
 Mit `--repeats N` (deterministische Seed-Folge `AURIK_MASTER_SEED = 42+i`,

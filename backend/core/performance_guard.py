@@ -40,9 +40,13 @@ class QualityMode(Enum):
     """Quality-Modi für adaptive Processing."""
 
     FAST = "fast"  # max 8× RT, schneller Proof-/Desktop-Pfad mit Real-Audio-Reserve
-    BALANCED = "balanced"  # max 3× RT (DEFAULT)
-    QUALITY = "quality"  # max 5× RT
+    BALANCED = "balanced"  # max 32× RT (DEFAULT, §2.38 KMV normativ)
+    QUALITY = "quality"  # max 32× RT (Restoration-Modus)
     MAXIMUM = "maximum"  # max 32× RT (§9.5 — maximum / studio_2026)
+    # Budget-Wahrheit (P0-3, 2026-09-08): Alle Modi teilen 32× RT — die früheren
+    # Doku-Werte („3×“, „5×“) waren nie implementiert. Real gemessen wurden
+    # 53× RT (Matrix-Endlauf) — Ziel ist es, durch Song-Ebene-Analytik
+    # (docs/TODOS_SOTA_ROADMAP.md P0-1) wieder unter 32× zu kommen.
 
 
 class DeploymentMode(Enum):
