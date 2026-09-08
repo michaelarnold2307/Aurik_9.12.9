@@ -27,6 +27,7 @@
 
 | Pfad | Status | Domain | Canonical | Ersetzt | Grund |
 |---|---|---|---|---|---|
+| scripts/utf8_hygiene_check.py | ACTIVE | tooling/ci | ja | — | UTF-8-Hygiene-Guard (P2-1): BOM/NUL-Fenster/invalide-UTF-8 fail-closed im Pre-Commit |
 | scripts/repo_graph.py | ACTIVE | tooling/ci | ja | — | Import-Graph, Symbole, Duplikat-Check; konsolidiert audit_silent_dead_imports.py + audit_bridge_coverage.py |
 | scripts/file_registry_check.py | ACTIVE | tooling/ci | ja | — | Write-Gate `aurik-file-lifecycle`; validiert diese Registry (R1–R7) |
 | scripts/change_ledger.py | ACTIVE | tooling/ci | ja | — | TASK_CHANGES.md (snapshot/check); CI-Abdeckungs-Gate |

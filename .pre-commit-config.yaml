@@ -501,6 +501,14 @@ repos:
         pass_filenames: false
         files: ^(backend|plugins|denker|Aurik10|cli|scripts)/.*\.py$
 
+      # UTF-8-Hygiene (P2-1) — BOM/NUL-Fenster/invalide UTF-8-Sequenzen fail-closed
+      - id: aurik-utf8-hygiene
+        name: "UTF-8-Hygiene (P2-1: kein UTF-16/BOM/invalides UTF-8 in Textdateien)"
+        entry: .venv_aurik/bin/python scripts/utf8_hygiene_check.py
+        language: system
+        pass_filenames: false
+        files: \.(py|md|yaml|yml|json|toml|txt|cfg|ini|csv|tsv|sh|bat|ps1|html|css|js|ts|xml|rst|sql|ipynb|qss|ui)$
+
       # Symbol-Duplikate — Klassen-Kollisionen pro Domain (fail-closed), Suffix-Varianten (WARN)
       - id: aurik-symbol-duplicates
         name: "Symbol-Duplicates (Klassen-Kollisionen pro Domain via repo_graph)"

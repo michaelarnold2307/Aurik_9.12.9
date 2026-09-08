@@ -205,6 +205,20 @@ def _compute_wohlklang_blend(
     return np.clip(blend, -1.0, 1.0).astype(first_run.dtype)  # type: ignore[no-any-return]
 
 
+def _should_run_end_gate_cascade(
+    violations: list[str],
+    chunked_tail_skip: bool,
+    chunked_last: bool,
+) -> bool:
+    """§P0-1 Song-Ebene-Analytik: Soll die End-Gate-Recovery-Kaskade laufen?
+
+    Im Chunked-Pfad läuft die Kaskade nur auf dem letzten Chunk; die
+    Stufe-2-Nachbehandlung (m1b) führt sie ohnehin einmal auf dem
+    assemblierten Song aus. Außerhalb des Chunked-Pfads unverändert.
+    """
+    return bool(violations) and (not chunked_tail_skip or chunked_last)
+
+
 @dataclass
 class RestorationResult:
     """Ergebnis der Restoration (Spec §2.1 / §2.2)."""
@@ -8070,6 +8084,18 @@ class UnifiedRestorerV3:
         _cached_era_kwarg = kwargs.pop("cached_era_result", None)
         _cached_genre_kwarg = kwargs.pop("cached_genre_result", None)
         _cached_defect_kwarg = kwargs.pop("cached_defect_result", None)
+        # §P0-1 Song-Ebene-Analytik (2026-09-08): Im Chunked-Pfad wird der
+        # song-globale Tail (GOAL_SCORECARD/End-Gate/Einladungs-Gate/MQA/
+        # Audibility) pro Chunk übersprungen und nach der Assembly EINMAL auf
+        # dem assemblierten Song ausgeführt (53× → 15–25× RT, korrektere
+        # song-globale Gate-Bewertung). _song_level_tail_only: Pipeline
+        # überspringen und den Tail direkt auf dem Input-Audio ausführen.
+        _chunked_tail_skip = bool(kwargs.pop("_chunked_tail_skip", False))
+        _song_level_tail_only = bool(kwargs.pop("_song_level_tail_only", False))
+        # §P0-1: Nur der letzte Chunk führt die End-Gate-Kaskade aus (Safety-Netz
+        # für Flüsse ohne Stufe-2/m1b; mit m1b ist sie ohnehin redundant, da die
+        # Stufe-2 die Kaskade einmal auf dem assemblierten Song ausführt).
+        _chunked_last = bool(kwargs.pop("_chunked_last", False))
         _cached_medium_kwarg = kwargs.pop("cached_medium_result", None)
         _cached_restorability_kwarg = kwargs.pop("cached_restorability_result", None)
         # §B3 Chunked-Streaming: Chunk-Offset für die Reparatur-Fenster-Zuordnung
@@ -13778,29 +13804,37 @@ class UnifiedRestorerV3:
             except Exception:
                 logger.debug("unified_restorer_v3.py:12715: Silent exception absorbed", exc_info=True)
 
-            restored_audio, executed_phases, skipped_phases, deferred_phases = self._execute_pipeline(
-                audio,
-                sample_rate,
-                material_type,
-                defect_result,
-                selected_phases,
-                progress_callback=(lambda pct, phase, elapsed=0.0: _cb(pct, phase))
-                if progress_callback is not None
-                else None,  # §v10.702 P1: _cb-Durchgängigkeit
-                audio_update_callback=_phase_audio_update_callback,
-                restorability_score=_pmgg_restorability_score,  # §2.29 normativ
-                applicable_goals=_applicable_goals,  # §2.32 normativ
-                material_initial_strengths=_material_phase_initial_strengths,  # §2.31
-                quality_mode_override=_pipeline_quality_mode_override,
-                no_rt_limit=_no_rt_limit,
-                reconstruction_context=_reconstruction_ctx,  # §11.7a: Bereits reparierte Gaps
-                phoneme_timeline=_phoneme_timeline,  # §2.36a: PhonemeTimeline für Phasen 19/24/43/56
-                pre_transcription=_lge_trans_pre,  # §2.36: LGE pre-computed transcription for phase_58
-                graceful_stop_event=self._graceful_stop_event,  # §0c: Watchdog-Graceful-Stop
-                original_audio_reference=original_audio_for_goals,
-                quiet_edge_profile=_phase_quiet_edge_profile,
-                pipeline_confidence=_pipeline_confidence,
-            )
+            if _song_level_tail_only:
+                # §P0-1: Input ist bereits der assemblierte Song — Pipeline
+                # überspringen, Tail direkt auf diesem Audio ausführen.
+                restored_audio = np.asarray(audio, dtype=np.float32)
+                executed_phases: list[str] = []
+                skipped_phases: list[str] = []
+                deferred_phases: list[str] = []
+            else:
+                restored_audio, executed_phases, skipped_phases, deferred_phases = self._execute_pipeline(
+                    audio,
+                    sample_rate,
+                    material_type,
+                    defect_result,
+                    selected_phases,
+                    progress_callback=(lambda pct, phase, elapsed=0.0: _cb(pct, phase))
+                    if progress_callback is not None
+                    else None,  # §v10.702 P1: _cb-Durchgängigkeit
+                    audio_update_callback=_phase_audio_update_callback,
+                    restorability_score=_pmgg_restorability_score,  # §2.29 normativ
+                    applicable_goals=_applicable_goals,  # §2.32 normativ
+                    material_initial_strengths=_material_phase_initial_strengths,  # §2.31
+                    quality_mode_override=_pipeline_quality_mode_override,
+                    no_rt_limit=_no_rt_limit,
+                    reconstruction_context=_reconstruction_ctx,  # §11.7a: Bereits reparierte Gaps
+                    phoneme_timeline=_phoneme_timeline,  # §2.36a: PhonemeTimeline für Phasen 19/24/43/56
+                    pre_transcription=_lge_trans_pre,  # §2.36: LGE pre-computed transcription for phase_58
+                    graceful_stop_event=self._graceful_stop_event,  # §0c: Watchdog-Graceful-Stop
+                    original_audio_reference=original_audio_for_goals,
+                    quiet_edge_profile=_phase_quiet_edge_profile,
+                    pipeline_confidence=_pipeline_confidence,
+                )
             if _vintage_guard_skipped_phases:
                 skipped_phases = list(skipped_phases)
                 for _vintage_skipped in _vintage_guard_skipped_phases:
@@ -16703,7 +16737,10 @@ class UnifiedRestorerV3:
             except Exception as _sc_exc:
                 logger.warning("GOAL_SCORECARD log fehlgeschlagen (nicht blockierend): %s", _sc_exc, exc_info=True)
 
-            if _mg_violations:
+            if _should_run_end_gate_cascade(_mg_violations, _chunked_tail_skip, _chunked_last):
+                # §P0-1 Song-Ebene-Analytik: Im Chunked-Pfad läuft die
+                # End-Gate-Kaskade nur auf dem letzten Chunk (bzw. einmal
+                # song-global in der Stufe-2-Nachbehandlung).
                 # v10.0.0: Musical Goals Re-Pass in UV3 entfernt — wissenschaftlich nicht
                 # gerechtfertigt (Ephraim & Malah 1984: cascaded identical processing amplifies
                 # STFT roundtrip errors). Stattdessen: material-sichere End-Gate-Recovery
@@ -44701,6 +44738,11 @@ class UnifiedRestorerV3:
             self._in_chunked = True
 
             _chunk_kwargs = {k: v for k, v in kwargs.items() if k not in ("chunked", "use_chunked_streaming")}
+            # §P0-1 Song-Ebene-Analytik: End-Gate-Kaskade nur auf dem letzten
+            # Chunk; die Stufe-2-Nachbehandlung (m1b) führt sie einmal auf dem
+            # assemblierten Song aus. _chunked_last wird im Loop gesetzt.
+            _chunk_kwargs["_chunked_tail_skip"] = True
+            _chunk_kwargs["_chunked_last"] = False
 
             # §v10.451: audio.shape[0] für Sample-Zahl
             _n_total = audio.shape[0]
@@ -44708,6 +44750,8 @@ class UnifiedRestorerV3:
             _chunk_s = 60.0 if _total_s > 300.0 else 30.0
             cp = ChunkedPipeline(chunk_duration_s=_chunk_s)
             chunks = cp.compute_chunks(audio, sample_rate)
+            # §P0-1 Safety: einziger Chunk = letzter Chunk (Kaskade nicht verlieren)
+            _chunk_kwargs["_chunked_last"] = len(chunks) == 1
             logger.info(
                 "🎵 Chunked-Streaming: %d Chunks für %.1fs Audio (Pre-Analyse nur 1×, RAM O(1))",
                 len(chunks),
@@ -44906,6 +44950,7 @@ class UnifiedRestorerV3:
 
                 _chunk_kwargs["file_path"] = f"__aurik_chunk__{i}__"
                 _chunk_kwargs["chunk_start_sample"] = int(start)
+                _chunk_kwargs["_chunked_last"] = (i == len(chunks) - 1)  # §P0-1 End-Gate nur auf letztem Chunk
                 chunk = audio[start:end, :] if audio.ndim == 2 else audio[start:end]
 
                 # §v10.704 B28 [FIX 2026-08-23]: Goal-Referenz auf Chunk-Fenster halten.

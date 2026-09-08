@@ -1,17 +1,18 @@
 # TASK_CHANGES — Live-Ledger der aktuellen Aufgabe
 
-> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-08 04:24 CEST).
+> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-08 07:30 CEST).
 > CI (`ci-lite.yml` pr-evidence-gate) erzwingt Abdeckung: jede geänderte Code-Datei muss hier stehen.
 
 ## Geänderte Dateien
 
 | Status | Pfad | Art |
 |---|---|---|
-| M | backend/core/musical_goals/musical_goals_metrics.py | modifiziert |
-| M | scripts/change_ledger.py | modifiziert |
-| M | scripts/release_must_coverage_check.py | modifiziert |
-| M | .github/copilot-instructions.md | modifiziert |
-| ?? | tests/unit/test_strength_envelope_non_degenerate.py | ungetrackt |
+| M | .github/FILE_REGISTRY.md | modifiziert |
+| M | .pre-commit-config.yaml | modifiziert |
+| M | backend/core/unified_restorer_v3.py | modifiziert |
+| M | docs/TODOS_SOTA_ROADMAP.md | modifiziert |
+| ?? | scripts/utf8_hygiene_check.py | ungetrackt |
+| ?? | tests/unit/test_p0_1_end_gate_chunking.py | ungetrackt |
 
 ## Entscheidungen
 

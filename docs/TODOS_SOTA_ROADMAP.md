@@ -28,6 +28,12 @@
   `_run_song_level_tail(assembled_audio, …)`-Aufruf am Ende von `_restore_chunked`;
   per-Chunk-restore() erhält einen Flag, der diese Blöcke überspringt. Chunk-lokal
   bleiben: Strength-Envelope, Phasen-Loop, FC-Iterationen, PMGG.
+- **Status 2026-09-08: TEILWEISE UMGESETZT (Slice A: End-Gate-Kaskade).**
+  `_should_run_end_gate_cascade()` + Kwargs `_chunked_tail_skip`/`_chunked_last`;
+  im Chunked-Pfad läuft die End-Gate-Recovery-Kaskade nur noch auf dem letzten Chunk
+  (m1b führt sie song-global aus). Entscheidungsmatrix-Test
+  `tests/unit/test_p0_1_end_gate_chunking.py` (9 Fälle). Volle `_run_song_level_tail`-
+  Extraktion (Blöcke a–d) bleibt für die Folge-Session (Monolith-Surgery, 9500-Zeilen-Tail).
 - **Akzeptanz:** 224-s-Referenzlauf ≤ 40 min Gesamtlaufzeit; 3-Zellen-Output bleibt bit-identisch
   (Determinismus §G5); alle song-globalen Gates laufen nachweislich auf dem assemblierten Song.
 
@@ -96,15 +102,19 @@
 - **Akzeptanz:** Studienbericht + statistische Auswertung im Repo; GPU-A/B-Bit-Identität oder dokumentierte
   tolerierte Abweichung.
 
-## TODO-P2-1 · Hygiene: UTF-16-Bereinigung + Monolith-Hinweis
+## TODO-P2-1 · Hygiene: UTF-16-Bereinigung + Monolith-Hinweis — ERLEDIGT 2026-09-08 (Guard-Teil)
 
-- **Ziel:** UTF-16/UTF-16LE-kodierte Code-Teile in `backend/core/` nach UTF-8 konvertieren (brechen
-  grep-basierte CI-Scans); Refactor-Plan für das 45.309-Zeilen-God-Object `unified_restorer_v3.py`
-  (Budget-, Gate-, Recovery-, Chunk-Logik getrennt) skizzieren.
-- **Wirkung:** CI-Scans greifen wieder; Konsistenz-Lücken (Tiefenanalyse Abschnitt C) werden strukturell
-  seltener.
-- **Beleg:** Tiefenanalyse Methodik-Absatz; `unified_restorer_v3.py`.
-- **Akzeptanz:** `file` meldet UTF-8 für alle .py; Refactor-Plan als Doc, keine Verhaltensänderung.
+- **Befund (gemessen 2026-09-08):** Alle 3175 getrackten Textdateien sind valides UTF-8;
+  0 UTF-16-Dateien, 0 BOMs, 0 invalide Sequenzen. Das früher beobachtete „UTF-16-Garble“
+  war ein Anzeige-Artefakt des Tool-Kanals (UTF-8-Bytes werden in manchen Ausgaben als
+  UTF-16LE fehlinterpretiert — per Hex-Analyse belegt), kein Repo-Zustand.
+- **Umgesetzt:** `scripts/utf8_hygiene_check.py` (fail-closed: R1 UTF-16/32-BOM,
+  R2 invalide UTF-8-Sequenzen, R3 NUL-Byte-Fenster ≥10 % je 2-KiB-Fenster, auch in
+  Dateien < 2 KiB) + Pre-Commit-Hook `aurik-utf8-hygiene` + FILE_REGISTRY-Eintrag +
+  Drift-Baseline nachgezogen. Negativtest: BOM-Datei und BOM-lose UTF-16LE-Datei → EXIT 1.
+- **Offen (Folge-Session):** Refactor-Plan für das 45.309-Zeilen-God-Object
+  `unified_restorer_v3.py` (Budget-, Gate-, Recovery-, Chunk-Logik getrennt) als Doc skizzieren.
+- **Akzeptanz (erfüllt):** `file` meldet UTF-8 für alle .py; Guard verhindert Regressionen.
 
 ---
 
