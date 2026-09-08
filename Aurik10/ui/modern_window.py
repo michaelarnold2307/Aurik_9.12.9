@@ -134,6 +134,17 @@ def _sanitize_qss_colors(style: str, *, fallback: str = "#7B93B8") -> str:
     return _QSS_COLOR_TOKEN_RE.sub(_replace, str(style))
 
 
+def _de_num(value: float, digits: int = 2) -> str:
+    """Formatiert eine Zahl mit deutschem Dezimalkomma (42,50 statt 42.50).
+
+    Eine Quelle der Wahrheit fuer alle nutzersichtbaren Prozent-/Zahltexte:
+    Der Rest der GUI formatiert deutsch ("26,88 %"), daher muessen auch
+    Queue-Liste, Smooth-Bar-Fallback und Chip-Schweregrade Komma nutzen —
+    sonst flackert/wechselt das Dezimaltrennzeichen je nach Code-Pfad.
+    """
+    return f"{float(value):.{max(0, int(digits))}f}".replace(".", ",")
+
+
 def _open_with_system_default(target: str) -> None:
     """Öffnet a file or URL with the system default handler."""
     if sys.platform.startswith("linux"):
@@ -10067,7 +10078,7 @@ class DefectStoryWidget(QFrame):
                 # Override icon and color for the defect being worked on right now
                 # Blu-ray disc read-side iridescent metallic blue-violet
                 icon = "🔧"
-                sev_txt = f"{sev_f:.2f}%"
+                sev_txt = f"{_de_num(sev_f)}%"
                 sev_color = "#7BA8EE"
             elif status == "completed" and sev_f <= 1.0:
                 icon = "✅"
@@ -10075,19 +10086,19 @@ class DefectStoryWidget(QFrame):
                 sev_color = "#78C99B"
             elif sev_f >= 50.0:
                 icon = "🔴"
-                sev_txt = f"{sev_f:.2f}%"
+                sev_txt = f"{_de_num(sev_f)}%"
                 sev_color = "#E06D6D"
             elif sev_f >= 15.0:
                 icon = "🟠"
-                sev_txt = f"{sev_f:.2f}%"
+                sev_txt = f"{_de_num(sev_f)}%"
                 sev_color = "#D7B25A"
             elif sev_f >= 0.01:
                 icon = "🟡"
-                sev_txt = f"{sev_f:.2f}%"
+                sev_txt = f"{_de_num(sev_f)}%"
                 sev_color = "#AFCF72"
             else:
                 icon = "⚪"
-                sev_txt = "0.00%"
+                sev_txt = "0,00%"
                 sev_color = "#7F8FA6"
 
             when_txt = status_text
@@ -11265,7 +11276,7 @@ class ModernProgressBar(QProgressBar):
         mx = self.maximum()
         if mx > 0:
             pct = value * 100.0 / mx
-            super().setFormat(f"{pct:.2f} %")
+            super().setFormat(f"{_de_num(pct)} %")
         else:
             super().setFormat("")
 
@@ -17184,7 +17195,7 @@ class ModernMainWindow(QMainWindow):
         _bar.setVisible(True)
 
         if _preanalysis_pending:
-            _pct_fmt = f"{_p:.1f}".replace(".", ",") if _p < 99.95 else "100,0"
+            _pct_fmt = _de_num(_p, 1) if _p < 99.95 else "100,0"
             _pct_int = int(_p) if _p < 99.8 else 100
 
             # Datei wird noch geladen — Bar bleibt im Lade-Modus, kein Scan-Text
@@ -20173,7 +20184,7 @@ class ModernMainWindow(QMainWindow):
             self.progress_bar.setValue(min(_overall_bp, _cur_bp + _step))
             self.progress_bar.setVisible(True)
 
-        _pct_de = f"{_overall_pct:.1f}".replace(".", ",")
+        _pct_de = _de_num(_overall_pct, 1)
         _eta_str = ""
         _eta_deadline = getattr(self, "_eta_deadline", 0.0)
         if _eta_deadline > 0:
@@ -20316,7 +20327,7 @@ class ModernMainWindow(QMainWindow):
         if hasattr(self, "progress_bar") and self.progress_bar.maximum() > 0:
             self.progress_bar.setRange(0, 10000)
             self.progress_bar.setValue(min(10000, _bp))
-            self.progress_bar.setFormat(f"{_overall:.1f} %")
+            self.progress_bar.setFormat(f"{_de_num(_overall, 1)} %")
             self.progress_bar.setVisible(True)
 
         # Phasenbalken (orange): _hb_frac als Prozent
@@ -20549,7 +20560,7 @@ class ModernMainWindow(QMainWindow):
                             if hasattr(self, "progress_bar"):
                                 _overall_pct = self.progress_bar.value() / 100.0
                                 _eta_short = self._format_eta_short(_rem)
-                                _pct_de = f"{_overall_pct:.2f}".replace(".", ",")
+                                _pct_de = _de_num(_overall_pct)
                                 if _def_suffix:
                                     self.progress_bar.setFormat(
                                         t(
@@ -20586,7 +20597,7 @@ class ModernMainWindow(QMainWindow):
                             # Keine ETA verfügbar — nur Prozentzahl anzeigen
                             if hasattr(self, "progress_bar"):
                                 _overall_pct = self.progress_bar.value() / 100.0
-                                _pct_de = f"{_overall_pct:.2f}".replace(".", ",")
+                                _pct_de = _de_num(_overall_pct)
                                 self.progress_bar.setFormat(t(f"progress.{_progress_mode}_pct", pct=_pct_de))
 
                         # Repair-Hint robust gegen Drift: Kandidaten aus Callback UND
@@ -20751,7 +20762,7 @@ class ModernMainWindow(QMainWindow):
         self._last_item_progress_done = _done
         self.progress_bar.setValue(val)
         # Always show decimal percentage
-        _pct_de = f"{_overall_pct:.2f}".replace(".", ",")
+        _pct_de = _de_num(_overall_pct)
         self.progress_bar.setFormat(f"{_pct_de} %")
         # Begründung: _tick_heartbeat hat Zugriff auf _eta_deadline UND _defect_progress_state
         # und berechnet _overall_pct konsistent aus dem tatsächlichen Bar-Wert.
@@ -20781,7 +20792,7 @@ class ModernMainWindow(QMainWindow):
                 if list_item.data(Qt.ItemDataRole.UserRole) == item_id:
                     _q_item = self.batch_queue.get_item(item_id)
                     if _q_item is not None:
-                        list_item.setText(f"⏳ {Path(_q_item.input_file).name} ({progress / 100:.2f}%)")
+                        list_item.setText(f"⏳ {Path(_q_item.input_file).name} ({_de_num(progress / 100)} %)")
 
     def _on_item_finished(self, item_id):
         """Handle item completion — Queue-Update + Stats.

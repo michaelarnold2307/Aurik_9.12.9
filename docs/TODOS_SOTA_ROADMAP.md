@@ -242,6 +242,24 @@
 - **Akzeptanz:** Alle vier Entscheidungsketten sind headless-verifiziert; künftige
   Änderungen an Farben/Tasten/Presets/Fehlertexten brechen sofort einen Test.
 
+## TODO-P1-12 · Nutzersichtbare Dezimalformate der Live-Anzeige vereinheitlicht (§GUI-T5) — UMGESETZT 2026-09-08
+
+- **Befund:** Während der Restaurierung zeigt die GUI Prozentwerte an mehreren Stellen.
+  Queue-Liste (`⏳ datei (26.88%)`), Smooth-Bar-Fallback (`26.88 %`) und ein
+  Heartbeat-Prognose-Pfad (`55.0 %`) formatierten mit **Punkt**-Dezimaltrenner, während
+  Hauptbalken und Status-Texte überall **Komma** („26,88 %“) nutzten — je nach Code-Pfad
+  flackert/wechselt das Dezimaltrennzeichen in derselben Anzeige (deutsche Oberfläche).
+  Zusätzlich Defekt-Chip-Schweregrade (`12.34%`/`0.00%`) mit Punkt.
+- **Lösung (§GUI-T5):** Pure Modul-Funktion `_de_num(value, digits=2)` als **eine Quelle
+  der Wahrheit** in `Aurik10/ui/modern_window.py`; umgestellt: `ModernProgressBar.
+  _set_value_immediately`, `_tick_uv3_simple_progress`-setFormat, Queue-Listen-Eintrag
+  in `_on_item_progress`, Defekt-Chip-Schweregrade (`sev_txt`); 5 verbliebene
+  `.replace(".", ",")`-Duplikate konsolidiert (verhaltensneutral).
+- **Beleg:** `tests/unit/test_gui_live_display_decimal_format.py` (8 Fälle: Verhalten der
+  puren Funktion + Quelltext-Invarianten, dass kein Live-Pfad mehr Punkt formatiert und
+  kein replace-Duplikat außerhalb `_de_num` existiert); GUI-Suiten 148 passed, 11 skipped.
+- **Akzeptanz:** Kein nutzersichtbarer Live-Text nutzt mehr Punkt-Dezimaltrenner; künftige
+  Punkt-Formatierung im Fortschritts-/Chip-Pfad bricht sofort einen Test.
 ## TODO-P2-1 · Hygiene: UTF-16-Bereinigung + Monolith-Hinweis — ERLEDIGT 2026-09-08 (Guard-Teil)
 
 - **Befund (gemessen 2026-09-08):** Alle 3175 getrackten Textdateien sind valides UTF-8;
