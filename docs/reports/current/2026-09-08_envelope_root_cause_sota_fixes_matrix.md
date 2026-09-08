@@ -142,3 +142,35 @@ Vorgängige Session-Commits (Kontext): `d28b0890` Material-Veto/Forensik, `b5752
 - `backend/core/residuum_masking.py` — np.ndarray-Annotationen (mypy)
 - `conftest.py` — getoption-Normalisierung
 - Tests: `test_b3_full_song_defect_merge.py`, `test_fc_hoerordnung_pre_filter.py`, `test_inviting_gate_repair_exemption.py`, `test_chunked_processor_v1.py` (Kalibrierung)
+
+---
+
+## 10. Tiefenanalyse: Vorgaben/Specs vs. technologisches SOTA 2026 (unabhängiger Review)
+
+Unabhängiger Spezialisten-Review (nur lesend) der normativen Kette gegen den SOTA-Stand 2026.
+Kernbefunde (Belege als Pfad:Zeile im Originalreport):
+
+1. **Budget-Wahrheit (P0):** Drei unvereinbare Budget-Zahlen — Performance-Budget-Tabelle
+   240 s/min (`copilot-instructions.md`), PerformanceGuard 32× RT (`performance_guard.py:120–130`),
+   Realität 53× RT (Matrix Zellen 1–3). `add_analytics_overhead()` verschleiert Messzeit statt
+   sie zu lösen. Qualitäts-Spec (CREPE-full + MERT + PANNs + AST + CLAP + measure_all je Chunk)
+   ist mit dem Budget strukturell unvereinbar.
+2. **Zwei divergente Tier-Maps (P0):** `PRIORITY_MAP` (brillanz=5, spatial_depth=5) vs.
+   `HEARING_TIER_MAP` (brillanz=4, spatial_depth=4) in `goal_priority_protocol.py:39–84` —
+   WohlklangOrdnungGate prüft über `hearing_tier()`, der FeedbackChain-Abort über `priority_of()`
+   → unterschiedliche Gewinner bei identischem Konflikt. Plus Goal-Namensraum-Drift
+   (timbre/timbre_authentizitaet, raumtiefe/spatial_depth).
+3. **Fehlende 2025/26-SOTA-Modelle (P1):** VS-1/GSEP (SongEval-Gewinner) fehlt im Router
+   (BS-RoFormer → Demucs v4 → MDX23C); Demucs v5 fehlt; SGMSE+ als Dereverber zweckentfremdet
+   statt als Declipper; BWE nutzt FlashSR statt BandIt/GRASS; „WPE ist SOTA"-These überholt.
+4. **Audibility nicht durchgängig (P1):** Formant-/Wärme-/Onset-Guards laufen auf fixen
+   dB-Schwellen statt JND/Masking (nur NR-Guard + residuum_masking nutzen echte Maskierung).
+5. **Keine externe Hörvalidierung:** Spec 15 dokumentiert selbst „null menschliche Hörer,
+   null Blindstudien“ (`15_world_class_gap_closure.md §15.10`).
+6. **5 konkrete Spec-Widersprüche:** §G4 (CD-Rauschprofil) vs. §V9; Balanced „3× RT“ vs. Code 32×;
+   §0a-verbotene Phase in Guard-Tabelle; veraltete Scout-Spec vs. v10.19-Roadmap; UTF-16-kodierte
+   Code-Teile (brechen grep-basierte CI-Scans) + 45k-Zeilen-God-Object `unified_restorer_v3.py`.
+
+**Top-5-Empfehlungen:** (1) Budget-Wahrheit: 32×→~60× oder Analytik von per-Chunk auf einmal je
+Song; (2) Tier-Map-Sync + RELEASE_MUST-Gate; (3) Separation auf VS-1/GSEP + Demucs v5; (4)
+Audibility auf alle Schwellwert-Guards; (5) externe Hörvalidierung + GPU-A/B-Kalibration.
