@@ -112,7 +112,12 @@
 
 - **Session-Report:** `docs/reports/current/2026-09-08_envelope_root_cause_sota_fixes_matrix.md`
   (Abschnitt 10 = Tiefenanalyse; Abschnitte 1–9 = Root-Cause + Fixes + Matrix).
-- **Matrix-Ergebnis (3 Zellen, gleicher Clip):** bit-identischer Output (MD5 `765c3f54…`),
+- **Matrix-Ergebnis (3 Zellen, gleicher Clip) — ABGESCHLOSSEN 2026-09-08:**
+  3× EXIT=0, 3× bit-identischer Output (MD5 765c3f544c279f205d32288eef5db95c),
+  Envelope μ=0.815 σ=0.081 (7 Chunks, nie mehr degeneriert), Einladungs-Gate:
+  Zelle 1 (Baseline) 8× NICHT BESTANDEN → Zellen 2+3 (Fix-Stand) 8× BESTANDEN
+  (8 Exemptions an Reparaturstellen, raw 0.562 → effektiv 0.193), Laufzeit
+  3 h 19–38 min je Zelle (P0-1 zielt auf ≤40 min). bit-identischer Output (MD5 `765c3f54…`),
   Envelope μ=0.815 σ=0.081 (vor Fix μ=0.060 σ=0.000), Einladungs-Gate BESTANDEN nach
   Reparatur-Exemption (raw 0.562 → effektiv 0.193), Laufzeit 3 h 19–38 min je Zelle.
 - **Bereits umgesetzt (nicht neu machen):** B3-Early-Merge-Fix, `_flow_meta`-Spiegel,
