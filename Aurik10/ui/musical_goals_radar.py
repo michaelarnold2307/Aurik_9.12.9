@@ -318,22 +318,24 @@ class MusicalGoalsRadarWidget(QWidget):
             bar_rect = self._bar_rect(idx)
             t = g.adaptive_threshold if g.adaptive_threshold >= 0 else g.threshold
 
-            # Determine status color
-            if not g.applicable:
-                color = COLOR_NA
-                bar_bg = _BAR_BG_NA
-            elif g.synthesized:
-                color = COLOR_SYNTH
-                bar_bg = QColor(200, 100, 230, 35)
-            elif g.score >= t + 0.04:
-                color = COLOR_PASS
-                bar_bg = _BAR_BG_PASS
-            elif g.score >= t:
-                color = COLOR_WARN
-                bar_bg = _BAR_BG_WARN
-            else:
-                color = COLOR_FAIL
-                bar_bg = _BAR_BG_FAIL
+            # Determine status color — §GUI-T1: pure Entscheidungslogik nutzen
+            _state = goal_bar_state(g.score, t, applicable=g.applicable, synthesized=g.synthesized)
+            _state_color = {
+                "na": COLOR_NA,
+                "synth": COLOR_SYNTH,
+                "pass": COLOR_PASS,
+                "warn": COLOR_WARN,
+                "fail": COLOR_FAIL,
+            }
+            _state_bg = {
+                "na": _BAR_BG_NA,
+                "synth": QColor(200, 100, 230, 35),
+                "pass": _BAR_BG_PASS,
+                "warn": _BAR_BG_WARN,
+                "fail": _BAR_BG_FAIL,
+            }
+            color = _state_color[_state]
+            bar_bg = _state_bg[_state]
 
             # Hover highlight
             is_hovered = idx == self._hovered_idx
@@ -345,16 +347,7 @@ class MusicalGoalsRadarWidget(QWidget):
                 )
 
             # ── Status icon (vector) ──
-            if g.synthesized:
-                _ik = "synth"
-            elif not g.applicable:
-                _ik = "na"
-            elif g.score >= t + 0.04:
-                _ik = "pass"
-            elif g.score >= t:
-                _ik = "warn"
-            else:
-                _ik = "fail"
+            _ik = _state
             _icx = self._PAD_X + self._ICON_W * 0.5
             _icy = y + self._ROW_H * 0.5
             _ir = min(self._ICON_W, self._ROW_H) * 0.38
@@ -576,13 +569,26 @@ class MusicalGoalsRadarWidget(QWidget):
         self.update()
 
 
-def apply_restoration_result(
-    widget: MusicalGoalsRadarWidget,
-    result: object,
-) -> None:
+def goal_bar_state(score: float, threshold: float, *, applicable: bool = True, synthesized: bool = False) -> str:
+    """§GUI-T1: Reine Entscheidungslogik der Balken-Farbe (headless-testbar).
+
+    Reihenfolge entspricht _draw_bars: n/a > synth > pass > warn > fail.
+    Rückgabe: Zustands-String, der 1:1 auch als Icon-Art dient.
     """
-    Liest ein RestorationResult-Objekt aus und aktualisiert das Radar-Widget.
-    Versteht alle in der Spec definierten Felder (graceful degradation wenn fehlen).
+    if not applicable:
+        return "na"
+    if synthesized:
+        return "synth"
+    if score >= threshold + 0.04:
+        return "pass"
+    if score >= threshold:
+        return "warn"
+    return "fail"
+
+
+def build_radar_update_payload(result: object) -> dict[str, Any]:
+    """§GUI-T1: Reine Extraktion der Radar-Daten aus einem RestorationResult
+    (headless-testbar, kein Qt). Graceful degradation bei fehlenden Feldern.
     """
     # 1. Musical Goals Scores
     scores: dict[str, float] = {}
@@ -647,14 +653,25 @@ def apply_restoration_result(
                         val = max(0.0, min(100.0, val)) / 100.0
                     scores[k] = val
 
-    widget.update_scores(
-        scores=scores,
-        adaptive_thresholds=adaptive if adaptive else None,
-        applicable_goals=applicable,
-        inapplicable_reasons=inapplicable_reasons,
-        synthesized_goals=synthesized if synthesized else None,
-        adaptation_reasons=adapt_reasons if adapt_reasons else None,
-    )
+    return {
+        "scores": scores,
+        "adaptive_thresholds": adaptive if adaptive else None,
+        "applicable_goals": applicable,
+        "inapplicable_reasons": inapplicable_reasons,
+        "synthesized_goals": synthesized if synthesized else None,
+        "adaptation_reasons": adapt_reasons if adapt_reasons else None,
+    }
+
+
+def apply_restoration_result(
+    widget: MusicalGoalsRadarWidget,
+    result: object,
+) -> None:
+    """
+    Liest ein RestorationResult-Objekt aus und aktualisiert das Radar-Widget.
+    Versteht alle in der Spec definierten Felder (graceful degradation wenn fehlen).
+    """
+    widget.update_scores(**build_radar_update_payload(result))
 
 
 def create_musical_goals_radar_scrollarea(parent: QWidget | None = None) -> QScrollArea:
