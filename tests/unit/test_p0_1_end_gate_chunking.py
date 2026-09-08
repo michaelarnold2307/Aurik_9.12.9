@@ -1,4 +1,5 @@
-"""§P0-1 Song-Ebene-Analytik — Entscheidungsmatrix der End-Gate-Kaskade.
+"""§P0-1 Song-Ebene-Analytik — Entscheidungsmatrix der End-Gate-Kaskade
++ Einladungs-Gate-Messung (Block b) + measure_all-Skip (Block a1).
 
 Im Chunked-Pfad läuft die End-Gate-Recovery-Kaskade nur auf dem letzten
 Chunk; die Stufe-2-Nachbehandlung (m1b) führt sie einmal auf dem
@@ -8,9 +9,13 @@ bit-identisch zum bisherigen Stand.
 
 from __future__ import annotations
 
+import sys
+import types
+
+import numpy as np
 import pytest
 
-from backend.core.unified_restorer_v3 import _should_run_end_gate_cascade, UnifiedRestorerV3
+from backend.core.unified_restorer_v3 import UnifiedRestorerV3, _should_run_end_gate_cascade
 
 
 class _FakeChecker:
@@ -82,3 +87,33 @@ def test_measure_goals_for_tail_normal_path() -> None:
     result = restorer._measure_goals_for_tail(checker, [0.0] * 100, 48000, None, "cd_digital")
     assert result == {"brillanz": 0.5}
     assert len(checker.calls) == 1
+
+
+def test_inviting_gate_skip_returns_none() -> None:
+    """§P0-1 (b): skip=True → keine Messung, kein Import-Aufwand."""
+    restorer = UnifiedRestorerV3.__new__(UnifiedRestorerV3)
+    restorer._restoration_context = {}
+    assert restorer._run_inviting_gate_measure(np.zeros(100, dtype=np.float32), 48000, None, skip=True) is None
+
+
+def test_inviting_gate_measure_stubbed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """§P0-1 (b): Messpfad liefert das Context-Dict (Modul-Stub)."""
+    mod = types.ModuleType("backend.core.inviting_sound_gate")
+
+    class _Res:
+        passed = True
+        max_asper_in_voice = 0.01
+        sharpness_jump_max = 0.1
+        details = {"sharpness_jump_raw_max": 0.2, "exempted_jumps": 3, "failures": []}
+        fatigue_abort = False
+        n_windows = 4
+
+    mod.check_inviting_gate = lambda *a, **k: _Res()  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "backend.core.inviting_sound_gate", mod)
+    restorer = UnifiedRestorerV3.__new__(UnifiedRestorerV3)
+    restorer._restoration_context = {"singing_mask": None}
+    ctx = restorer._run_inviting_gate_measure(np.zeros(1000, dtype=np.float32), 48000, None)
+    assert ctx is not None
+    assert ctx["passed"] is True
+    assert ctx["n_windows"] == 4
+    assert ctx["exempted_jumps"] == 3

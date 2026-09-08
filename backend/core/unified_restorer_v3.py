@@ -17350,77 +17350,15 @@ class UnifiedRestorerV3:
         # positiver psychoakustischer Nachweis (Roughness-Spitzen, Sharpness-
         # Sprünge, Ermüdung). Advisory-first: loggt + markiert, kein harter
         # Export-Stopp; fatigue_abort beendet Optimierungsschleifen.
-        try:
-            from backend.core.inviting_sound_gate import check_inviting_gate as _check_inviting
-
-            _fatigue_idx = 0.0
-            try:
-                from backend.core.experience_runtime import get_experience_runtime as _get_xprt
-
-                _fatigue_idx = float(getattr(_get_xprt(), "fatigue_index", 0.0) or 0.0)
-            except Exception as _fat_exc:
-                logger.debug("Ermüdungs-Index nicht verfügbar: %s", _fat_exc)
-            # §Reparatur-Fenster (2026-09-07): Defect-Locations (Full-Song-absolut)
-            # auf den aktuellen Chunk verschieben — Sharpness-Sprünge an echten
-            # Reparaturstellen sind beabsichtigt und werden vom Gate ausgenommen.
-            _repair_windows_inv: list[tuple[float, float]] = []
-            try:
-                _ctx_inv = getattr(self, "_restoration_context", None) or {}
-                _cso_inv = float((_ctx_inv or {}).get("chunk_start_sample", 0) or 0) / max(float(sample_rate), 1.0)
-                _scores_inv = getattr(defect_result, "scores", None)
-                if isinstance(_scores_inv, dict):
-                    for _dtx_inv, _dsx_inv in _scores_inv.items():
-                        if float(getattr(_dsx_inv, "severity", 0.0) or 0.0) < 0.20:
-                            continue
-                        for (_a_inv, _b_inv) in (getattr(_dsx_inv, "locations", None) or []):
-                            _a_s_inv = float(_a_inv) - _cso_inv
-                            _b_s_inv = float(_b_inv) - _cso_inv
-                            if _b_s_inv > 0.0:
-                                _repair_windows_inv.append((max(0.0, _a_s_inv), _b_s_inv))
-            except Exception as _rw_exc:
-                _repair_windows_inv = []
-                logger.debug("Reparatur-Fenster nicht verfügbar: %s", _rw_exc)
-            _inviting_res = _check_inviting(
-                restored_audio,
-                sample_rate,
-                singing_mask=(getattr(self, "_restoration_context", None) or {}).get("singing_mask"),
-                fatigue_index=_fatigue_idx,
-                repair_windows=_repair_windows_inv or None,
-            )
-            if isinstance(getattr(self, "_restoration_context", None), dict):
-                self._restoration_context["inviting_gate"] = {
-                    "passed": bool(_inviting_res.passed),
-                    "max_asper_in_voice": round(float(_inviting_res.max_asper_in_voice), 4),
-                    "sharpness_jump_max": round(float(_inviting_res.sharpness_jump_max), 4),
-                    "sharpness_jump_raw_max": round(
-                        float(_inviting_res.details.get("sharpness_jump_raw_max", 0.0)), 4
-                    ),
-                    "exempted_jumps": int(_inviting_res.details.get("exempted_jumps", 0)),
-                    "fatigue_abort": bool(_inviting_res.fatigue_abort),
-                    "n_windows": int(_inviting_res.n_windows),
-                }
-            if _inviting_res.passed:
-                logger.info(
-                    "🎧 Einladungs-Gate: BESTANDEN (max_asper=%.3f, sharpness_sprung=%.3f, fenster=%d)",
-                    _inviting_res.max_asper_in_voice,
-                    _inviting_res.sharpness_jump_max,
-                    _inviting_res.n_windows,
-                )
-            else:
-                logger.warning(
-                    "🎧 Einladungs-Gate: NICHT BESTANDEN — %s (max_asper=%.3f, sharpness_sprung=%.3f)",
-                    ", ".join(_inviting_res.details.get("failures", []) or ["unbekannt"]),
-                    _inviting_res.max_asper_in_voice,
-                    _inviting_res.sharpness_jump_max,
-                )
-            if _inviting_res.fatigue_abort:
-                logger.warning(
-                    "🎧 Einladungs-Gate: Ermüdungsindex %.2f > %.2f — Optimierungsschleifen beendet (Hörordnung §6)",
-                    _fatigue_idx,
-                    0.40,
-                )
-        except Exception as _inviting_exc:
-            logger.debug("Einladungs-Gate nicht verfügbar (nicht blockierend): %s", _inviting_exc)
+        # §P0-1 (b): reine Analytik — im Chunked-Pfad nur auf dem letzten Chunk.
+        _inviting_ctx = self._run_inviting_gate_measure(
+            restored_audio,
+            sample_rate,
+            defect_result,
+            skip=bool(_chunked_tail_skip and not _chunked_last),
+        )
+        if _inviting_ctx is not None and isinstance(getattr(self, "_restoration_context", None), dict):
+            self._restoration_context["inviting_gate"] = _inviting_ctx
 
         # §Bug2-Fix: phase_12 wow/flutter and phase_31 speed/pitch can change audio length
         # by ~108 samples (2.25 ms @ 48 kHz).  A length mismatch causes MDEM, correct_arc
@@ -18087,6 +18025,12 @@ class UnifiedRestorerV3:
         # §8.1 Reporting-Analytik: MUSHRA, Artefakt-Analyse, Qualitätsvergleich
         # und >80 weitere Diagnose-Module (analytics-only, kein Audio-Eingriff)
         if _safe_validation_profile:
+            _analytics_meta = {}
+        elif _chunked_tail_skip and not _chunked_last:
+            # §P0-1 (c): _collect_reporting_analytics ist reine Song-Analytik
+            # (MQA/MUSHRA/HPI — kein Audio-Eingriff). Im Chunked-Pfad nur auf
+            # dem letzten Chunk; dessen Metadaten werden in _restore_chunked
+            # als analytics_last_chunk propagiert.
             _analytics_meta = {}
         else:
             _analytics_meta = self._collect_reporting_analytics(
@@ -44932,6 +44876,95 @@ class UnifiedRestorerV3:
             if _ctx_shift is not None and isinstance(getattr(self, "_restoration_context", None), dict):
                 self._restoration_context["chunk_start_sample"] = _ctx_shift
 
+    def _run_inviting_gate_measure(
+        self,
+        restored_audio: np.ndarray,
+        sample_rate: int,
+        defect_result: Any | None,
+        *,
+        skip: bool = False,
+    ) -> dict | None:
+        """§P0-1 (b): Einladungs-Gate-Messung als Methode (Hörordnung §6).
+
+        Reine Analytik (Roughness/Sharpness/Ermüdung — kein Audio-Eingriff);
+        im Chunked-Pfad nur auf dem letzten Chunk. Rückgabe: Context-Dict
+        für self._restoration_context["inviting_gate"] oder None.
+        """
+        if skip:
+            return None
+        try:
+            from backend.core.inviting_sound_gate import check_inviting_gate as _check_inviting
+
+            _fatigue_idx = 0.0
+            try:
+                from backend.core.experience_runtime import get_experience_runtime as _get_xprt
+
+                _fatigue_idx = float(getattr(_get_xprt(), "fatigue_index", 0.0) or 0.0)
+            except Exception as _fat_exc:
+                logger.debug("Ermüdungs-Index nicht verfügbar: %s", _fat_exc)
+            # §Reparatur-Fenster (2026-09-07): Defect-Locations (Full-Song-absolut)
+            # auf den aktuellen Chunk verschieben — Sharpness-Sprünge an echten
+            # Reparaturstellen sind beabsichtigt und werden vom Gate ausgenommen.
+            _repair_windows_inv: list[tuple[float, float]] = []
+            try:
+                _ctx_inv = getattr(self, "_restoration_context", None) or {}
+                _cso_inv = float((_ctx_inv or {}).get("chunk_start_sample", 0) or 0) / max(float(sample_rate), 1.0)
+                _scores_inv = getattr(defect_result, "scores", None)
+                if isinstance(_scores_inv, dict):
+                    for _dtx_inv, _dsx_inv in _scores_inv.items():
+                        if float(getattr(_dsx_inv, "severity", 0.0) or 0.0) < 0.20:
+                            continue
+                        for (_a_inv, _b_inv) in (getattr(_dsx_inv, "locations", None) or []):
+                            _a_s_inv = float(_a_inv) - _cso_inv
+                            _b_s_inv = float(_b_inv) - _cso_inv
+                            if _b_s_inv > 0.0:
+                                _repair_windows_inv.append((max(0.0, _a_s_inv), _b_s_inv))
+            except Exception as _rw_exc:
+                _repair_windows_inv = []
+                logger.debug("Reparatur-Fenster nicht verfügbar: %s", _rw_exc)
+            _inviting_res = _check_inviting(
+                restored_audio,
+                sample_rate,
+                singing_mask=(getattr(self, "_restoration_context", None) or {}).get("singing_mask"),
+                fatigue_index=_fatigue_idx,
+                repair_windows=_repair_windows_inv or None,
+            )
+            _inviting_ctx: dict[str, Any] = {
+                "passed": bool(_inviting_res.passed),
+                "max_asper_in_voice": round(float(_inviting_res.max_asper_in_voice), 4),
+                "sharpness_jump_max": round(float(_inviting_res.sharpness_jump_max), 4),
+                "sharpness_jump_raw_max": round(
+                    float(_inviting_res.details.get("sharpness_jump_raw_max", 0.0)), 4
+                ),
+                "exempted_jumps": int(_inviting_res.details.get("exempted_jumps", 0)),
+                "fatigue_abort": bool(_inviting_res.fatigue_abort),
+                "n_windows": int(_inviting_res.n_windows),
+            }
+            if _inviting_res.passed:
+                logger.info(
+                    "🎧 Einladungs-Gate: BESTANDEN (max_asper=%.3f, sharpness_sprung=%.3f, fenster=%d)",
+                    _inviting_res.max_asper_in_voice,
+                    _inviting_res.sharpness_jump_max,
+                    _inviting_res.n_windows,
+                )
+            else:
+                logger.warning(
+                    "🎧 Einladungs-Gate: NICHT BESTANDEN — %s (max_asper=%.3f, sharpness_sprung=%.3f)",
+                    ", ".join(_inviting_res.details.get("failures", []) or ["unbekannt"]),
+                    _inviting_res.max_asper_in_voice,
+                    _inviting_res.sharpness_jump_max,
+                )
+            if _inviting_res.fatigue_abort:
+                logger.warning(
+                    "🎧 Einladungs-Gate: Ermüdungsindex %.2f > %.2f — Optimierungsschleifen beendet (Hörordnung §6)",
+                    _fatigue_idx,
+                    0.40,
+                )
+            return _inviting_ctx
+        except Exception as _inviting_exc:
+            logger.debug("Einladungs-Gate nicht verfügbar (nicht blockierend): %s", _inviting_exc)
+            return None
+
     def _measure_goals_for_tail(
         self,
         mg_checker,
@@ -45172,6 +45205,7 @@ class UnifiedRestorerV3:
             _all_phases_exec: list = list(getattr(_first_result, "phases_executed", []) or [])
             _all_phases_skip: list = list(getattr(_first_result, "phases_skipped", []) or [])
             _chunk_count: int = 1
+            _last_result = _first_result  # §P0-1 (b/c): bei 1 Chunk ist Chunk 0 der letzte
 
             for i, (start, end) in enumerate(chunks[1:], 1):
                 # §Perf: Chunk-Series Look-Ahead für Pitch-Modelle (FCPE/RMVPE/CREPE)
@@ -45228,6 +45262,7 @@ class UnifiedRestorerV3:
                     _all_warnings.extend(getattr(_res, "warnings", []) or [])
                     _all_phases_exec.extend(getattr(_res, "phases_executed", []) or [])
                     _all_phases_skip.extend(getattr(_res, "phases_skipped", []) or [])
+                    _last_result = _res  # §P0-1 (b/c): Analytik-Metadaten des letzten Chunks
                     _chunk_count += 1
                 except Exception as _chunk_exc:
                     logger.error(
@@ -45380,6 +45415,14 @@ class UnifiedRestorerV3:
                 except Exception as _otec_exc:
                     logger.debug("§P1-8 OneTakeExport chunked nicht blockierend: %s", _otec_exc)
 
+            # §P0-1 (b): Einladungs-Gate einmal auf dem assemblierten Song
+            # (reine Analytik, kein Audio-Eingriff).
+            _inviting_song: dict | None = None
+            try:
+                _inviting_song = self._run_inviting_gate_measure(output, sample_rate, None)
+            except Exception as _invs_exc:
+                logger.debug("§P0-1 (b) Song-Einladungs-Gate nicht blockierend: %s", _invs_exc)
+
             # Cache-Cleanup
             try:
                 from backend.api.bridge import clear_defect_cache
@@ -45400,6 +45443,10 @@ class UnifiedRestorerV3:
             if _m1b_chunked_flag:
                 _meta["m1b_retry_applied"] = True
                 _meta["m1b_retry_types"] = list(_m1b_chunked_types)
+            if _last_result is not None:
+                _meta["analytics_last_chunk"] = dict(getattr(_last_result, "metadata", {}) or {})
+            if _inviting_song is not None:
+                _meta["inviting_gate_song_level"] = _inviting_song
 
             return RestorationResult(
                 audio=output,
