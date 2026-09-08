@@ -1152,6 +1152,12 @@ class WowFlutterFix(PhaseInterface):
             _timing_safe_strength * 0.70,  # flutter: 30 % more conservative
             max_stretch_delta=_max_stretch_delta * 0.60,  # narrower delta for fast variations
         )
+        # §AUTH-P12 (§v10.709-Befund 2026-09-08): Vibrato/Intonations-Bends der
+        # Performance sind authentischer Ausdruck — Flutter-Korrektur nur
+        # mechanisch plausibel anwenden (Root-Cause, §V7 kein Workaround).
+        _flutter_stretch = self._preserve_musical_modulation(
+            _flutter_stretch, pitch_trajectory, confidence, sample_rate
+        )
         # Blend: 55 % wow + 45 % flutter (wow is the dominant perceptual component)
         stretch_factors = _wow_stretch * 0.55 + _flutter_stretch * 0.45
         _locality_coverage = 0.0
@@ -3316,6 +3322,81 @@ class WowFlutterFix(PhaseInterface):
         )
 
         return stretch_factors  # type: ignore[no-any-return]
+
+    def _preserve_musical_modulation(
+        self,
+        flutter_stretch: np.ndarray,
+        pitch_trajectory: np.ndarray,
+        confidence: np.ndarray,
+        sample_rate: int,
+    ) -> np.ndarray:
+        """§AUTH-P12 (§v10.709-Befund 2026-09-08): Erhält Vibrato/Intonations-Bends.
+
+        Root-Cause: _flutter_stretch korrigiert das gesamte schnelle Pitch-Band
+        (4–100 Hz) einschließlich musikalischer Modulation (Vibrato 3.5–8 Hz,
+        Intonations-Bends) — authentizitaet (versa_similarity) fällt nach
+        Verarbeitungsschritt_12. Mechanischer Flutter ist global + flach,
+        musikalische Modulation lokal + tief (Vokal-Frames). Wo die musikalische
+        Modulationstiefe die Flutter-Korrektur dominiert, wird die Korrektur
+        proportional Richtung Identität zurückgenommen (max. 85 %) — Wow/
+        Flutter an mechanisch belasteten Stellen bleibt voll korrigiert.
+        Deterministisch, NaN/Inf-geschützt (§0a), keine neuen Abhängigkeiten.
+        """
+        sf = np.asarray(flutter_stretch, dtype=np.float64)
+        if sf.size < 8 or float(np.max(np.abs(sf - 1.0))) < 1e-4:
+            return np.asarray(flutter_stretch)
+        pt = np.asarray(pitch_trajectory, dtype=np.float64)
+        cf = np.asarray(confidence, dtype=np.float64)
+        n = int(min(len(sf), len(pt)))
+        if n < 8:
+            return np.asarray(flutter_stretch)
+        sf, pt, cf = sf[:n], pt[:n], cf[:n]
+        _valid = (np.isfinite(pt)) & (pt > 0.0) & (np.isfinite(cf)) & (cf > 0.3)
+        if not bool(_valid.any()):
+            return np.asarray(flutter_stretch)
+        _target = float(np.nanmedian(pt[_valid]))
+        if not np.isfinite(_target) or _target <= 1e-6:
+            return np.asarray(flutter_stretch)
+        _dev = np.where(_valid, pt / _target - 1.0, 0.0)
+        try:
+            from scipy.signal import savgol_filter
+
+            _hop = max(1, int(self.PITCH_WINDOW_MS * sample_rate / 1000) // int(self.PITCH_HOP_FACTOR))
+            _frame_rate = max(1.0, float(sample_rate) / _hop)
+            # Savitzky-Golay-Fenster ≈ 3-Hz-Grenze: trennt Wow (langsam) vom
+            # schnellen Flutter+Vibrato-Band
+            _win = int(round(_frame_rate / 3.0))
+            _win = max(5, _win if _win % 2 == 1 else _win + 1)
+            if _win >= n:
+                _win = n - 1 if (n - 1) % 2 == 1 else n - 2
+            if _win < 5:
+                return np.asarray(flutter_stretch)
+            _slow = savgol_filter(_dev, window_length=_win, polyorder=2, mode="interp")
+        except Exception as _savg_exc:
+            logger.debug("§AUTH-P12: Savitzky-Golay nicht verfügbar — keine Vibrato-Erhaltung: %s", _savg_exc)
+            return np.asarray(flutter_stretch)
+        _fast = _dev - _slow
+        _fast = np.nan_to_num(_fast, nan=0.0, posinf=0.0, neginf=0.0)
+        try:
+            from scipy.ndimage import uniform_filter1d
+
+            _fast_env = uniform_filter1d(np.abs(_fast), size=_win, mode="nearest")
+        except Exception:
+            _fast_env = np.abs(_fast)
+        _flutter_env = np.abs(sf - 1.0)
+        _eps = 1e-6
+        _w = np.clip(_fast_env / np.maximum(_flutter_env, _eps), 0.0, 1.0)
+        _preserved = 1.0 + (sf - 1.0) * (1.0 - 0.85 * _w)
+        _preserved = np.nan_to_num(_preserved, nan=1.0, posinf=1.0, neginf=1.0)
+        _preserved = np.clip(_preserved, 0.9, 1.1)
+        _preservation_ratio = float(np.clip(np.mean(_w), 0.0, 1.0))
+        if _preservation_ratio > 0.05:
+            logger.info(
+                "§AUTH-P12: Vibrato-Erhaltung aktiv — %.0f %% der Flutter-Korrektur "
+                "zugunsten musikalischer Modulation zurückgenommen",
+                _preservation_ratio * 100.0,
+            )
+        return _preserved.astype(flutter_stretch.dtype, copy=False)  # type: ignore[no-any-return]
 
     @staticmethod
     def _apply_defect_locality_to_stretch_factors(

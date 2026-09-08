@@ -106,6 +106,22 @@
 - **Akzeptanz:** Studienbericht + statistische Auswertung im Repo; GPU-A/B-Bit-Identität oder dokumentierte
   tolerierte Abweichung.
 
+## TODO-P1-5 · §v10.709 authentizitaet-Erhalt nach phase_12_wow_flutter_fix
+
+- **Befund (2026-09-08, Verifikationslauf P0-1):**
+  `WARNING §v10.709 Quality-Degradation #1 nach phase_12_wow_flutter_fix: ['authentizitaet']` —
+  die Flutter-Korrektur (4–100-Hz-Band, 45 % des Wow/Flutter-Blends) flacht auch
+  Vibrato/Intonations-Bends der Performance ab (authentizitaet = versa_similarity fällt).
+- **SOTA-Lösung (UMGESETZT 2026-09-08, §AUTH-P12):** `_preserve_musical_modulation()` in
+  `backend/core/phases/phase_12_wow_flutter_fix.py` — Root-Cause statt Workaround (§V7):
+  Wo die musikalische Modulationstiefe (Vibrato-Band, Vokal-Frames) die Flutter-Korrektur
+  dominiert, wird die Korrektur proportional Richtung Identität zurückgenommen (max. 85 %);
+  mechanischer Wow/Flutter bleibt voll korrigiert. Deterministisch, NaN/Inf-geschützt (§0a).
+- **Beleg:** `tests/unit/test_phase_12_musical_modulation_preservation.py` (6 Fälle, grün):
+  Vibrato → ≥60 % zurückgenommen, Wow-only → unverändert, Passthrough/NaN/Short-Guards.
+- **Akzeptanz:** Nächster Referenzlauf ohne §v10.709-authentizitaet-Warnung nach phase_12;
+  bit-identischer 3-Zellen-Output (Determinismus §G5); Wow/Flutter-Reduktion unverändert.
+
 ## TODO-P2-1 · Hygiene: UTF-16-Bereinigung + Monolith-Hinweis — ERLEDIGT 2026-09-08 (Guard-Teil)
 
 - **Befund (gemessen 2026-09-08):** Alle 3175 getrackten Textdateien sind valides UTF-8;
