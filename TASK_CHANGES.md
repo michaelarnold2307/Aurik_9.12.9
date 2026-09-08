@@ -1,14 +1,13 @@
 # TASK_CHANGES — Live-Ledger der aktuellen Aufgabe
 
-> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-08 18:45 CEST).
+> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-08 18:49 CEST).
 > CI (`ci-lite.yml` pr-evidence-gate) erzwingt Abdeckung: jede geänderte Code-Datei muss hier stehen.
 
 ## Geänderte Dateien
 
 | Status | Pfad | Art |
 |---|---|---|
-| M | Aurik10/ui/musical_goals_radar.py | modifiziert |
-| ?? | tests/unit/test_musical_goals_radar_logic.py | ungetrackt |
+| ?? | tests/unit/test_main_startup_contract.py | ungetrackt |
 
 ## Entscheidungen
 
