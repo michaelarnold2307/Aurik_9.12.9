@@ -122,6 +122,27 @@
 - **Akzeptanz:** Nächster Referenzlauf ohne §v10.709-authentizitaet-Warnung nach phase_12;
   bit-identischer 3-Zellen-Output (Determinismus §G5); Wow/Flutter-Reduktion unverändert.
 
+## TODO-P1-6 · DeepFilterNet ML→DSP-Fallback (dec.onnx ohne Alpha-Head) — UMGESETZT 2026-09-08
+
+- **Befund (Live-Log 07:35:55, 2026-09-08):** `IndexError: list index out of range` in
+  `_infer_spectral_chunk` (`alpha = dec_out[1]`) → stiller OMLSA-Fallback statt trainiertem DFN.
+- **Root-Cause (gemessen):** Der DFN3-Export `models/deepfilternet_v3_ii/{,finetuned/}dec.onnx`
+  hat NUR einen Output (`coefs`) — `df_fc_a` (Alpha-Head) ist im trainierten DeepFilterNet3-
+  Forward unbenutzt (df/deepfilternet3.py:321 definiert, Forward wendet `df_op(coefs)` ohne
+  Alpha-Blend an). `dec.onnx.orig` (DFN2-Ära, emb=512) ist nicht kompatibel. Das Export-Skript
+  hatte einen toten `alpha`-Verweis in `dynamic_axes`.
+- **Lösung (§P1-6):** (1) Plugin: alpha optional (`dec_out[1] if len>1 else None`),
+  `alpha=None` → pure DF wie trainierter Forward (blend=1.0); Load-Time-Warnung bei fehlendem
+  Alpha-Head. (2) Gepolsterte Rand-Chunks (T=100-Modell, l<100): nur die ersten l
+  Output-Frames von Maske/Koeffizienten verwenden (Broadcast-Fix). (3) Kurze Signale
+  (S<T): Chunk-Pfad mit Pad+Trim statt Ganzsignal (enc erwartet exakt T=100).
+  (4) `export_df_musik_onnx.py`: toten Alpha-Verweis entfernt, DFN3-Realität dokumentiert.
+- **Beleg:** `tests/unit/test_deepfilternet_plugin_alpha.py` (4 Fälle, grün);
+  Echt-Modell-Probe: 1 s + 3 s Audio vollständig durch den ONNX-Pfad (0.04/0.19 s),
+  kein Fallback mehr.
+- **Akzeptanz:** Nächster Lauf ohne „ML→DSP-Fallback“-Traceback für DeepFilterNet;
+  Rauschunterdrückung über trainiertes DFN statt OMLSA.
+
 ## TODO-P2-1 · Hygiene: UTF-16-Bereinigung + Monolith-Hinweis — ERLEDIGT 2026-09-08 (Guard-Teil)
 
 - **Befund (gemessen 2026-09-08):** Alle 3175 getrackten Textdateien sind valides UTF-8;

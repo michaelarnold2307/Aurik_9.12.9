@@ -107,7 +107,13 @@ def export_erb_dec(model, out_path: str):
 
 
 def export_dec(model, out_path: str):
-    """Export DF decoder: emb + c0 → coefs"""
+    """Export DF decoder: emb + c0 → coefs (DFN3 ohne Alpha-Head).
+
+    §P1-6 (2026-09-08): Der trainierte DeepFilterNet3-Forward wendet
+    df_op(coefs) OHNE Alpha-Blend an (df_fc_a ist definiert, aber im
+    Forward unbenutzt). Der Export liefert deshalb bewusst nur coefs;
+    das Plugin behandelt fehlendes alpha als pure DF.
+    """
     print("Exporting DF decoder (dec.onnx)...")
     dummy_emb = torch.randn(1, 100, 128)  # [B, T, emb_dim=128]
     dummy_c0 = torch.randn(1, 16, 100, 96)  # [B, conv_ch=16, T, 96]
@@ -122,7 +128,6 @@ def export_dec(model, out_path: str):
             "emb": {0: "batch", 1: "time"},
             "c0": {0: "batch", 2: "time"},
             "coefs": {0: "batch", 1: "time"},
-            "alpha": {0: "batch", 1: "time"},
         },
         opset_version=17,
     )

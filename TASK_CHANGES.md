@@ -1,15 +1,17 @@
 # TASK_CHANGES — Live-Ledger der aktuellen Aufgabe
 
-> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-08 08:41 CEST).
+> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-08 15:55 CEST).
 > CI (`ci-lite.yml` pr-evidence-gate) erzwingt Abdeckung: jede geänderte Code-Datei muss hier stehen.
 
 ## Geänderte Dateien
 
 | Status | Pfad | Art |
 |---|---|---|
-| M | backend/core/phases/phase_12_wow_flutter_fix.py | modifiziert |
 | M | docs/TODOS_SOTA_ROADMAP.md | modifiziert |
-| ?? | tests/unit/test_phase_12_musical_modulation_preservation.py | ungetrackt |
+| M | plugins/deepfilternet_v3_ii_plugin.py | modifiziert |
+| M | scripts/export_df_musik_onnx.py | modifiziert |
+| M | tests/unit/test_deepfilternet_v3_ii_chunking.py | modifiziert |
+| ?? | tests/unit/test_deepfilternet_plugin_alpha.py | ungetrackt |
 
 ## Entscheidungen
 

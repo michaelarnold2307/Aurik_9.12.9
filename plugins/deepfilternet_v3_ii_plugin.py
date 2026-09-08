@@ -158,6 +158,16 @@ class DeepFilterNetV3Plugin:
             self._enc = ort.InferenceSession(os.path.join(d, "enc.onnx"), sess_options=opts, providers=prov)
             self._dec = ort.InferenceSession(os.path.join(d, "dec.onnx"), sess_options=opts, providers=prov)
             self._erb_dec = ort.InferenceSession(os.path.join(d, "erb_dec.onnx"), sess_options=opts, providers=prov)
+            # §P1-6 (2026-09-08): DFN3-Exporte haben keinen Alpha-Head (df_fc_a
+            # ist im trainierten Forward unbenutzt). Ohne diese Prüfung crasht
+            # _infer_spectral_chunk mit IndexError → stiller OMLSA-Fallback.
+            _dec_output_names = [getattr(_o, "name", "") for _o in self._dec.get_outputs()]
+            if len(_dec_output_names) < 2:
+                logger.warning(
+                    "§P1-6: dec.onnx ohne Alpha-Head (%s) — pure DF wie trainierter Forward (kein Alpha-Blend).",
+                    ", ".join(_dec_output_names) or "keine Outputs",
+                )
+            self._dec_has_alpha = len(_dec_output_names) >= 2
             # §Fixed-T-Export (2026-09-07): Manche ONNX-Exporte fixieren die
             # Zeitdimension (T=100). Aus den Session-Metadaten lesen — bei
             # dynamischem T bleibt der Ganzsignal-Pfad unverändert (keine
@@ -336,7 +346,7 @@ class DeepFilterNetV3Plugin:
 
         return feat_erb.astype(np.float32), feat_spec.astype(np.float32), spec_cx
 
-    def _apply_df_filter(self, spec_cx: np.ndarray, coefs: np.ndarray, alpha: np.ndarray) -> np.ndarray:
+    def _apply_df_filter(self, spec_cx: np.ndarray, coefs: np.ndarray, alpha: np.ndarray | None) -> np.ndarray:
         """Wende Deep-Filter-Koeffizienten auf komplexes Spektrum an (vektorisiert).
 
         Vectorized FIR-Filter: statt O(S × n_bins × DF_ORDER) Python-Iterationen
@@ -344,7 +354,9 @@ class DeepFilterNetV3Plugin:
         Beschleunigung: ~100-1000× gegenüber reinem Python-Loop.
 
         coefs: [S, 96, 10] DF-Koeffizienten
-        alpha: [1, S, 1] oder skalar — Blending-Faktor (0..1)
+        alpha: [1, S, 1] oder skalar — Blending-Faktor (0..1).
+        §P1-6 (2026-09-08): alpha=None heißt DFN3-Export ohne Alpha-Head —
+        dann pure DF wie im trainierten Forward (df_op(coefs) ohne Alpha-Blend).
         """
         n_bins = min(coefs.shape[1], spec_cx.shape[0])
         S = spec_cx.shape[1]
@@ -364,7 +376,11 @@ class DeepFilterNetV3Plugin:
             acc += coefs[:, :n_bins, k].T * shifted
 
         # Alpha-Blending: blend × FIR-Ergebnis + (1 - blend) × Original
-        if alpha.ndim >= 2 and alpha.shape[1] >= S:
+        if alpha is None:
+            # §P1-6: DFN3-Export ohne Alpha-Head — trainierter Forward wendet
+            # df_op(coefs) ohne Alpha-Blend an (pure DF).
+            blend = np.full((1, S), 1.0, dtype=np.float64)
+        elif alpha.ndim >= 2 and alpha.shape[1] >= S:
             blend = alpha[0, :S, 0].astype(np.float64)[np.newaxis, :]  # [1, S]
         else:
             blend = np.full((1, S), 0.5, dtype=np.float64)
@@ -394,8 +410,8 @@ class DeepFilterNetV3Plugin:
 
         try:
             _t_fixed = self._enc_time_frames
-            if _t_fixed is None or _t_fixed >= S:
-                # Dynamisches T oder kurzes Signal → Ganzsignal-Pfad (unverändert).
+            if _t_fixed is None or _t_fixed == S:
+                # Dynamisches T oder exakt passende Länge → Ganzsignal-Pfad.
                 spec_filtered = self._infer_spectral_chunk(feat_erb, feat_spec, spec_cx)
             else:
                 # §Fixed-T-Export: 50-%-Überlappung + Hann-OLA im Spektralbereich.
@@ -480,13 +496,19 @@ class DeepFilterNetV3Plugin:
         erb_out = self._erb_dec.run(None, {"emb": emb, "e3": e3, "e2": e2, "e1": e1, "e0": e0})
         erb_mask = erb_out[0]  # [1,1,S,32]
 
-        # Haupt-Dekoder → DF-Koeffizienten + alpha
+        # Haupt-Dekoder → DF-Koeffizienten + optional alpha
         dec_out = self._dec.run(None, {"emb": emb, "c0": c0})
         coefs = dec_out[0]  # [B, S, 96, 10]
-        alpha = dec_out[1]  # sigmoid
+        # §P1-6 (2026-09-08): DFN3-Export liefert nur coefs (df_fc_a ist im
+        # trainierten DFN3-Forward unbenutzt) — alpha optional behandeln statt
+        # IndexError → ML→DSP-Fallback.
+        alpha = dec_out[1] if len(dec_out) > 1 else None  # sigmoid (nur DFN2-Exporte)
 
         # ERB-Maske zurück auf FFT-Bins interpolieren
-        m = erb_mask[0, 0, :, :]  # [S, 32]
+        # §P1-6: Bei gepolsterten Rand-Chunks (T=100-Modell, l<100) nur die
+        # ersten l Output-Frames verwenden — sonst Broadcast-Fehler.
+        _S_out = int(spec_cx.shape[1])
+        m = erb_mask[0, 0, :_S_out, :]  # [_S_out, 32]
         # Mappe ERB → linear (inverse des Filterbank-Produkts)
         gain_lin = _ERB_FB.T @ m.T  # [481, S]
         gain_lin = np.clip(gain_lin, 0.0, 1.0)
@@ -498,7 +520,7 @@ class DeepFilterNetV3Plugin:
         spec_filtered = spec_cx * gain_lin
 
         # DF-Filter anwenden
-        coefs_np = coefs[0] if coefs.ndim == 4 else coefs
+        coefs_np = (coefs[0] if coefs.ndim == 4 else coefs)[:_S_out]
         return self._apply_df_filter(spec_filtered, coefs_np, alpha)
 
     @staticmethod
