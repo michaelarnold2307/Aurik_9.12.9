@@ -155,6 +155,20 @@ def test_dropout_chip_counter_follows_timeline_repair_cursor() -> None:
 
 
 @pytest.mark.normative
+def test_progress_callback_has_log_twin_strict() -> None:
+    """§GUI-T9 (2026-09-08): Jede GUI-sichtbare Fortschrittsmeldung hat einen
+    Log-Zwilling („PROGRESS …") — die Anzeige entspricht damit zu jedem
+    Zeitpunkt strikt dem Log-Fortschritt.
+    """
+    from pathlib import Path
+
+    _root = Path(__file__).resolve().parents[2]
+    _backend = (_root / "backend" / "core" / "unified_restorer_v3.py").read_text(encoding="utf-8")
+    assert 'logger.debug("PROGRESS %.1f%% — %s", float(pct), _display)' in _backend
+    assert "progress_callback(pct, _display, time.monotonic() - start_time, _live_metrics)" in _backend
+
+
+@pytest.mark.normative
 def test_main_progress_strictly_mirrors_reported_progress_no_export_headroom() -> None:
     """§GUI-T9 (2026-09-08): Der Hauptbalken zeigt EXAKT den zuletzt gemeldeten
     Fortschritt — keine 9-90-UI-Map, keine 90/98-%-Deckelung, kein Export-Rücksprung.

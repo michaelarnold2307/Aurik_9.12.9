@@ -7968,6 +7968,10 @@ class UnifiedRestorerV3:
                         # §GUI-T6: Live-15-Ziel-Scores für das Radar (leer wenn noch nicht gemessen)
                         "goals": dict(getattr(self, "_live_goal_scores", {}) or {}),
                     }
+                    # §GUI-T9 (2026-09-08): Log-Zwilling jeder GUI-Meldung —
+                    # die GUI-Anzeige entspricht damit zu jedem Zeitpunkt
+                    # strikt dem Log-Fortschritt (1:1, debug-level).
+                    logger.debug("PROGRESS %.1f%% — %s", float(pct), _display)
                     progress_callback(pct, _display, time.monotonic() - start_time, _live_metrics)
                 except Exception as _cb_exc:
                     logger.debug(
