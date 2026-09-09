@@ -738,30 +738,27 @@ class DeEsserPhase(PhaseInterface):
                         if _key_str == "bandwidth_loss":
                             _bw_loss_pre = float(getattr(_v, "severity", _v) if hasattr(_v, "severity") else _v)
                             break
-            # §v10.126 Depth-aware: tiefe Ketten (≥4) haben unzuverlässige
-            # F0- und Formant-Detektion → Oktavfehler (F0=94 Hz statt ~188 Hz).
-            # Gender-agnostischen Fallback erzwingen.
+            # §v10.126-SOTA (2026-09-09): Tiefe Ketten (≥4) dürfen die Erkennung
+            # NICHT blind abschalten. Die robuste Kette ist bereits degradation-aware:
+            # pYIN-Voicing-Confidence (robust gegen MP3-Artefakte), Oktav-Kandidat
+            # (2×F0 bei F0<120), degraded-F2-Notfallregel (F1 allein bei bw_loss>0.5),
+            # Formant-Tiebreaker mit schärferem Confidence-Gate bei depth≥4
+            # (in _detect_gender_robust). UNKNOWN nur bei echtem Erkennungs-Versagen —
+            # der freq-agnostische Fallback bleibt als letzte Stufe (Befund 2026-09-09:
+            # depth=4 → UNKNOWN trotz intakter Sibilanten-Messung panns=0.35).
             _td_gender_detect = len(kwargs.get("transfer_chain", []) or [])
-            if _td_gender_detect >= 4:
-                self.gender = VocalGender.UNKNOWN
-                self.vocal_profile = VOCAL_PROFILES[VocalGender.UNKNOWN]
-                logger.info(
-                    "🎤 §v10.126 Gender-Ersatzpfad: depth=%d ≥4 → F0/Formant unzuverlässig, "
-                    "gender=UNKNOWN (freq-agnostisch)",
-                    _td_gender_detect,
-                )
-            else:
-                detected_gender = self._detect_gender_robust(
-                    audio,
-                    sample_rate,
-                    bandwidth_loss=_bw_loss_pre,
-                    transfer_chain=kwargs.get("transfer_chain", []),
-                    defect_scores=kwargs.get("defect_scores", {}),
-                )
-                self.vocal_profile = VOCAL_PROFILES[detected_gender]
-                kwargs["phase19_gender"] = detected_gender  # §v10.303.37
-                self.stats["gender_profile"] = detected_gender
-                logger.info("🎤 Auto-erkannt gender: %s", detected_gender)
+            detected_gender = self._detect_gender_robust(
+                audio,
+                sample_rate,
+                bandwidth_loss=_bw_loss_pre,
+                transfer_chain=kwargs.get("transfer_chain", []),
+                defect_scores=kwargs.get("defect_scores", {}),
+            )
+            self.gender = detected_gender
+            self.vocal_profile = VOCAL_PROFILES[detected_gender]
+            kwargs["phase19_gender"] = detected_gender  # §v10.303.37
+            self.stats["gender_profile"] = detected_gender
+            logger.info("🎤 Auto-erkannt gender: %s (depth=%d)", detected_gender, _td_gender_detect)
 
         # §2.9.4 Multi-Gender-Timeline: Erkennt ALLE Stimmen im Song
         _gender_timeline = self._detect_gender_timeline(audio, sample_rate)

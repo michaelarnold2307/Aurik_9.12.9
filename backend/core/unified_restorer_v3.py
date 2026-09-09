@@ -1424,6 +1424,23 @@ def _build_waerme_focus_rescue_candidate(
         return None, _meta
 
 
+def _should_use_chunked_path(
+    n_total: int,
+    sample_rate: int,
+    *,
+    in_chunked: bool,
+    whole_song: bool,
+) -> bool:
+    """§v10.720 (2026-09-08, Lücke-4 Stufe 1): Entscheidung Chunked vs. Ganzsong.
+
+    Pure Funktion (deterministisch, §G5): Audio > 120 s läuft über den
+    Chunked-Pfad (RAM O(1)) — außer der Ganzsong-Modus ist aktiv
+    (`whole_song=True`/`AURIK_WHOLE_SONG=1`) oder wir sind bereits im
+    Chunk-Kontext (`in_chunked`).
+    """
+    return n_total / max(sample_rate, 1) > 120.0 and not in_chunked and not whole_song
+
+
 class UnifiedRestorerV3:
     """
     Einheitlicher Restorer V3 – Defektbasierte Audio-Restaurierungs-Engine.
@@ -7830,7 +7847,27 @@ class UnifiedRestorerV3:
         self._step_no = 0
         self._step_total = 0
         _n_total = audio.shape[0]
-        if _n_total / max(sample_rate, 1) > 120.0 and not getattr(self, "_in_chunked", False):
+        # §v10.720 (2026-09-08, Lücke-4 Stufe 1): Ganzsong-Modus — feature-flagged
+        # über Kwarg `whole_song=True` oder Env `AURIK_WHOLE_SONG=1`. Die Pipeline
+        # läuft dann EINMAL auf dem ganzen Song (Song-globale Loudness/Formant/
+        # Gender/Gate-Entscheidungen; Separation intern chunkweise). Der Chunked-
+        # Pfad (RAM O(1)) bleibt Default und Fallback, bis der Referenzlauf
+        # (Stufe 2) die Umstellung verifiziert.
+        _whole_song = bool(kwargs.pop("whole_song", False)) or os.environ.get("AURIK_WHOLE_SONG", "") == "1"
+        if _whole_song:
+            _ws_sec = _n_total / max(sample_rate, 1)
+            logger.info(
+                "🎵 Ganzsong-Modus: %.1fs Audio als EIN Pass (kein Chunking) — Song-globale Entscheidungen aktiv",
+                _ws_sec,
+            )
+            if _ws_sec > 900.0:
+                logger.warning(
+                    "🎵 Ganzsong-Modus: %.1fs Audio — RAM-Bedarf steigt linear; bei OOM auf Chunked-Pfad zurück",
+                    _ws_sec,
+                )
+        if _should_use_chunked_path(
+            _n_total, sample_rate, in_chunked=bool(getattr(self, "_in_chunked", False)), whole_song=_whole_song
+        ):
             logger.info("🎵 Chunked-Streaming: %.1fs Audio → RAM O(1)", _n_total / sample_rate)
             return self._restore_chunked(audio, sample_rate, progress_callback, **kwargs)
 
@@ -8717,6 +8754,13 @@ class UnifiedRestorerV3:
             _mc_conf_val = float(getattr(_mc_result, "confidence", 0.0)) if _mc_result is not None else 0.0
             _era_prior_str = str(getattr(_era_result, "material_prior", "") or "") if _era_result is not None else ""
             _era_conf_val = float(getattr(_era_result, "confidence", 0.0)) if _era_result is not None else 0.0
+            # §v10.730 (2026-09-09): era_result in den Phasen-Kontext stellen —
+            # Phase 07 (und andere) lesen kwargs["era_result"]; bisher ging
+            # era=None an die Phasen (Befund: §ERA_HARMONIC era=None trotz
+            # material=vinyl → material-adaptive Defaults statt era-authentischer
+            # H2-Targets).
+            if _era_result is not None:
+                self._restoration_context["era_result"] = _era_result
             # §v10.20 Material-Konsens (2026-08-22): Liegt ein pre_Analyse-Konsens
             # vor, ist er die Single Source of Truth — die Era-Dominanz-Regel
             # darunter würde sonst flip-floppen (Befund: vinyl → tape → vinyl).
@@ -38401,6 +38445,8 @@ class UnifiedRestorerV3:
                         defect_saliency_map=_defect_saliency_map,
                         defect_location_coverage_map=_defect_location_coverage_map,
                         max_defect_severity=_max_defect_severity,
+                        # §v10.730: vollständiges EraResult an die Phase durchreichen
+                        era_result=(getattr(self, "_restoration_context", {}) or {}).get("era_result"),
                         strength_envelope=self._strength_envelope,  # §2.71: Zeitvariante Stärke
                         quality_mode=_quality_mode_value,  # Pass quality mode for ML routing
                         repaired_gap_samples=_repaired_gap_samples,  # §11.7a: RekonstruktionsDenker gaps
@@ -39778,6 +39824,8 @@ class UnifiedRestorerV3:
                                         "quality_mode": _quality_mode_value,
                                         "decade": _era_decade_phase,
                                         "era_vocal_profile": _era_profile_phase,
+                                        # §v10.730: vollständiges EraResult an die Phase durchreichen
+                                        "era_result": _ctx_phase_vocal.get("era_result"),
                                         "formant_tolerance_db": _formant_tolerance_phase,
                                         "vocal_zone_strength_policy": dict(_vocal_zone_policy),
                                         "passaggio_energy_bias_db": float(
@@ -40624,6 +40672,8 @@ class UnifiedRestorerV3:
                                 quality_mode=_quality_mode_value,
                                 decade=_era_decade_phase,
                                 era_vocal_profile=_era_profile_phase,
+                                # §v10.730: vollständiges EraResult an die Phase durchreichen
+                                era_result=_ctx_phase_vocal.get("era_result"),
                                 formant_tolerance_db=_formant_tolerance_phase,
                                 vocal_zone_strength_policy=dict(_vocal_zone_policy),
                                 passaggio_energy_bias_db=float(
@@ -40774,6 +40824,8 @@ class UnifiedRestorerV3:
                             quality_mode=self.config.mode.value,  # Pass quality mode for ML routing
                             decade=_era_decade_phase,
                             era_vocal_profile=_era_profile_phase,
+                            # §v10.730: vollständiges EraResult an die Phase durchreichen
+                            era_result=_ctx_phase_vocal.get("era_result"),
                             formant_tolerance_db=_formant_tolerance_phase,
                             vocal_zone_strength_policy=dict(_vocal_zone_policy),
                             passaggio_energy_bias_db=float(_vocal_zone_policy.get("passaggio_energy_bias_db", -6.0)),

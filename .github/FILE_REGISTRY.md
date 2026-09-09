@@ -103,6 +103,9 @@
 | backend/core/dsp/cumulative_hallucination_tracker.py | ACTIVE | backend/core/dsp | ja | — | Kumulativer Halluzinations-Tracker: misst kumulative Artefaktbildung über Phasen; Abort bei Threshold-Überschreitung (2026-09-05) |
 | backend/core/intentional_artifact_classifier.py | ACTIVE | backend/core | ja | — | Klassifiziert intentionale vs. unbeabsichtigte Artefakte; schützt musikalisch gewollte Effekte vor Überkorrektur (2026-09-05) |
 | scripts/export_dfn_finetuned_onnx.py | ACTIVE | scripts | ja | — | Wartungswerkzeug: re-exportiert enc/erb_dec/dec aus models/deepfilternet_v3_ii/finetuned/dfn_musik_best.pt nach offizieller Konvention, dec MIT Alpha-Head (df_fc_a) — Fix für §P1-6-Alpha-Degradation (2026-09-08) |
+| tests/unit/test_whole_song_mode.py | ACTIVE | testing/unit | ja | — | §v10.720 Lücke-4 Stufe 1: Unit-Gate für die Chunk-vs-Ganzsong-Entscheidung (_should_use_chunked_path) + Env-/Kwarg-Verdrahtung (2026-09-08) |
+| tests/integration/test_whole_song_mode.py | ACTIVE | testing/integration | ja | — | §v10.720 Lücke-4 Stufe 1: End-to-End Ganzsong-Modus (121 s, FAST, kein Chunked-Aufruf, Bit-Determinismus §G5) (2026-09-08) |
+| tests/unit/test_phase07_era_passthrough.py | ACTIVE | testing/unit | ja | — | §v10.730: era_result-Durchreichung an Phasen (2026-09-09) |
 
 - **Neue Datei anlegen:** zuerst `scripts/repo_search.py --before-create <pfad>`
   (kanonische Alternative? Namens-/Symbol-Ähnlichkeit?), dann hier eintragen

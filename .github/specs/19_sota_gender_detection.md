@@ -195,6 +195,25 @@ Detektor `vocal_ai_enhancement.GenderDetector`, den `unified_restorer_v3`
 in `tests/normative/test_gender_detection_sota_gate.py` (G09a echt, Modell-unabhängig,
 skip ohne Testaudio).
 
+### §19.2c §v10.126-SOTA-Revision — tiefe Ketten blenden Gender NICHT mehr aus (2026-09-09)
+
+**Befund:** Bei `transfer_chain`-Tiefe ≥ 4 erzwang `phase_19_de_esser` pauschal
+`gender=UNKNOWN` („F0/Formant unzuverlässig", freq-agnostischer De-Esser) — obwohl die
+Sibilanten-Messung intakt war (Log-Befund 10:19:29: depth=4 → UNKNOWN, panns=0.35,
+bw_loss=1.00). Die robuste Kette wurde damit trotz vorhandener degradation-aware-
+Mechanik (pYIN-Voicing-Confidence, Oktav-Kandidat 2×F0, degraded-F2-Notfallregel,
+Formant-Tiebreaker mit schärferem Confidence-Gate bei depth≥4) komplett umgangen.
+
+**Fix (SOTA):** Der Depth-Gate ist entfernt. `_detect_gender_robust` läuft IMMER —
+sie verarbeitet `transfer_chain` und `bandwidth_loss` selbst degradation-aware.
+`UNKNOWN` (freq-agnostischer Fallback) tritt nur noch bei echtem
+Erkennungs-Versagen ein. `self.gender` wird jetzt konsistent auf das
+Detektionsergebnis gesetzt (auch für Union-Profil/Timeline-Logik).
+
+**Normative Tests:** G10a (Quellen-Vertrag: kein UNKNOWN-Zwang) und G10b
+(depth=4 + bw_loss=1.0 → Kette liefert female/male/child, nicht unknown) in
+`tests/normative/test_gender_detection_sota_gate.py`.
+
 ---
 
 ## §19.3 Änderungen im Detail

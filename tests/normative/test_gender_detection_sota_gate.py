@@ -469,3 +469,37 @@ class TestElkeBestSOTA:
         assert chars.gender == VoiceGender.FEMALE, (
             f"12-s-Intro: {chars.gender.value} (F0={chars.fundamental_freq:.1f} Hz)"
         )
+
+
+# ===========================================================================
+# G10 — §v10.126-SOTA (2026-09-09): tiefe Ketten blenden Gender NICHT mehr aus
+# ===========================================================================
+
+
+class TestDeepChainGenderSOTA:
+    """G10: depth≥4 darf die Erkennung nicht blind auf UNKNOWN schalten —
+    die robuste Kette ist degradation-aware (pYIN/Oktav/degraded-F2)."""
+
+    def test_g10_gate_no_longer_forces_unknown_at_deep_chain(self):
+        """G10a: Quellen-Vertrag — der UNKNOWN-Ersatzpfad ist entfernt."""
+        from pathlib import Path
+
+        _src = (
+            Path(__file__).resolve().parents[2] / "backend" / "core" / "phases" / "phase_19_de_esser.py"
+        ).read_text(encoding="utf-8")
+        assert "Gender-Ersatzpfad: depth=%d ≥4" not in _src
+        assert "self.gender = detected_gender" in _src
+        assert "Auto-erkannt gender: %s (depth=%d)" in _src
+
+    def test_g10_robust_chain_detects_gender_at_deep_chain(self):
+        """G10b: depth=4 + bw_loss=1.0 → robuste Kette liefert ein Gender (nicht unknown)."""
+        from backend.core.phases.phase_19_de_esser import DeEsserPhase, VocalGender
+
+        dp = DeEsserPhase(gender_type=VocalGender.AUTO)
+        result = dp._detect_gender_robust(
+            _FEMALE_VOICE,
+            SR,
+            transfer_chain=["mp3"] * 4,
+            bandwidth_loss=1.0,
+        )
+        assert str(result) in ("female", "male", "child"), f"depth=4 lieferte {result} — Kette blind?"
