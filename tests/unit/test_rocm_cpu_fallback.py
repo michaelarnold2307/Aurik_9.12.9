@@ -118,12 +118,31 @@ def _make_era_classifier(plugin_model_loaded: bool) -> tuple[EraClassifier, Magi
     return era, clap
 
 
-def test_era_tier1_skips_when_clap_model_not_loaded() -> None:
+def test_era_tier1_lazy_loads_when_clap_model_not_loaded() -> None:
+    """Contract 2026-08-22 (CLAP-Lazy-Load-Fix): `_model_loaded=False` darf Tier-1
+    NICHT überspringen — der Plugin-Vertrag ist Lazy-Load IN `embed_audio()`
+    (thread-sicher via `_load_lock`). Der frühere Vorcheck verhinderte Tier-1
+    deterministisch beim ersten Aufruf (Befund: WARNUNG 14:16:03, CLAP erst
+    14:16:24 geladen → Tier-2 lief trotz verfügbarem CLAP).
+    """
     era, clap = _make_era_classifier(plugin_model_loaded=False)
     audio = (0.05 * np.sin(2 * np.pi * 440 * np.arange(48000) / 48000)).astype(np.float32)
     result = era._try_tier1(audio, 48000, bark=np.zeros(24), rolloff_hz=12000.0, _snr_db=30.0)
+    # Lazy-Load: embed_audio() wird GERUFEN und lädt selbst — Tier-1 läuft.
+    clap.embed_audio.assert_called_once()
+    assert result is not None
+    assert result.tier_used == 1
+
+
+def test_era_tier1_falls_back_on_load_failure() -> None:
+    """§G23/§V6: Totaler Ladefehler (RuntimeError aus embed_audio) → DSP-Ersatzpfad
+    (None), kein Crash, kein stiller Erfolg.
+    """
+    era, clap = _make_era_classifier(plugin_model_loaded=False)
+    clap.embed_audio.side_effect = RuntimeError("CLAP-Modell nicht ladbar")
+    audio = (0.05 * np.sin(2 * np.pi * 440 * np.arange(48000) / 48000)).astype(np.float32)
+    result = era._try_tier1(audio, 48000, bark=np.zeros(24), rolloff_hz=12000.0, _snr_db=30.0)
     assert result is None
-    clap.embed_audio.assert_not_called()
 
 
 def test_era_tier1_embeds_when_clap_model_loaded() -> None:
