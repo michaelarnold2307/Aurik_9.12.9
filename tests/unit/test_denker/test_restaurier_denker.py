@@ -94,23 +94,22 @@ class TestRestaurierDenkerSingleton:
 class TestRestaurierDenkerMock:
     """Testet restauriere() durch Patchen der Methoden auf Klassen-Ebene.
 
-    ``_build_restorer`` und ``_build_are_pipeline`` werden via setup_method
-    auf ``return_value=None`` gesetzt, damit keine echten Heavy-Imports stattfinden.
-    Alle Tests prüfen das garantierte Graceful-Degradation-Verhalten:
-    ``_fallback()`` liefert stets ein valides ``RestaurierErgebnis``.
+    ``_build_restorer`` wird via setup_method auf ``return_value=None`` gesetzt,
+    damit keine echten Heavy-Imports stattfinden. Der ARE-Legacy-Pfad wurde
+    2026-09-08 entfernt (Parallelversion-Verbot) — es gibt nur noch den
+    direkten UV3-Pfad. Alle Tests prüfen das garantierte
+    Graceful-Degradation-Verhalten: ``_fallback()`` liefert stets ein valides
+    ``RestaurierErgebnis``.
     """
 
     def setup_method(self):
         from denker.restaurier_denker import RestaurierDenker
 
         self._p_restorer = patch.object(RestaurierDenker, "_build_restorer", return_value=None)
-        self._p_are = patch.object(RestaurierDenker, "_build_are_pipeline", return_value=None)
         self._p_restorer.start()
-        self._p_are.start()
 
     def teardown_method(self):
         self._p_restorer.stop()
-        self._p_are.stop()
 
     # ── 10–12: Rückgabe-Typ und Audio-Integrität ──────────────────────────
 

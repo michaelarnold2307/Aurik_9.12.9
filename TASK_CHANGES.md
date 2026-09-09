@@ -1,14 +1,13 @@
 # TASK_CHANGES — Live-Ledger der aktuellen Aufgabe
 
-> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-09 06:33 CEST).
+> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-09 07:16 CEST).
 > CI (`ci-lite.yml` pr-evidence-gate) erzwingt Abdeckung: jede geänderte Code-Datei muss hier stehen.
 
 ## Geänderte Dateien
 
 | Status | Pfad | Art |
 |---|---|---|
-| M | .github/specs/v10.305_startup_integration_contract.md | modifiziert |
-| M | Aurik10/ui/modern_window.py | modifiziert |
+| M | denker/restaurier_denker.py | modifiziert |
 | D | docs/archive/BEST_2026_ERKENNTNISSE.md | gelöscht |
 | D | docs/archive/BEST_2026_EXECUTION_PLAN_30D.md | gelöscht |
 | D | docs/archive/DAW_Plugin_Architecture.md | gelöscht |
@@ -33,9 +32,10 @@
 | D | docs/archive/natural_sound_improvement_analysis.md | gelöscht |
 | D | docs/archive/tier2_ml_hybrid_analysis.md | gelöscht |
 | D | docs/archive/worldclass_balance_roadmap_2026-06-05.md | gelöscht |
-| M | tests/normative/test_modern_window_gui_contract.py | modifiziert |
 | M | tests/onnx_skip/test_plugin_manager.py | modifiziert |
+| M | tests/unit/test_denker/test_restaurier_denker.py | modifiziert |
 | ?? | audit/bridge_import_status_summary_voice_first_runtime.json | ungetrackt |
+| ?? | docs/TIEFENANALYSE_RESTAURIERUNGSABLAUF.md | ungetrackt |
 | ?? | tests/unit/test_live_goal_radar_update.py | ungetrackt |
 
 ## Entscheidungen

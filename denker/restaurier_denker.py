@@ -37,13 +37,6 @@ except Exception:  # pragma: no cover — optional heavy dependency
     UnifiedRestorerV3 = None  # type: ignore[assignment,misc]
 
 try:
-    from backend.core.pipeline_main import AurikAutonomousPipeline
-    from backend.core.processing_modes import ProcessingMode
-except Exception:  # pragma: no cover — optional heavy dependency
-    AurikAutonomousPipeline = None  # type: ignore[assignment,misc]
-    ProcessingMode = None  # type: ignore[assignment,misc]
-
-try:
     from backend.core.coordinated_repair import RepairPlanner as _RepairPlanner
 except Exception:  # pragma: no cover — optional
     _RepairPlanner = None  # type: ignore[assignment,misc]
@@ -340,7 +333,6 @@ class RestaurierDenker:
 
     def __init__(self) -> None:
         self._restorers: dict[str, Any] = {}
-        self._pipeline: Any | None = None
         self._lock: threading.Lock = threading.Lock()
         self._mode: str = "restoration"
         self._restorability: float = 70.0
@@ -735,76 +727,11 @@ class RestaurierDenker:
                 logger.warning("UV3 Direkt-Pfad fehlgeschlagen: %s — Ersatzpfad.", uv3_exc, exc_info=True)
                 return self._fallback(audio, material or "unknown", str(uv3_exc))
 
-        # ── Fallback ohne Caches: ARE → UV3 (Legacy-Pfad) ────────────────────
-        pipeline = self._get_are_pipeline()
-        if pipeline is not None:
-            try:
-                _are_ctx: dict = {}
-                if global_plan is not None:
-                    _are_ctx["global_plan"] = global_plan
-                if chain_info is not None:
-                    _are_ctx["chain_info"] = chain_info
-                if defekt_hint is not None:
-                    _are_ctx["defekt_hint"] = defekt_hint
-                if mode:
-                    _are_ctx["mode"] = mode
-                if material:
-                    _are_ctx["material"] = material
-                if cached_defect_result is not None:
-                    _are_ctx["cached_defect_result"] = cached_defect_result
-                are_result = pipeline.process(audio, sample_rate=sr, progress_callback=progress_callback, **_are_ctx)
-                _are_audio = getattr(are_result, "audio", audio)
-                del are_result, pipeline  # RAM für UV3 freigeben
-
-                restorer = self._get_restorer(mode=mode)
-                if restorer is not None:
-                    logger.info("RestaurierDenker: Legacy ARE → UV3-Pass …")
-                    _uv3_kwargs2: dict = {"sample_rate": sr}
-                    if global_plan is not None:
-                        _uv3_kwargs2["global_plan"] = global_plan
-                    if chain_info is not None:
-                        _uv3_kwargs2["chain_info"] = chain_info
-                    if defekt_hint is not None:
-                        _uv3_kwargs2["defekt_hint"] = defekt_hint
-                    if progress_callback is not None:
-                        _uv3_kwargs2["progress_callback"] = progress_callback
-                    if audio_update_callback is not None:
-                        _uv3_kwargs2["audio_update_callback"] = audio_update_callback
-                    # Bug-16c-Fix: gecachte Klassifikationsergebnisse im ARE→UV3-Pfad
-                    # weitergeben — ohne diese führt UV3 frische classify_medium() etc.
-                    # durch → material=unknown → AudioSR auf MP3 → OOM.
-                    if cached_era_result is not None:
-                        _uv3_kwargs2["cached_era_result"] = cached_era_result
-                    if cached_genre_result is not None:
-                        _uv3_kwargs2["cached_genre_result"] = cached_genre_result
-                    if cached_defect_result is not None:
-                        _uv3_kwargs2["cached_defect_result"] = cached_defect_result
-                    if cached_medium_result is not None:
-                        _uv3_kwargs2["cached_medium_result"] = cached_medium_result
-                    if cached_restorability_result is not None:
-                        _uv3_kwargs2["cached_restorability_result"] = cached_restorability_result
-                    if reconstruction_context is not None:
-                        _uv3_kwargs2["reconstruction_context"] = reconstruction_context
-                    if pre_repair_reference is not None:
-                        _uv3_kwargs2["pre_repair_reference"] = pre_repair_reference
-                    if input_path:
-                        _uv3_kwargs2["input_path"] = input_path
-                    if output_path:
-                        _uv3_kwargs2["output_path"] = output_path
-                    if no_rt_limit:
-                        _uv3_kwargs2["no_rt_limit"] = True
-                    if phase_strength_oracle_rollout is not None:
-                        _uv3_kwargs2["phase_strength_oracle_rollout"] = phase_strength_oracle_rollout
-                    if denker_policy_input:
-                        _uv3_kwargs2["denker_policy_input"] = dict(denker_policy_input)
-                    try:
-                        raw = restorer.restore(_are_audio, **_uv3_kwargs2)
-                        return self._konvertiere(raw, material=material)
-                    except Exception as uv3_exc:
-                        logger.warning("UV3 auf ARE-Audio fehlgeschlagen: %s", uv3_exc)
-                        return self._fallback(_are_audio, material or "unknown", str(uv3_exc))
-            except Exception as are_exc:
-                logger.warning("AurikAutonomousPipeline fehlgeschlagen: %s — Ersatzpfad auf UV3", are_exc)
+        # ── §Befund 2026-09-08: ARE-Legacy-Pfad (AurikAutonomousPipeline →
+        # Multi-Varianten-Restaurierung → zweiter UV3-Pass auf ARE-Audio)
+        # ENTFERNT — eine Parallelversion der Restaurierung ist verboten
+        # (Tiefenanalyse: „nur eine Version"). Alle Aufrufer laufen jetzt
+        # ausschließlich über den direkten UV3-Pfad (§v10.5).
 
         # ── §v10.5 UV3 immer direkt (ARE-Pfad deprecated) ──────────────────
         restorer = self._get_restorer(mode=mode)
@@ -938,36 +865,7 @@ class RestaurierDenker:
             logger.warning("UnifiedRestorerV3 konnte nicht geladen werden: %s", exc)
             return None
 
-    # ------------------------------------------------------------------
-    # ARE-Pipeline (AurikAutonomousPipeline)  — M-5
-    # ------------------------------------------------------------------
-
-    def _get_are_pipeline(self) -> Any:
-        """Lädt AurikAutonomousPipeline lazy (Double-Checked Locking)."""
-        if self._pipeline is None:
-            with self._lock:
-                if self._pipeline is None:
-                    self._pipeline = self._build_are_pipeline()
-        return self._pipeline
-
-    def _build_are_pipeline(self) -> Any:
-        """Erstellt AurikAutonomousPipeline als primäre Restaurierungs-Engine (M-5)."""
-        try:
-            if AurikAutonomousPipeline is None or ProcessingMode is None:
-                raise ImportError("backend.core.pipeline_main nicht verfügbar")
-
-            pipeline = AurikAutonomousPipeline(
-                mode=ProcessingMode.RESTORATION,
-                enable_self_learning=True,
-            )
-            logger.info("\u2705 RestaurierDenker: AurikAutonomousPipeline (ARE) bereit")
-            return pipeline
-        except Exception as exc:
-            logger.warning(
-                "AurikAutonomousPipeline nicht verf\u00fcgbar (%s) \u2014 UnifiedRestorerV3 als Ersatzpfad",
-                exc,
-            )
-            return None
+    # ── §Befund 2026-09-08: ARE-Pipeline entfernt (Parallelversion-Verbot) ──
 
     def _konvertiere(self, raw: Any, *, material: str | None) -> RestaurierErgebnis:
         """Wandelt RestorationResult in RestaurierErgebnis um."""
