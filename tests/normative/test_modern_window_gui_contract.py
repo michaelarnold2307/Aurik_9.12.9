@@ -155,12 +155,17 @@ def test_dropout_chip_counter_follows_timeline_repair_cursor() -> None:
 
 
 @pytest.mark.normative
-def test_main_progress_keeps_export_headroom_after_uv3_post_processing() -> None:
+def test_main_progress_strictly_mirrors_reported_progress_no_export_headroom() -> None:
+    """§GUI-T9 (2026-09-08): Der Hauptbalken zeigt EXAKT den zuletzt gemeldeten
+    Fortschritt — keine 9-90-UI-Map, keine 90/98-%-Deckelung, kein Export-Rücksprung.
+    """
     src = _read_gui_source()
-    assert "UI progress (9-90%)" in src
-    assert "return 83.0 + (uv3_pct - 86) / 12.0 * 7.0" in src
-    assert "item_cap_pct = min(90.0, ui_pct + drift_pct)" in src
-    assert "min(90.0, item_cap_pct)" in src
+    assert "new_cur = tgt" in src  # Emitter folgt exakt dem gemeldeten Ziel
+    assert "_emit_cap = 10000" in src  # keine Reserved-Ranges mehr
+    assert "_stage_cap = 100.0" in src
+    assert "item.progress = 90" not in src  # kein künstlicher 90-%-Rücksprung nach restore
+    assert "range(9610, 10010, 10)" not in src  # kein Fake-Glide auf 100 %
+    assert 'self.item_progress.emit(item.id, 10000)' in src  # exakt ein Sprung auf 100 %
 
 
 @pytest.mark.normative
@@ -367,25 +372,40 @@ def test_runtime_status_surfaces_share_current_phase_text() -> None:
 
 
 @pytest.mark.normative
-def test_heartbeat_progress_forecast_keeps_long_phases_smooth() -> None:
+def test_heartbeat_progress_forecast_is_strict_noop() -> None:
+    """§GUI-T9 (2026-09-08): Die zeitbasierte Heartbeat-Prognose darf die Balken
+    NICHT mehr bewegen — No-op, Balken folgen ausschließlich echten Callbacks.
+    """
     src = _read_gui_source()
     assert "def _apply_heartbeat_progress_forecast" in src
-    assert "progress_anchor = self._heartbeat_phase_progress_started_at or wall_time" in src
-    assert "time_since_cb = max(0.0, now - progress_anchor)" in src
-    assert "item_cap_pct = min(82.7, ui_pct + drift_pct)" in src
-    assert "self.progress_bar.setValue(min(target_overall_bp, current_bp + step_bp))" in src
-    assert "self.phase_progress_bar.setValue(phase_target_bp)" in src
-    assert "set_stage_progress(phase_target_bp / 10000.0)" in src
+    # Der No-op-Return steht VOR der früheren Prognose-Logik:
+    _idx = src.index("def _apply_heartbeat_progress_forecast")
+    _body = src[_idx : _idx + 1600]
+    assert "return" in _body
+    assert _body.index("return") < _body.index("progress_anchor"), "Prognose-Logik muss nach dem No-op-Return stehen"
+
+
+@pytest.mark.normative
+def test_scan_cursor_does_not_drive_main_bar_strict() -> None:
+    """§GUI-T9 (2026-09-08): Der Waveform-Scan-Cursor treibt den Gesamtbalken
+    NICHT mehr (strikte Log-Konformität: Balken = echter Pipeline-Fortschritt).
+    """
+    src = _read_gui_source()
+    assert "def _sync_progress_bar_to_scan_cursor" in src
+    _idx = src.index("def _sync_progress_bar_to_scan_cursor")
+    _body = src[_idx : _idx + 700]
+    assert "return" in _body
+    assert _body.index("return") < _body.index("_ui_pct = 13.0"), "Scan-Sync muss vor der alten Mapping-Logik enden"
 
 
 @pytest.mark.normative
 def test_main_progress_cannot_drift_past_pre_pipeline_range() -> None:
+    """§GUI-T9: Der Emitter übersteuert jede Drift-/Deckel-Logik mit `new_cur = tgt`
+    (exakter gemeldeter Wert). Die Alt-Logik bleibt nur als toter Pfad erhalten.
+    """
     src = _read_gui_source()
-    assert "Vor Pipeline-Start (UV3 pct < 20 → UI < 19 %)" in src
-    assert "if tgt < 19.0:" in src
+    assert "new_cur = tgt" in src
     assert "_overshoot_cap = min(tgt + 1.5, 18.9)" in src
-    assert "if tgt >= 19.0:" in src
-    assert "_overshoot_cap = max(_overshoot_cap, _phase_follow_cap)" in src
 
 
 @pytest.mark.normative
@@ -408,12 +428,12 @@ def test_waveform_stage_and_scan_are_mirrored_to_rest_ab_widget() -> None:
 
 @pytest.mark.normative
 def test_scan_cursor_forward_progress_keeps_main_bar_moving() -> None:
+    """§GUI-T9: Der Scan-Cursor wird strikt aus dem gemeldeten pct abgeleitet
+    (tgt/100); die Sync-Funktion selbst ist No-op (Balken = echter Fortschritt).
+    """
     src = _read_gui_source()
     assert "self._sync_progress_bar_to_scan_cursor(frac)" in src
-    assert "def _sync_progress_bar_to_scan_cursor(self, frac: float) -> None:" in src
-    assert "_ui_pct = 13.0 + _frac * 70.0" in src
-    assert "if _target_bp <= _current_bp:" in src
-    assert "self.progress_bar.setValue(_target_bp)" in src
+    assert "_scan_frac = max(0.0, min(1.0, tgt / 100.0))" in src  # §GUI-T9: strikte Ableitung
     assert 'current_item = next((i for i in self.batch_queue.items if i.status == "processing"), None)' in src
     assert 'current_item.progress = max(int(getattr(current_item, "progress", 0) or 0), int(_ui_pct))' in src
 

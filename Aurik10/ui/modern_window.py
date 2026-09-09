@@ -2293,6 +2293,13 @@ class BatchProcessingThread(QThread):
                                 if _headroom >= 0.015:
                                     new_cur = min(max(new_cur, cur + 0.015), _hard_cap)
 
+                            # §GUI-T9 (2026-09-08): Strikte Log-Konformität —
+                            # der Hauptbalken zeigt zu jedem Zeitpunkt EXAKT den
+                            # zuletzt gemeldeten Fortschritt (tgt). Kein Smoothing,
+                            # Creep, Drift oder Anti-Freeze-Vorauslaufen: die Anzeige
+                            # darf nie vom Log-Fortschritt abweichen.
+                            new_cur = tgt
+
                             # ── Sub-bar: per-phase 0-100% progress ──────────────
                             # Resets to 0 when a new phase starts (_sp2_phase_reset flag).
                             # Fills 0→85% proportional to elapsed time within the phase.
@@ -2358,14 +2365,19 @@ class BatchProcessingThread(QThread):
                                 else:
                                     sub_new = sub_cur + max(0.02, sub_gap * 0.05 + 0.01)
                                 sub_new = min(sub_new, _eff_tgt)
+                            # §GUI-T9: strikt — untere Bar = letzter REAL gemeldeter
+                            # Sub-Fortschritt (kein Zeit-Fill, kein Sprint).
+                            sub_new = sub_tgt
                             with _sp_lock:
                                 _sp2["current"] = sub_new
 
                             with _sp_lock:
                                 _sp["current"] = new_cur
                             # Scale to 0–10000 for full progress bar granularity (0.01 % steps)
-                            _emit_cap = 9800 if export_stage_started else 9000
-                            emit_val = min(_emit_cap, int(new_cur * 100))
+                            # §GUI-T9: keine Reserved-Ranges (90/98 %-Deckel) mehr —
+                            # der gemeldete Wert wird exakt angezeigt.
+                            _emit_cap = 10000
+                            emit_val = min(_emit_cap, max(0, int(new_cur * 100)))
                             _item.progress = emit_val // 100  # keep item tracker in 0–100 scale
                             # Throttle: only emit when value changes (0.01 % granularity at 30 fps)
                             if emit_val != _last_emit_val:
@@ -2376,32 +2388,13 @@ class BatchProcessingThread(QThread):
                                 QApplication.processEvents()
                             _phase_bp = min(10000, int(sub_new * 100.0))
 
-                            # Konsistenz-Guard: In deterministischen Segmenten muss
-                            # die untere Anzeige den oberen Fortschritt widerspiegeln,
-                            # auch wenn einzelne Callback-Pfade ausbleiben.
-                            #
-                            # Segmente:
-                            # - Voranalyse (UI 9→13): untere Bar 0→100
-                            # - Post-Processing (UI 83→98): untere Bar 0→100
-                            _sync_phase_bp: int | None = None
-                            if new_cur <= 13.0:
-                                _pre_frac = max(0.0, min(1.0, (new_cur - 9.0) / 4.0))
-                                _sync_phase_bp = int(_pre_frac * 10000.0)
-                            elif _post_processing_started[0]:
-                                _post_frac = max(0.0, min(1.0, (new_cur - 83.0) / 15.0))
-                                _sync_phase_bp = int(_post_frac * 10000.0)
-                            if _sync_phase_bp is not None:
-                                _phase_bp = max(_phase_bp, min(9800, _sync_phase_bp))
-
                             _phase_bp = max(_phase_bp, _last_phase_bp)  # monotonic within a phase
                             if _phase_bp != _last_phase_bp:
                                 _last_phase_bp = _phase_bp
                                 self.phase_progress.emit(_phase_bp)
-                            # Scan-cursor: derived from the REAL reported-progress target (tgt).
-                            # Using tgt directly ensures the cursor stays at the audio-start
-                            # (frac=0.0) during analysis and only advances on real callbacks.
-                            # UV3 pipeline phases now occupy UI range 13–83 (70 pts, per _uv3_to_ui_pct).
-                            _scan_frac = max(0.0, min(1.0, (tgt - 13.0) / 70.0))
+                            # §GUI-T9: Scan-Cursor strikt aus dem real gemeldeten
+                            # Fortschritt ableiten (tgt/100) — keine alte 13–83-UI-Map.
+                            _scan_frac = max(0.0, min(1.0, tgt / 100.0))
                             _scan_int = int(_scan_frac * 500)
                             if _scan_int != _last_scan_int:
                                 _last_scan_int = _scan_int
@@ -2846,6 +2839,14 @@ class BatchProcessingThread(QThread):
                 def _on_batch_progress(
                     pct: float, msg: str, elapsed_s: float = 0.0, metrics: dict | None = None, _item=item
                 ) -> None:
+                    # §GUI-T9 (2026-09-08): Strikte Log-Konformität — die Statuszeile
+                    # zeigt zu jedem Zeitpunkt EXAKT die zuletzt gemeldete (und im Log
+                    # stehende) Meldung. Ein Guardian-Revert (weiter unten) überschreibt
+                    # sie, weil die Warnung die jüngere Log-Zeile ist.
+                    if msg and not msg.startswith("__") and not msg.startswith("chirurgie:"):
+                        if hasattr(self, "status_text") and self.status_text is not None:
+                            self._apply_status_text_style("info")
+                            self.status_text.setText(msg)
                     # §v10.14 P1: Live-Metriken für GUI zwischenspeichern
                     if metrics:
                         self._latest_live_metrics = metrics
@@ -2984,7 +2985,7 @@ class BatchProcessingThread(QThread):
                     # Der rohe UV3-pct bleibt nur Fallback/Voranalyse/Post-Processing.
                     # Progress use pct directly - already stage-mapped
                     _new_tgt = float(pct)
-                    _stage_cap = min(90.0, float(pct) + 5.0)
+                    _stage_cap = 100.0  # §GUI-T9: keine 90-%-Deckelung — exakter gemeldeter Wert
                     _item.progress = int(_new_tgt)
 
                     # §K: Einfache UV3-Progress-Engine füttern (shared state)
@@ -3619,25 +3620,13 @@ class BatchProcessingThread(QThread):
                 self._emergency_audio = None
                 self._emergency_input_path = None
 
-                item.progress = 90
+                # §GUI-T9 (2026-09-08): Strikte Log-Konformität — KEIN Rücksprung
+                # auf 90 % und keine künstliche 90er-Rampe. Der Balken zeigt
+                # weiterhin den letzten real gemeldeten Fortschritt (98 %,
+                # „Ergebnis wird finalisiert…"), bis der Abschluss (Datei
+                # geschrieben) exakt 100 % meldet.
                 with _sp_lock:
                     _sp["export_stage_started"] = True
-                # Post-processing starts: keep smooth emitter alive at 90 % target
-                # so the bar continues moving during defect analysis, export gate
-                # and file write (can total 5–15 s).  Kill emitter only at the
-                # very end, right before the final 100 % jump.
-                with _sp_lock:
-                    _sp["target"] = 90.0
-                    _sp["last_jump"] = 2.0
-                    _sp["avg_phase_dur"] = 8.0  # generous — keeps creep visible
-                # Ramp zum Ziel 90 % — smooth emitter läuft, wir warten nur kurz
-                with _sp_lock:
-                    _ramp_start_90 = max(8500, min(8990, int(_sp["current"] * 100)))
-                for _rv in range(_ramp_start_90 + 10, 9010, 10):
-                    if self.isInterruptionRequested():
-                        break
-                    self.item_progress.emit(item.id, _rv)
-                    time.sleep(0.03)
 
                 # Phase 3: Post-Restore Defekt-Status + ML-Plugin-Anzeige aus RestorationResult
                 _post_scores = result.defect_scores if hasattr(result, "defect_scores") else {}
@@ -3687,15 +3676,10 @@ class BatchProcessingThread(QThread):
                     self.ml_status_update.emit(bool(_active_ml), _active_ml)
 
                 # Step 90 → 93 %: defect/ML phase done
-                item.progress = 93
-                with _sp_lock:
-                    _sp["target"] = 93.0
-                # Ramp 90 → 93 % in 0,1%-Schritten
-                for _rv in range(9010, 9310, 10):
-                    if self.isInterruptionRequested():
-                        break
-                    self.item_progress.emit(item.id, _rv)
-                    time.sleep(0.02)
+                # §GUI-T9 (2026-09-08): Strikte Log-Konformität — KEINE künstlichen
+                # 90/93/96-%-Schritte und Rampen mehr. Der Balken zeigt den letzten
+                # real gemeldeten Fortschritt (98 %, „Ergebnis wird finalisiert…")
+                # bis der Abschluss exakt 100 % meldet.
 
                 # RestorationResult im Item speichern (Musical Goals, Genealogie, …)
                 # → wird in _on_item_finished an _compute_and_show_quality weitergereicht
@@ -3714,16 +3698,7 @@ class BatchProcessingThread(QThread):
                 )
                 self.phase_step_update.emit(_final_total, _final_total, "Ergebnis wird gespeichert")
                 self.phase_update.emit("Ergebnis wird gespeichert …")
-                # Step 93 → 96 %: export quality gate done
-                item.progress = 96
-                with _sp_lock:
-                    _sp["target"] = 96.0
-                # Ramp 93 → 96 % in 0,1%-Schritten
-                for _rv in range(9310, 9610, 10):
-                    if self.isInterruptionRequested():
-                        break
-                    self.item_progress.emit(item.id, _rv)
-                    time.sleep(0.02)
+                # §GUI-T9: kein 96-%-Zwang und keine Rampe — siehe oben.
                 # Handle RestorationResult object
                 if hasattr(result, "audio"):
                     restored_audio = result.audio
@@ -4004,15 +3979,11 @@ class BatchProcessingThread(QThread):
                         if os.path.exists(_tmp_path):
                             with contextlib.suppress(OSError):
                                 os.remove(_tmp_path)
-                # File written: stop smooth emitter, glide 96 → 100 % in 0,1%-Schritten
+                # §GUI-T9: File written — exakt EIN Sprung auf 100 % (kein Fake-Glide).
                 with _sp_lock:
                     _sp["alive"] = False
                 item.progress = 100
-                for _rv in range(9610, 10010, 10):
-                    if self.isInterruptionRequested():
-                        break
-                    self.item_progress.emit(item.id, _rv)
-                    time.sleep(0.015)
+                self.item_progress.emit(item.id, 10000)
 
                 # Mark as completed
                 item.status = "completed"
@@ -19862,7 +19833,7 @@ class ModernMainWindow(QMainWindow):
         # §v10.704 B21: KEIN Reset auf 0 — Gesamtfortschritt läuft von Import bis Export durch.
         # Pre-Analysis endet bei ~25%, Verarbeitung startet mindestens dort.
         _current_val = self.progress_bar.value()
-        self.progress_bar.setValue(max(_current_val, 2500))  # min. 25% wenn Pre-Analysis fertig
+        self.progress_bar.setValue(_current_val)  # §GUI-T9: kein künstlicher 25-%-Floor
         self.progress_bar.setVisible(True)
         if hasattr(self, "phase_progress_bar"):
             self.phase_progress_bar.setValue(0)
@@ -20101,7 +20072,13 @@ class ModernMainWindow(QMainWindow):
         self._request_processing_stop("offtrack_guard", timeout_s=60.0)
 
     def _apply_heartbeat_progress_forecast(self, phase_state: dict[str, Any]) -> None:
-        """Hält Haupt- und Phasenbalken zwischen echten Pipeline-Callbacks sichtbar lebendig."""
+        """§GUI-T9 (2026-09-08): Strikte Log-Konformität — die zeitbasierte
+        Heartbeat-Prognose darf die Balken NICHT mehr bewegen. Haupt- und
+        Phasenbalken folgen ausschließlich den echten progress_callback-
+        Werten (= Log-Fortschritt). Die Methode bleibt als No-op für den
+        Timer-Vertrag erhalten.
+        """
+        return
         if not hasattr(self, "progress_bar") or self.progress_bar.maximum() <= 0:
             return
         raw_pct = float(phase_state.get("pct", 0.0) or 0.0)
@@ -20193,15 +20170,15 @@ class ModernMainWindow(QMainWindow):
         # ── 1. Gesamtfortschritt (grüner Hauptbalken) ─────────────────
         _item_pct = float(getattr(_item, "progress", 0) or 0) if _item is not None else 100.0
         _overall_pct = (_done_items + _item_pct / 100.0) / _total_items * 100.0
-        _overall_pct = max(0.0, min(99.9, _overall_pct))
+        _overall_pct = max(0.0, min(100.0, _overall_pct))
         _overall_bp = int(round(_overall_pct * 100.0))
 
         _cur_bp = self.progress_bar.value()
-        if _overall_bp > _cur_bp:
-            _step = max(1, (_overall_bp - _cur_bp) // 4)
-            self.progress_bar.setRange(0, 10000)
-            self.progress_bar.setValue(min(_overall_bp, _cur_bp + _step))
-            self.progress_bar.setVisible(True)
+        # §GUI-T9: exakt der letzte gemeldete Fortschritt — kein Smoothing-Schritt,
+        # keine 99.9/90-%-Deckelung. Monoton (kein Rückwärtssprung).
+        self.progress_bar.setRange(0, 10000)
+        self.progress_bar.setValue(min(10000, max(_cur_bp, _overall_bp)))
+        self.progress_bar.setVisible(True)
 
         _pct_de = _de_num(_overall_pct, 1)
         _eta_str = ""
@@ -20231,29 +20208,12 @@ class ModernMainWindow(QMainWindow):
         if _def_total > 0:
             _phase_bp = int(round(_def_pct * 100.0))
             _phase_detail = f" · {_def_resolved}/{_def_total} Defekte behoben"
-        elif _uv3 and isinstance(_uv3, dict) and _uv3.get("active"):
-            _phase_elapsed = _now - _uv3.get("started_at", _now)
-            if _phase_elapsed <= 90.0:
-                _hb_frac = _phase_elapsed / 90.0 * 0.88
-            else:
-                _tail = 0.10 * (1.0 - math.exp(-(_phase_elapsed - 90.0) / 40.0))
-                _hb_frac = 0.88 + _tail
-            _phase_bp = int(round(_hb_frac * 10000.0))
-            if not _clean and _uv3["idx"] >= 0:
-                _clean = (
-                    f"Phase {_uv3['idx'] + 1}/{_uv3['count']}"
-                    if _uv3.get("count", 0) > 0
-                    else f"Phase {_uv3['idx'] + 1}"
-                )
-        else:
-            _phase_bp = int(round(_item_pct * 100.0))
-
-        _phase_bp = max(self._heartbeat_phase_progress_bp, min(9800, _phase_bp))
-        if _phase_bp > self._heartbeat_phase_progress_bp:
-            self._heartbeat_phase_progress_bp = _phase_bp
+        # §GUI-T9: KEIN Zeit-Fill (uv3-Heartbeat-Fraktion) und KEIN direkter
+        # Schreibzugriff auf den Phasenbalken mehr — der orange Balken wird
+        # ausschließlich vom exakten Emitter aus echten Sub-Fortschritts-
+        # Callbacks getrieben (monoton, strikt log-konform).
 
         if hasattr(self, "phase_progress_bar"):
-            self.phase_progress_bar.setValue(_phase_bp)
             self.phase_progress_bar.setVisible(True)
 
         # ── 3. Status-Text: Narrativ statt technischer Anzeige ─────
@@ -20267,8 +20227,8 @@ class ModernMainWindow(QMainWindow):
             eta_remaining_s=max(0.0, _eta_deadline - _now) if _eta_deadline > 0 else -1,
             elapsed_s=_elapsed_narr,
         )
-        if hasattr(self, "status_text"):
-            self.status_text.setText(_narrative)
+        # §GUI-T9: status_text gehört der exakten Log-Meldung aus
+        # _on_batch_progress; das Narrativ lebt im eigenen Panel.
 
         # §v10.708: Träger-Anzeige bleibt während Restauration sichtbar.
         # "Erkannte Aufnahme:" zeigt die Tonträgerkette — NICHT den Phasenstatus
@@ -20448,13 +20408,8 @@ class ModernMainWindow(QMainWindow):
                 None,
             )
             if current_item is not None:
-                polled = max(100, min(10000, current_item.progress * 100))
-                _state_for_cap = getattr(self.batch_thread, "_last_phase_state", None)
-                _ui_for_cap = 0.0
-                if isinstance(_state_for_cap, dict):
-                    _ui_for_cap = float(_state_for_cap.get("ui_pct", _state_for_cap.get("pct", 0.0)) or 0.0)
-                if getattr(current_item, "progress", 0) < 100 and _ui_for_cap < 90.0:
-                    polled = min(polled, 9000)
+                # §GUI-T9: echter Fortschritt ohne 90-%-Deckelung und ohne künstlichen 1-%-Floor
+                polled = max(0, min(10000, current_item.progress * 100))
                 # Nur aktualisieren wenn polled-Wert größer als aktueller Wert
                 # (verhindert Rückschritt durch Race Condition)
                 if polled > self.progress_bar.value():
@@ -25062,7 +25017,11 @@ class ModernMainWindow(QMainWindow):
         self._sync_progress_bar_to_scan_cursor(frac)
 
     def _sync_progress_bar_to_scan_cursor(self, frac: float) -> None:
-        """Zieht den Gesamtbalken vorwärts nach, wenn der echte Timeline-Cursor bereits weiter ist."""
+        """§GUI-T9 (2026-09-08): Der Waveform-Scan-Cursor ist ein eigenes
+        visuelles Element und treibt den Restaurierungs-Gesamtbalken NICHT
+        mehr (strikte Log-Konformität: Balken = echter Pipeline-Fortschritt).
+        """
+        return
         if not hasattr(self, "progress_bar") or self.progress_bar.maximum() <= 0:
             return
         _batch_thread = getattr(self, "batch_thread", None)
