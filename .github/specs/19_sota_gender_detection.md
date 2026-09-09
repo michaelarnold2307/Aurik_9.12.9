@@ -158,6 +158,43 @@ Frauenstimmen). Regeln:
 - **Confidence**: Der Override setzt confidence auf **0.65** (Contralto-Floor)
   und erbt nicht die Confidence des widersprochenen 'male'-Urteils.
 
+### §19.2b Umsetzung im Pipeline-Level GenderDetector — Befund Elke Best (2026-09-08)
+
+**Symptom:** Gender wird bei Elke Best (Mezzosopran/Alt, volles Pop-Arrangement)
+als `UNKNOWN` bzw. `MALE` erkannt — obwohl die älteren Logs (`logs/elke_best_*.log`)
+„Auto-detected gender: female" zeigten. Die §19.2-Architektur war bis dahin nur in
+`phase_19_de_esser._detect_gender_robust` umgesetzt — NICHT im Pipeline-Level
+Detektor `vocal_ai_enhancement.GenderDetector`, den `unified_restorer_v3`
+(`_select_phases`, Zeile ~27504) für `restoration_context["vocal_gender"]` nutzt.
+
+**Root Cause (gemessen an `test_audio/_elke_60s_excerpt.wav`):**
+
+1. `_detect_f0()` (Scanning) betrachtet nur die ersten ~3 s (60×100 ms) → greift
+   die Basslinie (111 Hz) statt der Stimme; bei instrumentalem Intro > 3 s → 0 Hz → UNKNOWN.
+2. `_detect_formants()` mittelte Spektral-Peaks über ALLE Frames (inkl. Instrumente)
+   → F2=704 Hz statt weiblich (>920 Hz).
+3. Kein pYIN, kein Contralto-Override im Detektor → F0=111 Hz + kontaminierte
+   Formanten → MALE (confidence 0.93).
+
+**Umsetzung (deterministisch, §G5):**
+
+- **`_detect_pyin_f0()`**: pYIN (Mauch & Dixon 2014) mit gestufter Schwelle
+  (voiced_prob > 0.4 → 0.25; gemessen: bei vollem Pop-Arrangement liegt p90 ≈ 0.2,
+  max ≈ 0.85 — die frühere Schwelle 0.8 fand nichts), NaN-Filter, Median über
+  voiced Frames, Fenster-Leiter 0–30 s → Track-Mitte → Track-Ende (I-19.2).
+- **pYIN-Override** in `detect()`: pYIN gewinnt bei F0=0 oder Abweichung > 15 %
+  (Oktavfehler, Bass-Masking, Vibrato) — Regel identisch mit phase_19 (§2.11).
+- **`_detect_formants(audio, voiced_times)`**: Formanten NUR aus Frames mit
+  stimmhaftem Zentrum (Gate ±12 ms); leeres Gate → ungegateter Fallback.
+- **`_apply_contralto_override()`**: Spec-19-Contralto-Regel (Zone 120–240 Hz
+  inkl. Oktavkandidat 2×F0, F1 UND F2 weiblich → FEMALE, Confidence-Floor 0.65).
+
+**Evidenz:** `_elke_60s_excerpt.wav`: vorher F0=111.1 Hz, Formanten [325, 704, 1083]
+→ MALE 0.93; nachher pYIN-F0=323.2 Hz, voiced-Formanten [353, 741, 1117] → FEMALE 0.92.
+`Elke Best - 30 Sekunden.mp3`: 94.5 Hz → 358.6 Hz → FEMALE 0.92. Regressionstests G09a–G09d
+in `tests/normative/test_gender_detection_sota_gate.py` (G09a echt, Modell-unabhängig,
+skip ohne Testaudio).
+
 ---
 
 ## §19.3 Änderungen im Detail

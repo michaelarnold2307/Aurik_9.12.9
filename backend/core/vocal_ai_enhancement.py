@@ -163,14 +163,36 @@ class GenderDetector:
         if audio.ndim == 2:
             audio = np.mean(audio, axis=1)
 
-        # Detect fundamental frequency (F0)
+        # §19.2: pYIN F0 (Mauch & Dixon 2014) — Median über voiced Frames.
+        # Liefert zusätzlich die voiced-Frame-Zeitpunkte für das Formant-
+        # Gating (Formanten NUR aus stimmhaften Frames → keine Instrumental-
+        # Kontamination). Deterministisch (§G5).
+        pyin_f0, voiced_times = self._detect_pyin_f0(audio)
+
+        # Detect fundamental frequency (F0) — Scanning-Autokorrelation (Basis)
         fundamental_freq = self._detect_f0(audio)
 
-        # Detect formants
-        formants = self._detect_formants(audio)
+        # §2.11/§19.2: pYIN-Override — pYIN gewinnt, wenn die Autokorrelation
+        # kein voiced Segment fand (Intro > 3 s, Befund Elke Best) oder die
+        # Abweichung > 15 % beträgt (Oktavfehler, Bass-Masking, Vibrato).
+        if pyin_f0 is not None and pyin_f0 > 0:
+            if fundamental_freq <= 0:
+                fundamental_freq = pyin_f0
+            else:
+                delta = abs(pyin_f0 - fundamental_freq) / max(fundamental_freq, 1.0)
+                if delta > 0.15:
+                    fundamental_freq = pyin_f0
+
+        # Detect formants — §19.2: nur aus voiced Frames (vokaltrakt-treu)
+        formants = self._detect_formants(audio, voiced_times)
 
         # Classify gender based on F0 and formants
         gender, confidence = self._classify_gender(fundamental_freq, formants)
+
+        # §19 Contralto-Override: tiefe Frauenstimmen mit weiblichen Formanten
+        gender, confidence = self._apply_contralto_override(
+            gender, confidence, fundamental_freq, formants
+        )
 
         # Detect breathiness
         breathiness = self._detect_breathiness(audio)
@@ -249,9 +271,100 @@ class GenderDetector:
                 best_f0 = f0
         return best_f0
 
-    def _detect_formants(self, audio: np.ndarray) -> list[float]:
+    def _detect_pyin_f0(self, audio: np.ndarray, max_seconds: float = 30.0) -> tuple[float | None, np.ndarray | None]:
+        """§19.2: pYIN F0 (Mauch & Dixon 2014) — Median über voiced Frames.
+
+        pYIN ist ein probabilistisches Pitch-Modell mit Voicing-Confidence:
+        robust gegen polyphones Material, Vibrato und lange Intros (die
+        Scanning-Autokorrelation betrachtet nur die ersten ~3 s, Befund
+        Elke Best 2026-09-08). Gibt (median_f0, voiced_frame_times) zurück;
+        (None, None) wenn < 10 voiced Frames existieren.
+
+        Befund Elke Best (2026-09-08, gemessen): pYIN-Voicing-Confidence liegt
+        bei vollem Pop-Arrangement fast nie über 0.8 (p90 ≈ 0.2, max ≈ 0.85) —
+        die Schwelle 0.8 findet daher nichts. Gestufte Schwelle (0.4 → 0.25)
+        plus NaN-Filter; der Median über viele Frames bleibt dadurch robust.
+        Findet das erste Fenster (0–30 s) keine Stimme (Intro), wird in der
+        Track-Mitte und am Track-Ende weitergesucht (I-19.2: F0 > 0 sobald
+        IRGENDWO ein voiced Segment existiert).
+        """
+        try:
+            import librosa
+
+            n = int(self.sr * max_seconds)
+            if len(audio) <= n:
+                windows: list[tuple[int, int]] = [(0, len(audio))]
+            else:
+                mid_start = max(0, (len(audio) - n) // 2)
+                windows = [(0, n), (mid_start, mid_start + n), (len(audio) - n, len(audio))]
+            for _win_start, _win_end in windows:
+                seg = np.asarray(audio[_win_start:_win_end], dtype=np.float32)
+                f0, _voiced_flag, voiced_prob = librosa.pyin(
+                    seg, fmin=60.0, fmax=700.0, sr=self.sr, frame_length=2048, win_length=1024
+                )
+                for _th in (0.4, 0.25):
+                    _valid = (voiced_prob > _th) & ~np.isnan(f0)
+                    if int(np.count_nonzero(_valid)) > 10:
+                        _hop = 512  # librosa-Default: frame_length // 4
+                        _times = np.arange(len(voiced_prob), dtype=np.float64) * _hop / float(self.sr)
+                        _voiced_f0 = f0[_valid]
+                        return float(np.median(_voiced_f0)), _times[_valid] + _win_start / float(self.sr)
+            return None, None
+        except Exception as exc:
+            logger.debug("pYIN F0 fehlgeschlagen (%s) — Autokorrelation bleibt Basis", exc)
+            return None, None
+
+    def _apply_contralto_override(
+        self,
+        gender: VoiceGender,
+        confidence: float,
+        fundamental_freq: float,
+        formants: list[float],
+    ) -> tuple[VoiceGender, float]:
+        """§19 Contralto-Override (Zone 120–240 Hz, Spec 19 „Contralto-Zonen-
+        Erweiterung" 2026-08-22; Befund Elke Best 2026-09-08).
+
+        Tiefe Frauenstimmen haben F0 im männlichen Bereich, aber weibliche
+        Formanten (kürzerer Vokaltrakt → höheres F1/F2). Formanten sind das
+        anatomisch härtere Merkmal als F0 → F1 UND F2 weiblich-typisch bei
+        F0 in der Contralto-Zone (inkl. Oktavfehler: 2×F0 in Zone) → FEMALE
+        mit Confidence-Floor 0.65 (§19).
+        """
+        if gender == VoiceGender.FEMALE or fundamental_freq <= 0 or len(formants) < 2:
+            return gender, confidence
+        _zone_low, _zone_high = 120.0, 240.0
+        _female_f1 = (310.0, 860.0)
+        _female_f2 = (920.0, 2790.0)
+        f1 = float(formants[0])
+        f2 = float(formants[1])
+        # Oktavfehler-Erkennung: F0 < 120 Hz, aber 2×F0 in der Zone
+        _effective_f0 = 2.0 * fundamental_freq if (
+            fundamental_freq < _zone_low and _zone_low <= 2.0 * fundamental_freq <= _zone_high
+        ) else fundamental_freq
+        if (
+            _zone_low <= _effective_f0 <= _zone_high
+            and _female_f1[0] <= f1 <= _female_f1[1]
+            and _female_f2[0] <= f2 <= _female_f2[1]
+        ):
+            logger.debug(
+                "Contralto-Override: F0=%.0f Hz F1=%.0f F2=%.0f → FEMALE",
+                fundamental_freq,
+                f1,
+                f2,
+            )
+            return VoiceGender.FEMALE, max(float(confidence), 0.65)
+        return gender, confidence
+
+    def _detect_formants(self, audio: np.ndarray, voiced_times: np.ndarray | None = None) -> list[float]:
         """
         Detect formants using LPC (Linear Predictive Coding).
+
+        §19.2 (2026-09-08): Wenn pYIN-voiced-Zeitpunkte übergeben werden,
+        werden Formanten NUR aus stimmhaften Frames geschätzt (Gate ±12 ms um
+        die Frame-Mitte). Ohne Gate kontaminiert der Instrumentalanteil den
+        Frame-Durchschnitt (Befund Elke Best: F2=704 Hz statt weiblich).
+        Liefert das Gate keine Frames, fällt der Schätzer auf den
+        ungegateten Durchschnitt zurück (pYIN/Frame-Raster-Diskrepanz).
 
         Simplified implementation - in production würde man
         librosa oder praat verwenden.
@@ -270,7 +383,17 @@ class GenderDetector:
 
         formant_tracks = []
 
+        # §19.2: Formant-Gating — nur Frames mit stimmhaftem Zentrum verwenden.
+        _gate_active = voiced_times is not None and len(voiced_times) > 0
+        _gate_tol = 0.012  # ±12 ms um die Frame-Mitte
+        _gated_frames = 0
+
         for frame_start in range(0, len(pre_emphasized) - frame_size, hop_size):
+            if _gate_active:
+                frame_center = (frame_start + frame_size / 2.0) / self.sr
+                if not np.any(np.abs(np.asarray(voiced_times, dtype=np.float64) - frame_center) <= _gate_tol):
+                    continue
+                _gated_frames += 1
             frame = pre_emphasized[frame_start : frame_start + frame_size]
 
             # Windowing
@@ -306,6 +429,11 @@ class GenderDetector:
             lpc_formants = [float(f) for f in avg_formants if f > 0]
         else:
             lpc_formants = []
+
+        # §19.2: Gate leer (pYIN/Formant-Raster-Diskrepanz) → ungegateter
+        # Fallback, damit die Detektion nie durch das Gate blockiert wird.
+        if _gate_active and _gated_frames == 0:
+            return self._detect_formants(audio, None)
 
         # WORLD-Vocoder-Quervalidierung (Morise et al. 2016):
         # DIO/Harvest f0 + CheapTrick-Spektralhüllkurve als unabhängige

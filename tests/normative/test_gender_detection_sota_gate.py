@@ -372,3 +372,100 @@ class TestFullIntegration:
         # Die SOTA-Kette: GenderDetector → pYIN → Contralto → LPC → Simple
         assert "get_lpc_formant_tracker" in src, "LPC Formant Tracker nicht in der Chain"
         assert "Burg-LPC fallback" in src.lower() or "lpc formant" in src.lower(), "LPC-Fallback-Log-Message fehlt"
+
+
+# ===========================================================================
+# G09 — Befund Elke Best (2026-09-08): Pipeline-GenderDetector SOTA
+# ===========================================================================
+
+
+class TestElkeBestSOTA:
+    """G09: Befund Elke Best — der Pipeline-Level GenderDetector
+    (vocal_ai_enhancement) MUSS die Spec-19-Kette umsetzen: pYIN-F0
+    (voiced-Median, gestufte Schwelle + NaN-Filter, Fenster-Leiter 0–30 s →
+    Mitte → Ende), Formanten NUR aus voiced Frames und den Contralto-
+    Override (Zone 120–240 Hz + weibliche F1/F2 → FEMALE, Confidence-
+    Floor 0.65).
+    """
+
+    @staticmethod
+    def _harmonic_voice(f0: float, f1: float, f2: float, f3: float, duration_s: float = 3.0) -> np.ndarray:
+        """Harmonische Stimmsynthese mit scharfer Formanthüllkurve.
+
+        Anders als _make_synthetic_voice (4 unabhängige Sinus-Töne) erzeugt
+        dieser Generator eine echte harmonische Serie mit Formant-Peaks auf
+        den Harmonischen — der Spektral-Peak-Finder des GenderDetectors
+        findet dann F1/F2/F3 an den beabsichtigten Frequenzen.
+        """
+        t = np.arange(int(SR * duration_s), dtype=np.float64) / SR
+        sig = np.zeros_like(t)
+        for h in range(1, 30):
+            f = f0 * h
+            if f > SR / 2 - 100:
+                break
+            env = (
+                3.0 * np.exp(-((f - f1) / 60.0) ** 2)
+                + 2.5 * np.exp(-((f - f2) / 80.0) ** 2)
+                + 2.0 * np.exp(-((f - f3) / 100.0) ** 2)
+            )
+            sig += (1.0 / h) * env * np.sin(2 * np.pi * f * t)
+        sig *= 0.5 / max(np.max(np.abs(sig)), 1e-10)
+        return sig.astype(np.float32)  # type: ignore[no-any-return]
+
+    def test_g09_elke_best_real_audio_is_female(self):
+        """G09a: Echte Elke-Best-Aufnahme → FEMALE (nicht UNKNOWN/MALE)."""
+        from pathlib import Path
+
+        from backend.core.vocal_ai_enhancement import GenderDetector, VoiceGender
+
+        _root = Path(__file__).resolve().parents[2]
+        _candidates = [
+            _root / "test_audio" / "Elke Best - 30 Sekunden.mp3",
+            _root / "test_audio" / "_elke_60s_excerpt.wav",
+        ]
+        _audio_path = next((p for p in _candidates if p.is_file()), None)
+        if _audio_path is None:
+            pytest.skip("Elke-Best-Testaudio nicht vorhanden (gitignored)")
+        import librosa
+
+        audio, sr = librosa.load(str(_audio_path), sr=SR, mono=True)
+        gd = GenderDetector(sample_rate=SR)
+        chars = gd.detect(audio)
+        assert chars.gender == VoiceGender.FEMALE, (
+            f"Elke Best wurde als {chars.gender.value} erkannt (F0={chars.fundamental_freq:.1f} Hz, "
+            f"conf={chars.confidence:.2f}) — erwartet FEMALE"
+        )
+
+    def test_g09_contralto_override_fires(self):
+        """G09b: F0 im männlichen Bereich + weibliche F1/F2 → FEMALE (Override)."""
+        from backend.core.vocal_ai_enhancement import GenderDetector, VoiceGender
+
+        gd = GenderDetector(sample_rate=SR)
+        # F1=450 (h3), F2=1500 (h10), F3=2500 — Peaks exakt auf Harmonischen
+        contralto = self._harmonic_voice(150, 450, 1500, 2500)
+        chars = gd.detect(contralto)
+        assert chars.gender == VoiceGender.FEMALE, (
+            f"Contralto (F0=150, weibliche Formanten) wurde {chars.gender.value} — Override fehlt"
+        )
+        assert chars.confidence >= 0.65, f"Confidence-Floor 0.65 verletzt: {chars.confidence:.2f}"
+
+    def test_g09_male_stays_male(self):
+        """G09c: Männliche Stimme bleibt MALE (F2=840 ist männlich-exklusiv)."""
+        from backend.core.vocal_ai_enhancement import GenderDetector, VoiceGender
+
+        gd = GenderDetector(sample_rate=SR)
+        chars = gd.detect(self._harmonic_voice(120, 500, 840, 2500))
+        assert chars.gender == VoiceGender.MALE, (
+            f"Männliche Stimme wurde {chars.gender.value} — Regression"
+        )
+
+    def test_g09_long_intro_survived_by_pyin_window_ladder(self):
+        """G09d: 12 s Intro + Frauenstimme → FEMALE (Fenster-Leiter statt 3-s-Scan)."""
+        from backend.core.vocal_ai_enhancement import GenderDetector, VoiceGender
+
+        gd = GenderDetector(sample_rate=SR)
+        long_intro = _add_silence_intro(self._harmonic_voice(220, 700, 2000, 3000), silence_s=12.0)
+        chars = gd.detect(long_intro)
+        assert chars.gender == VoiceGender.FEMALE, (
+            f"12-s-Intro: {chars.gender.value} (F0={chars.fundamental_freq:.1f} Hz)"
+        )
