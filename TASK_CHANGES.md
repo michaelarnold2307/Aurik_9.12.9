@@ -1,15 +1,42 @@
 # TASK_CHANGES — Live-Ledger der aktuellen Aufgabe
 
-> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-08 18:59 CEST).
+> Generiert von `scripts/change_ledger.py snapshot` (Base: `HEAD`, Stand: 2026-09-09 04:58 CEST).
 > CI (`ci-lite.yml` pr-evidence-gate) erzwingt Abdeckung: jede geänderte Code-Datei muss hier stehen.
 
 ## Geänderte Dateien
 
 | Status | Pfad | Art |
 |---|---|---|
-| M | Aurik10/ui/keyboard_shortcuts.py | modifiziert |
-| M | docs/TODOS_SOTA_ROADMAP.md | modifiziert |
-| ?? | tests/unit/test_keyboard_export_logic.py | ungetrackt |
+| M | .github/FILE_REGISTRY.md | modifiziert |
+| D | docs/archive/BEST_2026_ERKENNTNISSE.md | gelöscht |
+| D | docs/archive/BEST_2026_EXECUTION_PLAN_30D.md | gelöscht |
+| D | docs/archive/DAW_Plugin_Architecture.md | gelöscht |
+| D | docs/archive/FINAL_RELEASE_DECISION_2026-03-28.md | gelöscht |
+| D | docs/archive/MODULAR_PHASES_API.md | gelöscht |
+| D | docs/archive/README.md | gelöscht |
+| D | docs/archive/UAT_MASTER_INDEX.md | gelöscht |
+| D | docs/archive/UAT_REPORT_2026-03-28.md | gelöscht |
+| D | docs/archive/UAT_REPORT_2026-04-12.md | gelöscht |
+| D | docs/archive/UAT_REPORT_2026-04-14.md | gelöscht |
+| D | docs/archive/UAT_REPORT_2026-05-11.md | gelöscht |
+| D | docs/archive/UAT_SCORECARD_2026-03-28.md | gelöscht |
+| D | docs/archive/UAT_SCORECARD_2026-04-12.md | gelöscht |
+| D | docs/archive/UAT_SCORECARD_2026-04-14.md | gelöscht |
+| D | docs/archive/UAT_SCORECARD_2026-05-11.md | gelöscht |
+| D | docs/archive/WORLDCLASS_CHANGE_ACCEPTANCE_PROTOCOL.md | gelöscht |
+| D | docs/archive/WORLDCLASS_CLASS_C_REVALIDATION_PROTOCOL_2026-05-20.md | gelöscht |
+| D | docs/archive/WORLDCLASS_EXECUTION_PLAYBOOK.md | gelöscht |
+| D | docs/archive/WORLDCLASS_SCIENTIFIC_GAP_BACKLOG_2026-05-20.md | gelöscht |
+| D | docs/archive/WORLDCLASS_SOTA_IMPLEMENTATION_MATRIX_2026-05-20.md | gelöscht |
+| D | docs/archive/musical_excellence_next_steps.md | gelöscht |
+| D | docs/archive/natural_sound_improvement_analysis.md | gelöscht |
+| D | docs/archive/tier2_ml_hybrid_analysis.md | gelöscht |
+| D | docs/archive/worldclass_balance_roadmap_2026-06-05.md | gelöscht |
+| M | tests/onnx_skip/test_plugin_manager.py | modifiziert |
+| M | tests/unit/test_deepfilternet_plugin_alpha.py | modifiziert |
+| ?? | audit/bridge_import_status_summary_voice_first_runtime.json | ungetrackt |
+| ?? | scripts/export_dfn_finetuned_onnx.py | ungetrackt |
+| ?? | tests/unit/test_live_goal_radar_update.py | ungetrackt |
 
 ## Entscheidungen
 

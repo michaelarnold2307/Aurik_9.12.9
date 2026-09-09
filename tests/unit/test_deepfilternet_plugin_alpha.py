@@ -1,16 +1,23 @@
-"""§P1-6 — DeepFilterNet dec.onnx ohne Alpha-Head (ML→DSP-Befund).
+"""§P1-6 — DeepFilterNet dec.onnx Alpha-Head (ML→DSP-Befund + Fix).
 
 Befund 2026-09-08: IndexError in _infer_spectral_chunk (alpha = dec_out[1])
-→ stiller OMLSA-Fallback. Root-Cause: DFN3-Export liefert nur coefs
-(df_fc_a ist im trainierten Forward unbenutzt). Fix: alpha optional;
-fehlendes alpha = pure DF wie im trainierten Forward (blend=1.0).
+→ stiller OMLSA-Fallback. Root-Cause: der aktive finetuned dec.onnx war ein
+veralteter Export ohne Alpha-Head (df_fc_a). Fix 2026-09-08: alle drei
+ONNX-Modelle aus dfn_musik_best.pt neu exportiert (scripts/
+export_dfn_finetuned_onnx.py), dec MIT Alpha-Ausgang; alpha optional
+behandeln (fehlendes alpha = pure DF, blend=1.0).
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
+import pytest
 
 from plugins.deepfilternet_v3_ii_plugin import DeepFilterNetV3Plugin
+
+_MODEL_DIR = Path(__file__).resolve().parents[2] / "models" / "deepfilternet_v3_ii"
 
 
 class _FakeSession:
@@ -30,7 +37,7 @@ def _make_plugin(dec_outputs: list[np.ndarray]) -> DeepFilterNetV3Plugin:
     p = DeepFilterNetV3Plugin.__new__(DeepFilterNetV3Plugin)  # ohne Modell-Load
     p._enc = _FakeSession(
         [np.zeros((1, 16, _S, 32)), np.zeros((1, 16, _S, 16)), np.zeros((1, 16, _S, 8)),
-         np.zeros((1, 16, _S, 8)), np.zeros((1, _S, 128)), np.zeros((1, 16, _S, 96)),
+         np.zeros((1, 16, _S, 8)), np.zeros((1, _S, 256)), np.zeros((1, 16, _S, 96)),
          np.zeros((1, _S, 1))]
     )
     p._erb_dec = _FakeSession([np.zeros((1, 1, _S, 32))])
@@ -87,3 +94,33 @@ def test_apply_df_filter_alpha_blend_unchanged() -> None:
     expected = np.ones((481, _S), dtype=np.complex64)
     expected[:96, :] = 0.75
     assert np.allclose(out, expected, atol=1e-6)
+
+
+def test_active_finetuned_dec_has_alpha_head() -> None:
+    """§Fix 2026-09-08: aktiver finetuned dec.onnx MUSS den Alpha-Head liefern.
+
+    Regression gegen veraltete Exporte ohne df_fc_a (→ pure-DF-Degradation).
+    Modelle sind gitignored → skip, wenn nicht vorhanden.
+    """
+    dec = _MODEL_DIR / "finetuned" / "dec.onnx"
+    if not dec.is_file():
+        pytest.skip("models/ nicht vorhanden (gitignored)")
+    import onnxruntime as ort
+
+    sess = ort.InferenceSession(str(dec), providers=["CPUExecutionProvider"])
+    names = [o.name for o in sess.get_outputs()]
+    assert "coefs" in names
+    assert len(names) >= 2, names
+    assert any("alpha" in n.lower() or "sigmoid" in n.lower() for n in names), names
+
+
+def test_plugin_loads_alpha_from_finetuned_model() -> None:
+    """Plugin lädt das aktive finetuned-Set und erkennt den Alpha-Head."""
+    dec = _MODEL_DIR / "finetuned" / "dec.onnx"
+    enc = _MODEL_DIR / "finetuned" / "enc.onnx"
+    erb = _MODEL_DIR / "finetuned" / "erb_dec.onnx"
+    if not (dec.is_file() and enc.is_file() and erb.is_file()):
+        pytest.skip("models/ nicht vorhanden (gitignored)")
+    p = DeepFilterNetV3Plugin()
+    assert p._dec_has_alpha is True
+    assert p._dec is not None and p._enc is not None and p._erb_dec is not None
