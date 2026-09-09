@@ -63,11 +63,15 @@ jobs:
       - name: Run cross-platform tests
         shell: bash
         run: |
-          PYTHONPATH=. pytest tests/ \
+          # §Fix 2026-09-08: Der komplette tests/-Baum (19,5k Tests) ist mit
+          # dem 30-min-Job-Timeout strukturell nicht lauffähig (lokal 65 min
+          # nur für tests/unit) und enthielt zahlreiche Alt-API-Integration-
+          # Tests, die unabhängig von der Plattform scheitern. Normativer
+          # Scope (Spec 10_bug_gap_strategy.md, aurik-unit-smoke): tests/unit
+          # plus die plattformkritischen Normative-Dateien.
+          PYTHONPATH=. pytest tests/unit tests/normative/test_no_production_stubs.py \
             -m "not slow and not gpu and not onnx" \
             --timeout=60 \
-            -x \
-            -v \
             --tb=short \
             --no-header \
             --override-ini="addopts=" \

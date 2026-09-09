@@ -389,15 +389,18 @@ class MLStemSeparator:
             ht = get_htdemucs_plugin()
             if ht is None:
                 raise RuntimeError("HTDemucs plugin nicht verfügbar")
-            ht_stems = ht.separate(audio, sample_rate)  # type: ignore[attr-defined]
-            if ht_stems and "vocals" in ht_stems:
+            ht_stems = ht.separate(audio, sample_rate)
+            # §Fix 2026-09-08: htdemucs_plugin.separate() liefert ein
+            # SeparationResult-Dataclass, KEIN Dict — "vocals" in ht_stems
+            # und .get() warfen TypeError → stiller Tier-4-Fallback (§V6).
+            if ht_stems is not None and getattr(ht_stems, "vocals", None) is not None:
                 self.metrics = {"backend": "HTDemucs", "quality": "high", "tier": 3}
                 _logger.info("MLStemSeparator: Tier-3 HTDemucs OK")
                 out = {
-                    "vocals": np.asarray(ht_stems.get("vocals", np.zeros_like(audio)), dtype=orig_dtype),
-                    "drums": np.asarray(ht_stems.get("drums", np.zeros_like(audio)), dtype=orig_dtype),
-                    "bass": np.asarray(ht_stems.get("bass", np.zeros_like(audio)), dtype=orig_dtype),
-                    "other": np.asarray(ht_stems.get("other", np.zeros_like(audio)), dtype=orig_dtype),
+                    "vocals": np.asarray(getattr(ht_stems, "vocals", np.zeros_like(audio)), dtype=orig_dtype),
+                    "drums": np.asarray(getattr(ht_stems, "drums", np.zeros_like(audio)), dtype=orig_dtype),
+                    "bass": np.asarray(getattr(ht_stems, "bass", np.zeros_like(audio)), dtype=orig_dtype),
+                    "other": np.asarray(getattr(ht_stems, "other", np.zeros_like(audio)), dtype=orig_dtype),
                 }
                 return {k: np.clip(v, -1.0, 1.0).astype(orig_dtype) for k, v in out.items()}
         except Exception as _err:

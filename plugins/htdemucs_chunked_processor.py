@@ -27,12 +27,14 @@ Psychoakustik (ERB-Bandbewertung):
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
 if TYPE_CHECKING:
-    from plugins.htdemucs_plugin import HtdemucsPlugin, SeparationResult
+    from plugins.htdemucs_plugin import HtdemucsPlugin
+
+from plugins.htdemucs_plugin import SeparationResult
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +123,7 @@ class ChunkedProcessor:
                 _trim_fn = lambda _v: _v[..., :orig_length] if _v.shape[-1] > orig_length else np.pad(
                     _v, ((0, 0),) * (_v.ndim - 1) + ((0, orig_length - _v.shape[-1]),), mode="constant"
                 )
-                result_48k = type(result_48k)(
+                result_48k = SeparationResult(
                     vocals=_trim_fn(result_48k.vocals),
                     drums=_trim_fn(result_48k.drums),
                     bass=_trim_fn(result_48k.bass),
@@ -130,14 +132,14 @@ class ChunkedProcessor:
                 )
             # Mono-Restore wenn nötig
             if orig_shape_mono:
-                return type(result_48k)(
+                return SeparationResult(
                     vocals=result_48k.vocals[0],
                     drums=result_48k.drums[0],
                     bass=result_48k.bass[0],
                     other=result_48k.other[0],
                     sr=result_48k.sr,
                 )
-            return result_48k
+            return cast(SeparationResult, result_48k)
 
         # Initialisiere Output-Stems (Akkumulator)
         stems_out: dict[str, np.ndarray] = {
@@ -296,8 +298,8 @@ class ChunkedProcessor:
             logger.debug("ChunkedProcessor: energy loss %.2f%%", energy_loss * 100)
 
         # Rückgabe (als mono wenn input mono war)
-        from plugins.htdemucs_plugin import SeparationResult
-
+        # §Fix 2026-09-08: lokaler Re-Import machte den Namen in der ganzen
+        # Funktion lokal → UnboundLocalError an früheren Stellen.
         result = SeparationResult(
             vocals=stems_out["vocals"][0] if orig_shape_mono else stems_out["vocals"],
             drums=stems_out["drums"][0] if orig_shape_mono else stems_out["drums"],

@@ -17,9 +17,13 @@ from __future__ import annotations
 
 import os
 import pathlib
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from plugins.demucs_v4_plugin import DemucsV4Plugin
 
 _REPO = pathlib.Path(__file__).resolve().parents[2]
 _DEMUCS_ONNX = _REPO / "models" / "demucs" / "htdemucs_6s.onnx"
@@ -31,7 +35,7 @@ def _clear_optout(monkeypatch):
     monkeypatch.delenv("AURIK_DISABLE_HTDEMUCS_6S", raising=False)
 
 
-def _construct_plugin(monkeypatch, tmp_path, *, env_disable: bool = False) -> object:
+def _construct_plugin(monkeypatch, tmp_path, *, env_disable: bool = False) -> "DemucsV4Plugin":
     from plugins.demucs_v4_plugin import DemucsV4Plugin
 
     dummy = tmp_path / "htdemucs_6s.onnx"

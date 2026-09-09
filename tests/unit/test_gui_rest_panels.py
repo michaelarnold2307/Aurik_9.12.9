@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 import pathlib
 import re
+from typing import TYPE_CHECKING, Callable, cast
 
 import pytest
 
@@ -72,10 +73,10 @@ def test_before_after_and_phase_report_have_no_untranslated_labels() -> None:
 # ── de_num (pure, kein Qt) ──────────────────────────────────────────────────
 
 
-def _run_de_num() -> object:
+def _run_de_num() -> Callable[..., str]:
     from Aurik10.ui.ui_constants import de_num
 
-    return de_num
+    return cast(Callable[..., str], de_num)
 
 
 @pytest.mark.unit

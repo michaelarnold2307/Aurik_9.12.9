@@ -56,26 +56,32 @@ else:  # pyright: ignore[reportUnreachable]
         QWidget = _QtWidgets.QWidget
         QScrollArea = _QtWidgets.QScrollArea
     except Exception:
-        # Fall back to Any so static type-checkers stop emitting assignment/type errors
-        QPointF = Any
-        QRectF = Any
-        QSize = Any
-        Qt = Any
-        QTimer = Any
+        # §Fix 2026-09-08: Any-Fallback brach Modul-Level-Konstanten
+        # (COLOR_PASS = QColor(...)) mit "TypeError: Any cannot be instantiated"
+        # in Umgebungen ohne PyQt5 (cross-platform CI). Stub-Klasse statt Any.
+        class _QtStub:  # pragma: no cover — nur Umgebungen ohne PyQt5
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                pass
 
-        QBrush = Any
-        QColor = Any
-        QFont = Any
-        QMouseEvent = Any
-        QPainter = Any
-        QPaintEvent = Any
-        QPen = Any
-        QPolygonF = Any
+        QPointF = _QtStub
+        QRectF = _QtStub
+        QSize = _QtStub
+        Qt = _QtStub
+        QTimer = _QtStub
 
-        QSizePolicy = Any
-        QToolTip = Any
-        QWidget = Any
-        QScrollArea = Any
+        QBrush = _QtStub
+        QColor = _QtStub
+        QFont = _QtStub
+        QMouseEvent = _QtStub
+        QPainter = _QtStub
+        QPaintEvent = _QtStub
+        QPen = _QtStub
+        QPolygonF = _QtStub
+
+        QSizePolicy = _QtStub
+        QToolTip = _QtStub
+        QWidget = _QtStub
+        QScrollArea = _QtStub
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Datmodell: Die 15 Musical Goals

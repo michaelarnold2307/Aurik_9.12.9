@@ -12,6 +12,7 @@ Date: 8. Februar 2026
 """
 
 # Import Musical Goals integration
+import logging
 from collections.abc import Callable
 from typing import Any
 

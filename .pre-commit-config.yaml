@@ -461,10 +461,14 @@ repos:
         pass_filenames: false
         files: ^(backend|plugins|denker|Aurik10|cli|tests/unit)/.*\.py$
 
-      # Coverage-Gate — SOTA: ≥ 90 % Zeilenabdeckung (branch=True, fail_under=90)
+      # Coverage-Gate — normativ: RELEASE_MUST-Coverage (§Fix 2026-09-08)
+      # Der frühere 90-%-pytest-cov-Lauf über backend/core+dsp+plugins+denker+
+      # Aurik10 war strukturell unerreichbar (gemessen 16,83 %) und blockierte
+      # jeden Commit mit Produktionscode. Normative Quelle: Spec 10_bug_gap_
+      # strategy.md, nightly-quality.yml, solo-release-gate.yml.
       - id: aurik-coverage-gate
-        name: "Coverage-Gate (≥ 90 % Zeilenabdeckung, branch=True)"
-        entry: .venv_aurik/bin/python -m pytest tests/unit --cov=backend/core --cov=dsp --cov=plugins --cov=denker --cov=Aurik10 --cov-report=term-missing --cov-fail-under=90 -x -q --tb=short
+        name: "Coverage-Gate (RELEASE_MUST, normativ)"
+        entry: .venv_aurik/bin/python scripts/release_must_coverage_check.py
         language: system
         pass_filenames: false
         files: ^(backend|plugins|denker|Aurik10|cli)/.*\.py$

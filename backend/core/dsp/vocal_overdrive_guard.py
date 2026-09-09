@@ -166,7 +166,7 @@ def _comb_metrics(pre_f: np.ndarray, post_f: np.ndarray, sr: int, f0: float) -> 
     freqs = np.fft.rfftfreq(n, 1.0 / sr)
     g_pre = float(np.sqrt(np.mean(pre_f**2)) + 1e-12)
     g_post = float(np.sqrt(np.mean(post_f**2)) + 1e-12)
-    Q = Q * (g_pre / g_post) ** 2  # Level-Angleich (Schutz vor Lautheits-Artefakten)
+    Q = Q * (g_pre / g_post) ** 2  # type: ignore[assignment]  # Level-Angleich (Schutz vor Lautheits-Artefakten)
 
     def band_power(spec: np.ndarray, fc: float, bw: float = 0.035) -> float:
         m = (freqs > fc * (1.0 - bw)) & (freqs < fc * (1.0 + bw))

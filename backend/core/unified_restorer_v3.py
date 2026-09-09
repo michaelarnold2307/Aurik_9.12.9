@@ -8327,7 +8327,7 @@ class UnifiedRestorerV3:
         try:
             self._vocal_orig_ref_final = np.array(audio, dtype=np.float32, copy=True)
         except Exception:
-            self._vocal_orig_ref_final = None
+            self._vocal_orig_ref_final = None  # type: ignore[assignment]
 
         # ── OOM-Guard: Audio-Buffer-Größe gegen RAM-Budget prüfen ────────────
         # Spec §9: Audio-Buffer max. 4 GB.  Intermediate STFTs/copies multiplizieren
@@ -13602,8 +13602,8 @@ class UnifiedRestorerV3:
             try:
                 from backend.core.fingerprint_matcher import FingerprintMatcher
 
-                _fm = FingerprintMatcher()
-                _fp = _fm.compute_fingerprint(
+                _fm_matcher = FingerprintMatcher()
+                _fp = _fm_matcher.compute_fingerprint(
                     audio,
                     sample_rate,
                     material=str(getattr(material_type, "value", material_type)).lower()
@@ -13612,7 +13612,7 @@ class UnifiedRestorerV3:
                     genre=str(getattr(self, "_restoration_context", {}).get("genre_label", "")),
                     defect_types=_defekt_hint.get("defect_types", []) if isinstance(_defekt_hint, dict) else [],
                 )
-                _match = _fm.find_match(_fp)
+                _match = _fm_matcher.find_match(_fp)
                 if _match and isinstance(self._restoration_context, dict):
                     self._restoration_context["fingerprint_match"] = _match
                     if "phase_strengths" in _match:
@@ -14703,7 +14703,7 @@ class UnifiedRestorerV3:
                 try:
                     self._wohklang_pre_enhancement_ref = np.asarray(restored_audio, dtype=np.float32).copy()
                 except Exception:
-                    self._wohklang_pre_enhancement_ref = None
+                    self._wohklang_pre_enhancement_ref = None  # type: ignore[assignment]
 
                 # §Goal-deficit FC boost (v10.0.0): estimate current goal levels from
                 # last PMGG log entries. If goals are below their adaptive targets after
@@ -15739,7 +15739,7 @@ class UnifiedRestorerV3:
                                     _xe[:_tqc_xf_n] = _tqc_np.linspace(0.0, 1.0, _tqc_xf_n)
                                 if _be < _n_samp:
                                     _xe[_blen - _tqc_xf_n :] = _tqc_np.linspace(1.0, 0.0, _tqc_xf_n)
-                                _fm = 1.0 - _xe * (1.0 - _sample_mult)  # type: ignore[assignment]
+                                _fm = 1.0 - _xe * (1.0 - _sample_mult)
                                 # Apply identical gain to every channel (§2.51).
                                 for _ch in range(_n_ch):
                                     _ra_out[_ch, _bs:_be] = (_ra_out[_ch, _bs:_be] * _fm).astype(_tqc_np.float32)
@@ -18033,7 +18033,7 @@ class UnifiedRestorerV3:
         # §8.1 Reporting-Analytik: MUSHRA, Artefakt-Analyse, Qualitätsvergleich
         # und >80 weitere Diagnose-Module (analytics-only, kein Audio-Eingriff)
         if _safe_validation_profile:
-            _analytics_meta = {}
+            _analytics_meta: dict[str, Any] = {}
         elif _chunked_tail_skip and not _chunked_last:
             # §P0-1 (c): _collect_reporting_analytics ist reine Song-Analytik
             # (MQA/MUSHRA/HPI — kein Audio-Eingriff). Im Chunked-Pfad nur auf
@@ -18679,7 +18679,7 @@ class UnifiedRestorerV3:
                         if _wk_fin.ndim == 2 and _wk_ref_a.ndim == 2 and _wk_fin.shape == _wk_ref_a.shape[::-1]:
                             _wk_ref_a = _wk_ref_a.T
                         else:
-                            _wk_ref_a = None
+                            _wk_ref_a = None  # type: ignore[assignment]
                     if _wk_ref_a is not None:
                         _eg_corrected = False
                         for _wkf_i in range(5):
@@ -22686,7 +22686,9 @@ class UnifiedRestorerV3:
                         _phoneme_timeline,
                         _lge_trans_pre,
                         _phase_quiet_edge_profile,
-                        _pipeline_confidence,
+                        # §Fix 2026-09-08: PipelineConfidence ist ein Dataclass —
+                        # float(obj) im Retry warf TypeError (stiller Ausfall).
+                        float(_pipeline_confidence.confidence) if _pipeline_confidence is not None else 1.0,
                         progress_callback=progress_callback,
                     )
                     if _m1b_audio is not None:

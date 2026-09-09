@@ -85,7 +85,8 @@ def _warmth_signal() -> np.ndarray:
     n = SR
     t = np.arange(n) / SR
     x = 0.3 * np.sin(2 * np.pi * 300 * t) + 0.25 * np.sin(2 * np.pi * 550 * t) + 0.05 * rng.standard_normal(n)
-    return x.astype(np.float32)
+    out: np.ndarray = np.asarray(x, dtype=np.float32)
+    return out
 
 
 class TestWarmthMaskingJND:

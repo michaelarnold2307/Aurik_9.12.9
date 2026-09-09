@@ -60,6 +60,10 @@ class FeedbackChain:
         55: ("brillanz", "bass_kraft"),  # Spectral band enhancement
     }
 
+    # §Hörordnung-Pre-Filter Baseline: uv3 setzt den Goal-Snapshot VOR der
+    # FC-Iteration hier ein (dynamisches Attribut war untypisiert — mypy).
+    baseline_goals: dict[str, object] | None = None
+
     def __init__(
         self,
         max_iterations: int = 5,

@@ -343,8 +343,11 @@ def compute_masking_threshold(
         mono = audio.mean(axis=0) if audio.ndim == 2 else audio
 
         # STFT für spektrale Analyse
-        S = np.abs(librosa.stft(mono, sr=sr))
-        freqs = librosa.fft_frequencies(sr=sr, n_fft=S.shape[0])
+        # §Fix 2026-09-08: librosa.stft kennt kein sr=-Kwarg (seit 0.10 entfernt) —
+        # der Aufruf warf TypeError und die Maskierungsschwelle fiel still aus (§V6).
+        _n_fft = 2048
+        S = np.abs(librosa.stft(mono, n_fft=_n_fft))
+        freqs = librosa.fft_frequencies(sr=sr, n_fft=_n_fft)
 
         # Bark-Skala: ~24 kritische Bänder
         if bark_scale:

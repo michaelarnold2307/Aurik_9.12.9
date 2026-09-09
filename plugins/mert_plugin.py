@@ -62,8 +62,8 @@ except Exception:  # pragma: no cover
 try:
     from transformers import AutoModel, Wav2Vec2FeatureExtractor  # type: ignore[import]
 except Exception:  # pragma: no cover
-    AutoModel = None  # type: ignore[misc]
-    Wav2Vec2FeatureExtractor = None  # type: ignore[misc]
+    AutoModel = None  # type: ignore[misc, assignment]
+    Wav2Vec2FeatureExtractor = None  # type: ignore[misc, assignment]
 
 logger = logging.getLogger(__name__)
 

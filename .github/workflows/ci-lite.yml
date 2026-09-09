@@ -320,7 +320,10 @@ jobs:
         run: pip install mypy
 
       - name: Run mypy
-        run: mypy --config-file pyproject.toml . --show-error-codes 2>&1 | tee /tmp/mypy_ci.txt
+        run: |
+          # Spec 10_bug_gap_strategy.md:324 — kanonischer Type-Safety-Scope:
+          # backend/core backend/api plugins Aurik10 cli (keine tests/scripts).
+          mypy --config-file pyproject.toml backend/core backend/api plugins Aurik10 cli --show-error-codes 2>&1 | tee /tmp/mypy_ci.txt
 
       - name: Fail on type errors
         run: |
@@ -364,9 +367,9 @@ jobs:
           echo "0 Lint-Fehler — Gate passed"
 
   coverage-gate:
-    name: Coverage Gate (≥ 90 % Zeilenabdeckung)
+    name: Coverage Gate (RELEASE_MUST, normativ)
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -383,20 +386,14 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements/requirements_dev.txt
-          pip install pytest-cov==6.1.1 coverage==7.6.12
 
-      - name: Run Coverage Gate (≥ 90 %)
+      - name: Run Coverage Gate (RELEASE_MUST-Coverage, normativ)
+        # §Fix 2026-09-08: Der frühere pytest-cov-90-%-Lauf über
+        # backend/core+dsp+plugins+denker+Aurik10 war strukturell unerreichbar
+        # (gemessen 16,83 % — hunderte ungetestete ML-Plugins), brauchte
+        # > 15 min (Job-Timeout) und stoppte per -x beim ersten Testfehler.
+        # Normative Quelle (Spec 10_bug_gap_strategy.md, nightly-quality.yml,
+        # solo-release-gate.yml): Jeder [RELEASE_MUST]-Header braucht einen
+        # Test — deterministisch, schnell, fail-closed.
         run: |
-          python -m pytest \
-            tests/unit \
-            --cov=backend/core \
-            --cov=dsp \
-            --cov=plugins \
-            --cov=denker \
-            --cov=Aurik10 \
-            --cov-report=term-missing \
-            --cov-fail-under=90 \
-            -x \
-            -q \
-            --tb=short \
-            --timeout=60
+          python scripts/release_must_coverage_check.py

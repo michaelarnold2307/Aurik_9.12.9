@@ -377,7 +377,7 @@ def delta_masking_margin_db_per_band(
         def _mono(x: np.ndarray) -> np.ndarray:
             if x.ndim == 2:
                 _ax = 0 if x.shape[0] <= 2 else 1
-                return x.mean(axis=_ax)
+                return np.asarray(x.mean(axis=_ax))
             return x
 
         pre_mono = _mono(pre)
@@ -389,7 +389,7 @@ def delta_masking_margin_db_per_band(
 
         d_frames, _ = _stft_magnitude_db(delta, sr)
         d_bands = _to_bark_bands(d_frames, freqs)
-        return thr - d_bands
+        return np.asarray(thr - d_bands)
     except Exception as exc:
         logger.debug("delta_masking_margin_db_per_band nicht blockierend: %s", exc)
         return _zeros

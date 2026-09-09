@@ -20,6 +20,7 @@ Date: 8. Februar 2026
 
 # Import Musical Goals integration
 import hashlib
+import logging
 import threading
 from collections.abc import Callable
 from typing import Any
