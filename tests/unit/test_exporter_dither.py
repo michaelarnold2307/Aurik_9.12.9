@@ -1,5 +1,7 @@
 import pytest
 
+pytest.importorskip("mutagen")  # CI-Minimal-Umgebung (cross-platform)
+
 """Unit-tests for backend.exporter — POW-r Type 3 / TPDF dithering.
 
 Spec §DSP-Spezialregeln:

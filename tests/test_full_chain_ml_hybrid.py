@@ -25,9 +25,11 @@ import json
 import time
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("librosa")  # CI-Minimal-Umgebung (cross-platform) ohne librosa
 import librosa
 import numpy as np
-import pytest
 import soundfile as sf
 
 from backend.core.defect_scanner import MaterialType

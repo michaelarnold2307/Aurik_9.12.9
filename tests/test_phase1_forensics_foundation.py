@@ -1,5 +1,10 @@
 import pytest
 
+# §Fix 2026-09-08: Diese Datei läuft Modul-Level-Code (Script-Stil) —
+# ohne librosa (CI-Minimal-Umgebung, cross-platform) schlug der
+# FeatureExtractor fehl und sys.exit(1) brach die Collection ab.
+pytest.importorskip("librosa")
+
 """
 Quick validation test für Phase 1 Signal Forensics Foundation
 """

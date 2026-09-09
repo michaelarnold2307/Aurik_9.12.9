@@ -12,6 +12,10 @@ Tests:
 6. Model save/load
 """
 
+import pytest
+
+pytest.importorskip("sklearn")  # CI-Minimal-Umgebung (cross-platform)
+
 import sys
 import tempfile
 from pathlib import Path

@@ -316,10 +316,19 @@ class TestMDX23CPrimarySeparator:
         assert "vocals" in result or "inst" in result, f"Stems fehlen: {list(result.keys())}"
 
     def test_05_htdemucs_still_in_manifest(self):
-        """htdemucs_6s muss im Manifest als experimental vorhanden bleiben."""
+        """htdemucs_6s ist PRODUKTIV (nicht experimental) — §Fix 2026-09-08.
+
+        Früher: experimental=True im (gitignored) Manifest → DemucsV4Plugin
+        lud die ONNX-Session nie → stummer HPSS-Fallback (§V6). Neuer
+        Vertrag: Produktions-Modelle laden standardmäßig; der Ladepfad liest
+        das Manifest nicht mehr (Opt-out: AURIK_DISABLE_HTDEMUCS_6S=1).
+        """
         models = _manifest_by_name()
-        assert "htdemucs_6s" in models, "htdemucs_6s fehlt im Manifest"
-        assert models["htdemucs_6s"].get("experimental") is True
+        if "htdemucs_6s" not in models:
+            pytest.skip("models/-Paket (gitignored) nicht installiert")
+        assert models["htdemucs_6s"].get("experimental") is not True, (
+            "htdemucs_6s darf nicht experimental sein — die Demucs-Stufe ist produktiv"
+        )
 
     def test_06_htdemucs_has_dsp_fallback(self):
         """htdemucs_6s muss einen DSP-Fallback deklariert haben."""

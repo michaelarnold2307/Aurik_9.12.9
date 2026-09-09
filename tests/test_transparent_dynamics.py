@@ -13,6 +13,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+pytest.importorskip("librosa")  # CI-Minimal-Umgebung (cross-platform)
+
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

@@ -1,5 +1,7 @@
 import pytest
 
+pytest.importorskip("pydantic")  # CI-Minimal-Umgebung (cross-platform)
+
 from backend.core.aesthetic_judgment import GenreWeightRegistry
 
 

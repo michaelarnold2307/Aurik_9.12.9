@@ -11,6 +11,10 @@ Testet:
 import sys
 from pathlib import Path
 
+import pytest
+
+pytest.importorskip("librosa")  # CI-Minimal-Umgebung (cross-platform)
+
 import numpy as np
 import pytest
 

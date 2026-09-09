@@ -7,6 +7,10 @@ welche Exportformate der Laien-Dialog anbietet.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("PyQt5")  # CI-Minimal-Umgebung (cross-platform) ohne PyQt5
+
 from PyQt5.QtCore import Qt
 
 from Aurik10.ui.export_presets import ExportPresetDialog

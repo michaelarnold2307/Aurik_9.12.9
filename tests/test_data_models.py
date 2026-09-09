@@ -9,6 +9,8 @@ from datetime import datetime
 
 import pytest
 
+pytest.importorskip("pydantic")  # CI-Minimal-Umgebung (cross-platform)
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from backend.core.data_models import AudioFile, DefectType, Genre, MediaType

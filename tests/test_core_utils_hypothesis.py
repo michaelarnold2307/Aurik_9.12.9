@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 try:
     from hypothesis import given
@@ -7,6 +8,9 @@ try:
     _hypothesis_available = True
 except ImportError:
     _hypothesis_available = False
+
+if not _hypothesis_available:
+    pytest.importorskip("hypothesis")  # CI-Minimal-Umgebung (cross-platform)
 
 from backend.core.core_utils import compute_rms
 

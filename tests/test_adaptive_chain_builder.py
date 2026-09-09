@@ -12,6 +12,10 @@ Tests:
 6. Chain export/import
 """
 
+import pytest
+
+pytest.importorskip("sklearn")  # CI-Minimal-Umgebung (cross-platform)
+
 import json
 import sys
 import tempfile

@@ -4,6 +4,8 @@ from collections.abc import Generator
 from typing import cast
 
 import pytest
+
+pytest.importorskip("PyQt5")  # CI-Minimal-Umgebung (cross-platform) ohne PyQt5
 from PyQt5 import QtWidgets
 
 from Aurik10.i18n import set_language, t

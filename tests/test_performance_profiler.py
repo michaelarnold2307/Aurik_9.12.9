@@ -1,5 +1,7 @@
 import pytest
 
+pytest.importorskip("psutil")  # CI-Minimal-Umgebung (cross-platform)
+
 """
 Tests for Performance Profiler
 ==============================

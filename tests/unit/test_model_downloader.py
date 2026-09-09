@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("requests")  # CI-Minimal-Umgebung (cross-platform)
+
 """tests/unit/test_model_downloader.py — §13.3 Pflicht-Tests für ModelDownloader.
 
 Testet:

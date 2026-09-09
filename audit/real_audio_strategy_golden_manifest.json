@@ -343,8 +343,7 @@
         "phase_29_tape_hiss_reduction",
         "phase_07_harmonic_restoration",
         "phase_06_frequency_restoration",
-        "phase_01_click_removal",
-        "phase_27_click_pop_removal"
+        "phase_01_click_removal"
       ],
       "accepted_causes": [
         "vinyl_crackle",

@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
+pytest.importorskip("PyQt5")  # CI-Minimal-Umgebung (cross-platform)
+
 from Aurik10.ipc.pipeline_process import PipelineProcess, PipelineStatus
 from Aurik10.ui.results_summary import build_results_data, interpret_hpi_score, interpret_mushra_score
 

@@ -1,5 +1,7 @@
 import pytest
 
+pytest.importorskip("librosa")  # CI-Minimal-Umgebung (cross-platform)
+
 """
 Test Phase 1 Click Removal ML-Hybrid Integration
 

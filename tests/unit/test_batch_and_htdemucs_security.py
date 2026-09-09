@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+pytest.importorskip("fastapi")  # CI-Minimal-Umgebung (cross-platform)
+
 from backend.api.rest import batch_endpoints
 
 

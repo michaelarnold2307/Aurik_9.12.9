@@ -6,6 +6,8 @@ Tests für dsp/adaptive_formant_shifter.py — alle drei Methoden:
 import numpy as np
 import pytest
 
+pytest.importorskip("librosa")  # CI-Minimal-Umgebung (cross-platform)
+
 from dsp.adaptive_formant_shifter import AdaptiveFormantShifter
 
 # ---------------------------------------------------------------------------

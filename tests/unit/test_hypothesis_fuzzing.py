@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("hypothesis")  # CI-Minimal-Umgebung (cross-platform)
+
 """
 tests/unit/test_hypothesis_fuzzing.py — Property-Based Tests für Aurik 10.0.0 (§5.1).
 

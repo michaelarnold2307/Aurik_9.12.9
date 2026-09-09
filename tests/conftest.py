@@ -61,6 +61,47 @@ except ImportError:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# §CI-Minimal-Umgebung (ci-cross-platform.yml installiert nur numpy/scipy/
+# soundfile/pytest/pytest-timeout/pyyaml): Testdateien mit weiteren Dritt-
+# bibliotheks-Abhängigkeiten werden von der Collection ausgenommen, statt
+# mit ModuleNotFoundError abzubrechen (Befund 2026-09-08: alle Cross-
+# Platform-Jobs rot wegen Collection-Fehlern). In vollen Umgebungen laufen
+# diese Dateien normal.
+# ═══════════════════════════════════════════════════════════════════════════
+import importlib.util as _importlib_util
+
+_CI_MINIMAL_DEP_FILES: dict[str, tuple[str, ...]] = {
+    "sklearn": ("tests/test_adaptive_chain_builder.py", "tests/test_ml_defect_detector.py"),
+    "pydantic": ("tests/test_aesthetic_judgment.py", "tests/test_data_models.py", "tests/test_tape_types.py"),
+    "hypothesis": ("tests/test_core_utils_hypothesis.py", "tests/unit/test_hypothesis_fuzzing.py"),
+    "psutil": ("tests/test_performance_profiler.py",),
+    "librosa": (
+        "tests/test_phase_01_ml_hybrid.py",
+        "tests/test_tonal_balance_restorer.py",
+        "tests/test_transparent_dynamics.py",
+        "tests/unit/test_adaptive_stft_consistency.py",
+        "tests/unit/test_dsp_formant_shifter.py",
+    ),
+    "fastapi": ("tests/unit/test_batch_and_htdemucs_security.py",),
+    "mutagen": ("tests/unit/test_exporter_dither.py",),
+    "PyQt5": ("tests/unit/test_gui_transport_contracts.py", "tests/unit/test_help_system_errorsimplifier.py"),
+    "requests": ("tests/unit/test_model_downloader.py",),
+    "onnxruntime": (
+        "tests/onnx_skip/test_plugin_manager.py",
+        "tests/onnx_skip/test_onnx_advanced.py",
+        "tests/onnx_skip/test_onnx_runtime.py",
+    ),
+}
+
+collect_ignore = [
+    _file
+    for _dep, _files in _CI_MINIMAL_DEP_FILES.items()
+    if _importlib_util.find_spec(_dep) is None
+    for _file in _files
+]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # PYTEST FIXTURES
 # ═══════════════════════════════════════════════════════════════════════════
 

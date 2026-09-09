@@ -2,6 +2,8 @@ from datetime import datetime
 
 import pytest
 
+pytest.importorskip("pydantic")  # CI-Minimal-Umgebung (cross-platform)
+
 from backend.core.data_models import (
     AnalysisProfile,
     DynamicsAnalysis,

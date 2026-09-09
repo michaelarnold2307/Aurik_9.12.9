@@ -7,6 +7,10 @@ Schlüssel zurück — deshalb wird gegen die Schlüssel assertiert.
 
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("PyQt5")  # CI-Minimal-Umgebung (cross-platform)
+
 from Aurik10.ui.help_system import ErrorSimplifier
 
 

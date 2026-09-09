@@ -3,8 +3,10 @@ from __future__ import annotations
 import threading
 
 import numpy as np
-import psutil
 import pytest
+
+pytest.importorskip("psutil")  # CI-Minimal-Umgebung (cross-platform) ohne psutil
+import psutil
 import scipy.signal as signal
 
 from backend.core.phases.phase_06_frequency_restoration import FrequencyRestorationPhase

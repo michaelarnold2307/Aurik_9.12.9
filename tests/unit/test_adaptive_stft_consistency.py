@@ -1,6 +1,8 @@
 import numpy as np
 import pytest
 
+pytest.importorskip("librosa")  # CI-Minimal-Umgebung (cross-platform)
+
 from dsp.adaptive_stft import AdaptiveSTFT
 
 

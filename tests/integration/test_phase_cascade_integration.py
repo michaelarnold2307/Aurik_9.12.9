@@ -75,9 +75,11 @@ def audio_vocal_like() -> tuple[np.ndarray, int]:
 
 
 @pytest.fixture(scope="module")
-def audio_stereo_like() -> tuple[np.ndarray, int]:
+def audio_stereo_like(audio_vinyl_like: tuple[np.ndarray, int]) -> tuple[np.ndarray, int]:
     """3s stereo @ 48 kHz — Stereo-Signal mit leichtem Channel-Imbalance."""
-    mono, sr = audio_vinyl_like()
+    # §Fix 2026-09-08: Fixture direkt aufgerufen — Fixtures werden als
+    # Parameter angefordert, nicht aufgerufen (pytest-Error).
+    mono, sr = audio_vinyl_like
     # Leichte Stereo-Differenz (Rechts etwas leiser)
     stereo = np.stack([mono, mono * 0.92], axis=0).astype(np.float32)
     return stereo, sr
@@ -212,8 +214,11 @@ class TestVocalChainCascade:
         assert np.isfinite(result2.audio).all(), "Spatial-Enhancement erzeugt NaN/Inf"
 
     @pytest.mark.timeout(_KAS_TIMEOUT)
-    def test_vocal_chain_preserves_fundamental(self, audio_vocal_like):
+    def test_vocal_chain_preserves_fundamental(self, audio_vinyl_like):
         """Gesang-Kette: Fundamental-Energie (~200 Hz) bleibt erhalten."""
+        # §Fix 2026-09-08: Parameter war audio_vocal_like, der Body griff auf
+        # audio_vinyl_like zu (nicht injiziert → Fixture-Funktionsobjekt →
+        # TypeError „cannot unpack non-iterable function object“).
         audio, sr = audio_vinyl_like  # Verwende vinyl-like mit bekanntem 220 Hz Ton
 
         from backend.core.phases.phase_65_vocal_naturalness_restoration import (
@@ -461,7 +466,9 @@ class TestVocalQualityGateCascade:
         audio, sr = audio_vocal_like
         gate = get_vocal_quality_gate()
 
-        result = gate.evaluate(audio, sr)
+        # §Fix 2026-09-08: evaluate(pre, post, sr) — der Test übergab sr als
+        # post_audio (int) → AttributeError in detect().
+        result = gate.evaluate(audio, audio, sr=sr)
 
         required_dims = {
             "formant_integrity",
