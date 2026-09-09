@@ -42,12 +42,16 @@ class WarmthBandResult:
         warmth_blend_factor: Empfohlener Blend-Faktor für nachfolgende Phasen
             (1.0 = kein Eingriff, < 1.0 = Strength reduzieren).
             Wird aus kumulativem Verlust berechnet, nicht aus diesem einzelnen Delta.
+        masking_jnd_db: Lokale Maskierungs-JND des Phasen-Deltas im Wärmeband
+            (§P1-3, Hörordnung Ebene 2) — der maskierte Verlust-Anteil zählt
+            nicht zum kumulativen Verlust.
     """
 
     loss_db: float
     gain_db: float
     ok: bool
     warmth_blend_factor: float = 1.0
+    masking_jnd_db: float = 0.0
 
 
 def _bandpass_energy_db(audio: np.ndarray, sr: int) -> float:
@@ -129,6 +133,7 @@ def measure_warmth_band_delta(
             gain_db=round(gain_db, 3),
             ok=ok,
             warmth_blend_factor=round(blend, 3),
+            masking_jnd_db=round(float(_jnd.jnd_db), 3),
         )
 
     except Exception as exc:

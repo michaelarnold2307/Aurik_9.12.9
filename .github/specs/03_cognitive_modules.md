@@ -975,7 +975,7 @@ plugins/hifigan_plugin.py            → ✅ Tertiär-Fallback (3,6 MB ONNX)
 
 # Stem-Separation
 plugins/mdx23c_plugin.py              → ✅ MDX23C Kim_Vocal_2/Kim_Inst (2×64 MB) PRIÄR
-plugins/demucs_v4_plugin.py          → ✅ HTDemucs 6s (Legacy-Fallback, experimental)
+plugins/demucs_v4_plugin.py          → ✅ HTDemucs 6s PRODUKTIV (§Align 2026-09-08: Manifest-Gate entfernt; Opt-out AURIK_DISABLE_HTDEMUCS_6S=1; vorher irrtümlich „experimental“ → stiller HPSS-Fallback)
 plugins/uvr_mdxnet_plugin.py         → ✅ UVR HQ 1–4 (56–64 MB je)
 plugins/bs_roformer_plugin.py        → ✅ BS-RoFormer + Mel-RoFormer (SOTA)
 

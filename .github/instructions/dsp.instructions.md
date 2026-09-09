@@ -173,23 +173,25 @@ if material_type in {"mp3_low", "streaming", "aac", "minidisc"} and panns_singin
 
 ```python
 # KANONISCH — nach jeder DSP-Phase auf Gesangsmaterial:
-from backend.core.dsp.formant_guard import check_formant_integrity
-from backend.core.musical_goals.era_vocal_profile import resolve_formant_tolerance_db
-
-pre_formants = check_formant_integrity(audio_pre, sr)  # F1–F4 via LPC
-post_formants = check_formant_integrity(audio_post, sr)
+# §Align 2026-09-08: Der Guard lebt in lpc_formant_tracker (nicht in einem
+# separaten formant_guard-Modul); die Frequenz-JND kommt aus resolve_jnd_
+# tolerance_db, die lokale Maskierungs-JND aus residuum_masking.
+from backend.core.dsp.lpc_formant_tracker import check_formant_shift_db
+from backend.core.dsp.jnd_tolerance import resolve_jnd_tolerance_db
 
 # §2.71 (v10.0.0): Per-Formant-Toleranz — F1/F2 ±1 dB, F3/F4 ±1.5 dB
-# (war: global ±2 dB — zu grob für Weltklasse-Vokalrestauration)
-_FORMANT_TOLERANCE_DB = [1.0, 1.0, 1.5, 1.5]  # F1, F2, F3, F4
-
-for f_idx in range(4):  # F1, F2, F3, F4
-    era_tolerance = resolve_formant_tolerance_db(era_decade=era_decade, era_profile=era_profile)
-    threshold_db = min(_FORMANT_TOLERANCE_DB[f_idx], era_tolerance)
-    shift_db = abs(post_formants[f_idx] - pre_formants[f_idx])
-    if shift_db > threshold_db:
-        logger.warning("formant_shift F%d = %.1f dB > %.1f → rollback", f_idx+1, shift_db, threshold_db)
-        return audio_pre  # keine Ausnahmen
+# (war: global ±2 dB — zu grob für Weltklasse-Vokalrestauration).
+# §V43: min(threshold_db, resolve_jnd_tolerance_db(f_hz)) — immer das Strengere.
+# §P1-3 (2026-09-08, Hörordnung Ebene 2): Die lokale Maskierungs-Marge des
+# Formant-Bands (delta_masking_margin_db_per_band, max. 6 dB) ERHÖHT die
+# Toleranz — eine maskierte Formant-Verschiebung ist unhörbar und löst
+# keinen Rollback aus. Rollback-Warnung enthält den Maskierungskontext.
+# §V6-Fix (2026-09-08): _burg_lpc hatte einen Shape-Mismatch ab order ≥ 2 →
+# der Guard war ein stummer No-op. Jetzt aktiv; Exceptions loggen als warning.
+rollback, max_shift_db = check_formant_shift_db(audio_pre, audio_post, sr, threshold_db=2.0)
+if rollback:
+    logger.warning("formant_shift %.2f dB über Toleranz → rollback", max_shift_db)
+    return audio_pre  # keine Ausnahmen
 ```
 
 ## §0p Vibrato-Schutzzone (Pflicht bei `panns_singing ≥ 0.25`)
@@ -515,11 +517,15 @@ if audio.ndim == 2 and panns_singing >= 0.25:
 from backend.core.dsp.spectral_color_guard import check_spectral_color_preservation
 
 _scp = check_spectral_color_preservation(audio_pre, audio_post, sr)
-if _scp.correlation < 0.97:
+# §P1-3 (2026-09-08, Hörordnung Ebene 2): Die feste Schwelle (0.97, auto-adaptiv
+# bis 0.70) wird durch die lokale Maskierungs-JND des Phasen-Deltas begrenzt
+# relaxiert (max. −0.20 bei voller 6-dB-JND, linear) — eine maskierte
+# Spektralfarben-Abweichung ist unhörbar und löst keine Rücknahme aus.
+if not _scp.ok:
     _strength_reduction = 0.30  # Strength 30 % reduzieren
     # Blend: audio_out = audio_pre * 0.3 + audio_post * 0.7
     audio_post = audio_pre * _strength_reduction + audio_post * (1.0 - _strength_reduction)
-    logger.warning("spectral_color_guard: corr=%.3f < 0.97 → strength-0.30 (V24)", _scp.correlation)
+    logger.warning("spectral_color_guard: corr=%.3f → strength-0.30 (V24, §P1-3 Schwelle=%.3f)", _scp.correlation, getattr(_scp, "effective_threshold", 0.97))
     metadata["spectral_color_corr"] = _scp.correlation
 # Messung: 1/3-Oktav-Energiekurve 200–8000 Hz, exkl. DefectScanner-Defektfrequenzen
 ```
@@ -533,8 +539,12 @@ if _scp.correlation < 0.97:
 from backend.core.dsp.warmth_guard import measure_warmth_band_delta
 
 _wbd = measure_warmth_band_delta(audio_pre, audio_post, sr)
-# In _restoration_context akkumulieren:
-_ctx["warmth_band_loss_db"] = _ctx.get("warmth_band_loss_db", 0.0) + max(0.0, _wbd.loss_db)
+# §P1-3 (2026-09-08, Hörordnung Ebene 2): Der maskierte Anteil des aktuellen
+# Phasen-Verlusts (lokale Maskierungs-JND im Wärmeband, max. 6 dB) zählt
+# NICHT zum kumulativen Verlust — vorherige hörbare Verluste bleiben wirksam.
+# In _restoration_context akkumulieren (nur der hörbare Anteil):
+_audible_loss = max(0.0, _wbd.loss_db - float(getattr(_wbd, "masking_jnd_db", 0.0)))
+_ctx["warmth_band_loss_db"] = _ctx.get("warmth_band_loss_db", 0.0) + _audible_loss
 
 if _ctx["warmth_band_loss_db"] > 2.5:
     # Alle weiteren Phasen skalieren bis Verlust unter 2.5 dB
@@ -561,7 +571,11 @@ audio_post = apply_onset_protection_mask(
     audio_pre=audio_pre,
     audio_post=audio_post,
     onset_mask=onset_mask,   # aus _restoration_context["onset_mask"]
-    max_delta_db=1.5,        # max. 1.5 dB Änderung in Onset-Frames
+    max_delta_db=1.5,        # feste Basis-Toleranz
+    # §P1-3 (2026-09-08, Hörordnung Ebene 2): effektive Toleranz =
+    # max(1.5 dB, lokale Maskierungs-JND des Phasen-Deltas, max. 6 dB) —
+    # laute Transients maskieren die Abweichung, dann wird erst bei
+    # größeren Ratios geblendet (weniger unnötige Dry-Wet-Blends).
 )
 # onset_mask: HPSS → Transient-Komponente → Frames mit Energie > Schwelle
 # Onset-Fenster: 0–20 ms nach erstem Transient-Frame (Hörfenster für Attack)
